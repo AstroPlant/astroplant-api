@@ -16,10 +16,14 @@ in
       bashInteractive
       cacert
       openssl
+      postgresql_11
+      # note: install diesel_cli with:
+      # cargo install diesel_cli --no-default-features --features postgres
     ];
 
     shellHook = ''
       export RUST_SRC_PATH="${my-rust-src}/lib/rustlib/src/rust/src"
       export RUST_LOG=warn,astroplant-api=trace
+      export PATH="$HOME/.cargo/bin:$PATH"
     '';
   }

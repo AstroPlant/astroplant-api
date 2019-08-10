@@ -1,12 +1,15 @@
 [package]
-name = "rs-api"
+name = "astroplant-rs-api"
 version = "0.1.0"
 authors = ["Thomas Churchman <thomas@kepow.org>"]
 edition = "2018"
 
 [dependencies]
+chrono = "0.4"
 warp = "0.1"
-diesel = { version = "1.4.2", features = ["postgres", "r2d2"] }
+rumqtt = "0.30.1"
+diesel = { version = "1.4.2", features = ["postgres", "numeric", "r2d2"] }
+bigdecimal = "0.0.14"
 ratelimit_meter = "4.1.1"
 serde = { version = "1.0.97", features = ["derive"] }
 erased-serde = "0.3"

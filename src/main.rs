@@ -4,6 +4,7 @@ extern crate diesel;
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use futures::future::Future;
+use serde::Deserialize;
 use warp::{self, path, Filter, Rejection, Reply};
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
@@ -11,10 +12,13 @@ type PgPooled = PooledConnection<ConnectionManager<PgConnection>>;
 
 mod error;
 mod helpers;
-mod models;
 mod schema;
 use error::Error;
 mod rate_limit;
+
+mod controllers;
+mod models;
+mod views;
 
 static VERSION: &str = "1.0.0-alpha";
 
@@ -36,9 +40,10 @@ fn main() {
             Err(_) => Err(warp::reject::custom(Error::InternalServer)),
         });
 
-    let version = path!("version").map(|| VERSION);
-    let test = path!("test")
-        .and(pg)
+    let version = || VERSION;
+    let time = || chrono::Utc::now().to_rfc3339();
+    let test = pg
+        .clone()
         .and_then(|conn: PgPooled| {
             helpers::fut_threadpool(move || {
                 models::NewUser::new("test", "asd", "asd@asd.asd").create(&conn)
@@ -51,11 +56,21 @@ fn main() {
         });
 
     let all = rate_limit
-        .and(version.or(test).unify())
-        .map(|serialize| warp::reply::json(&serialize))
+        .and(path!("version").map(version).map(|v| serialize(&v)))
+        .or(path!("test").and(test))
+        .or(path!("time").map(time).map(|t| serialize(&t)))
+        .or(path!("kits").and(controllers::kit::kit_by_id(pg.clone().boxed())))
+        .or(path!("kits").and(warp::path::end()).and(controllers::kit::kits(pg.boxed())))
         .recover(handle_rejection);
 
     warp::serve(all).run(([127, 0, 0, 1], 8080));
+}
+
+fn serialize<T>(val: &T) -> impl Reply
+where
+    T: serde::Serialize,
+{
+    warp::reply::json(val)
 }
 
 fn handle_rejection(rejection: Rejection) -> Result<impl Reply, Rejection> {

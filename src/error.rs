@@ -8,6 +8,7 @@ pub enum Error {
     UnknownEndpoint,
     InternalServer,
     RateLimit(RateLimitError),
+    NotFound,
 }
 
 impl Error {
@@ -16,6 +17,7 @@ impl Error {
             Error::UnknownEndpoint => warp::http::StatusCode::NOT_FOUND,
             Error::InternalServer => warp::http::StatusCode::INTERNAL_SERVER_ERROR,
             Error::RateLimit(_) => warp::http::StatusCode::TOO_MANY_REQUESTS,
+            Error::NotFound => warp::http::StatusCode::NOT_FOUND,
         }
     }
 
@@ -33,8 +35,13 @@ impl Error {
             },
             Error::RateLimit(rate_limit_error) => FlatError {
                 error_code: 2,
-                error_name: "rateLimitError",
+                error_name: "rateLimit",
                 error_value: Some(rate_limit_error),
+            },
+            Error::NotFound => FlatError {
+                error_code: 3,
+                error_name: "notFound",
+                error_value: None,
             },
         }
     }
@@ -46,6 +53,7 @@ impl Display for Error {
             Error::UnknownEndpoint => "Unknown endpoint",
             Error::InternalServer => "Internal server",
             Error::RateLimit(_) => "Rate limited",
+            Error::NotFound => "Not found",
         })
     }
 }
@@ -61,6 +69,7 @@ pub struct FlatError<'a> {
 }
 
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct RateLimitError {
     pub wait_time_millis: u64,
 }

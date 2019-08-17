@@ -40,10 +40,9 @@ fn main() {
     let test = pg
         .clone()
         .and_then(|conn: PgPooled| {
-            helpers::fut_threadpool(move || {
+            helpers::threadpool(move || {
                 models::NewUser::new("test", "asd", "asd@asd.asd").create(&conn)
             })
-            .map_err(|_| warp::reject::custom(Error::InternalServer))
         })
         .map(|res| {
             println!("{:?}", res);

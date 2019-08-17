@@ -15,6 +15,13 @@ where
     })
 }
 
+pub fn threadpool<F, T>(f: F) -> impl Future<Item = T, Error = Rejection>
+where
+    F: FnOnce() -> T,
+{
+    fut_threadpool(f).map_err(|_| warp::reject::custom(crate::Error::InternalServer))
+}
+
 pub fn json_decode<T>() -> impl Filter<Extract = (T,), Error = Rejection> + Copy
 where
     T: DeserializeOwned + Send,

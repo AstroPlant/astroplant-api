@@ -10,4 +10,4 @@ rust-crypto = "0.2.36"
 rand = "0.7.0"
 base64 = "0.10.1"
 serde = { version = "1.0.97", features = ["derive"] }
-jsonwebtoken = "6.0.1"
+jsonwebtoken = ">= 5, <= 6"

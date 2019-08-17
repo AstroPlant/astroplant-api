@@ -33,12 +33,7 @@ fn main() {
     let pg_pool = pg_pool();
     let rate_limit = rate_limit::leaky_bucket();
 
-    let pg = warp::any()
-        .map(move || pg_pool.clone())
-        .and_then(|pg_pool: PgPool| match pg_pool.get() {
-            Ok(pg_pooled) => Ok(pg_pooled),
-            Err(_) => Err(warp::reject::custom(Error::InternalServer)),
-        });
+    let pg = helpers::pg(pg_pool);
 
     let version = || VERSION;
     let time = || chrono::Utc::now().to_rfc3339();

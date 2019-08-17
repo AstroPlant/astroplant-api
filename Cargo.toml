@@ -5,6 +5,8 @@ authors = ["Thomas Churchman <thomas@kepow.org>"]
 edition = "2018"
 
 [dependencies]
+log = "0.4.0"
+env_logger = "0.6.2"
 chrono = "0.4"
 warp = "0.1"
 rumqtt = "0.30.1"

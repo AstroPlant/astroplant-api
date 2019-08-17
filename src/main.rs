@@ -1,4 +1,7 @@
 #[macro_use]
+extern crate log;
+
+#[macro_use]
 extern crate diesel;
 
 use diesel::pg::PgConnection;
@@ -30,6 +33,8 @@ fn pg_pool() -> PgPool {
 }
 
 fn main() {
+    env_logger::init();
+
     let pg_pool = pg_pool();
     let rate_limit = rate_limit::leaky_bucket();
 
@@ -55,8 +60,7 @@ fn main() {
         .and(path!("version").map(version).map(|v| serialize(&v)))
         .or(path!("test").and(test))
         .or(path!("time").map(time).map(|t| serialize(&t)))
-        .or(path!("kits").and(controllers::kit::kit_by_id(pg.clone().boxed())))
-        .or(path!("kits").and(warp::path::end()).and(controllers::kit::kits(pg.boxed())))
+        .or(path!("kits").and(controllers::kit::router(pg.clone().boxed())))
         .recover(handle_rejection);
 
     warp::serve(all).run(([127, 0, 0, 1], 8080));

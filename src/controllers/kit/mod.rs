@@ -1,6 +1,15 @@
 use serde::Deserialize;
 use warp::{filters::BoxedFilter, path, Filter, Rejection, Reply};
 
+pub fn router(
+    pg: BoxedFilter<(crate::PgPooled,)>,
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
+    trace!("Setting up kits router.");
+
+    kit_by_id(pg.clone().boxed()).map(|reply| reply)
+        .or(warp::path::end().and(kits(pg.boxed())))
+}
+
 #[derive(Deserialize)]
 struct CursorPage {
     after: Option<i32>,
@@ -9,7 +18,7 @@ struct CursorPage {
 /// Handles the `GET /kits/?after=afterId` route.
 pub fn kits(
     pg: BoxedFilter<(crate::PgPooled,)>,
-) -> impl Filter<Extract = (warp::reply::Response,), Error = Rejection> + Clone {
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     use crate::error::Error;
     use crate::{helpers, models};
     use crate::{serialize, PgPooled};
@@ -53,7 +62,7 @@ pub fn kits(
 /// Handles the `GET /kits/{kitId}` route.
 pub fn kit_by_id(
     pg: BoxedFilter<(crate::PgPooled,)>,
-) -> impl Filter<Extract = (warp::reply::Response,), Error = Rejection> + Clone {
+) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
     use crate::error::Error;
     use crate::{helpers, models};
     use crate::{serialize, PgPooled};

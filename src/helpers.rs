@@ -1,4 +1,5 @@
-use futures::future::{Future, poll_fn};
+use serde::de::DeserializeOwned;
+use warp::{Filter, Rejection};
 
 pub fn fut_threadpool<F, T>(f: F) -> impl Future<Item = T, Error = tokio_threadpool::BlockingError>
 where
@@ -11,4 +12,11 @@ where
             f()
         })
     })
+}
+
+pub fn json_decode<T>() -> impl Filter<Extract = (T,), Error = Rejection> + Copy
+where
+    T: DeserializeOwned + Send,
+{
+    warp::body::json().or_else(|_| Err(warp::reject::custom(crate::Error::InvalidJson)))
 }

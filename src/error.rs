@@ -9,6 +9,7 @@ pub enum Error {
     InternalServer,
     RateLimit(RateLimitError),
     NotFound,
+    InvalidJson,
 }
 
 impl Error {
@@ -18,6 +19,7 @@ impl Error {
             Error::InternalServer => warp::http::StatusCode::INTERNAL_SERVER_ERROR,
             Error::RateLimit(_) => warp::http::StatusCode::TOO_MANY_REQUESTS,
             Error::NotFound => warp::http::StatusCode::NOT_FOUND,
+            Error::InvalidJson => warp::http::StatusCode::BAD_REQUEST,
         }
     }
 
@@ -43,6 +45,11 @@ impl Error {
                 error_name: "notFound",
                 error_value: None,
             },
+            Error::InvalidJson => FlatError {
+                error_code: 4,
+                error_name: "invalidJson",
+                error_value: None,
+            },
         }
     }
 }
@@ -54,6 +61,7 @@ impl Display for Error {
             Error::InternalServer => "Internal server",
             Error::RateLimit(_) => "Rate limited",
             Error::NotFound => "Not found",
+            Error::InvalidJson => "Invalid JSON",
         })
     }
 }

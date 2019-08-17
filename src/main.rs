@@ -49,7 +49,9 @@ fn main() {
             "asd"
         });
 
-    let all = rate_limit
+    let all =
+        warp::body::content_length_limit(1024 * 1024 * 10) // 10 MiB
+        .and(rate_limit)
         .and(path!("version").map(version).map(|v| serialize(&v)))
         .or(path!("test").and(test))
         .or(path!("time").map(time).map(|t| serialize(&t)))

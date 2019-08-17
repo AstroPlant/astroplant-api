@@ -61,6 +61,7 @@ fn main() {
         .or(path!("test").and(test))
         .or(path!("time").map(time).map(|t| serialize(&t)))
         .or(path!("kits").and(controllers::kit::router(pg.clone().boxed())))
+        .or(path!("users").and(controllers::user::router(pg.clone().boxed())))
         .recover(handle_rejection);
 
     warp::serve(all).run(([127, 0, 0, 1], 8080));

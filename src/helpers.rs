@@ -39,3 +39,10 @@ pub fn pg(
             Err(_) => Err(warp::reject::custom(crate::Error::InternalServer)),
         })
 }
+
+pub fn ok_or_internal_error<T, E>(r: Result<T, E>) -> Result<T, Rejection> {
+    match r {
+        Ok(value) => Ok(value),
+        Err(_) => Err(warp::reject::custom(crate::Error::InternalServer)),
+    }
+}

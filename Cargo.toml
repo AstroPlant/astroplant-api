@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 log = "0.4.0"
 env_logger = "0.6.2"
+astroplant-auth = { path = "./astroplant-auth" }
 chrono = "0.4"
 warp = "0.1"
 rumqtt = "0.30.1"

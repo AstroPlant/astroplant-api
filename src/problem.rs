@@ -17,8 +17,13 @@ pub enum Problem {
     #[serde(rename = "/probs/rate-limit")]
     RateLimit(RateLimitError),
 
+    #[serde(rename = "/probs/payload-too-large")]
+    PayloadTooLarge { limit: u64 },
+
     #[serde(rename = "/probs/invalid-json")]
-    InvalidJson,
+    InvalidJson {
+        category: JsonDeserializeErrorCategory,
+    },
 
     #[serde(rename = "/probs/invalid-parameters")]
     InvalidParameters(Vec<InvalidParameter>),
@@ -33,7 +38,8 @@ impl Problem {
             Generic(NotFound) => warp::http::StatusCode::NOT_FOUND,
             Generic(InternalServerError) => warp::http::StatusCode::INTERNAL_SERVER_ERROR,
             RateLimit(_) => warp::http::StatusCode::TOO_MANY_REQUESTS,
-            InvalidJson => warp::http::StatusCode::BAD_REQUEST,
+            PayloadTooLarge { .. } => warp::http::StatusCode::PAYLOAD_TOO_LARGE,
+            InvalidJson { .. } => warp::http::StatusCode::BAD_REQUEST,
             InvalidParameters(_) => warp::http::StatusCode::BAD_REQUEST,
         }
     }
@@ -100,10 +106,17 @@ impl<'a> From<&'a Problem> for DescriptiveProblem<'a> {
                 )
             }
 
-            InvalidJson => {
+            PayloadTooLarge { limit } => {
+                (
+                    Some("Your request payload was too large.".to_owned()),
+                    Some(format!("The request payload limit was {} bytes.", limit)),
+                )
+            }
+
+            InvalidJson { .. } => {
                 (
                     Some("Your request JSON was malformed.".to_owned()),
-                    Some("The JSON might be syntactically incorrect, or it might not adhere to the endpoint's schema.".to_owned()),
+                    Some("The JSON might be syntactically incorrect, or it might not adhere to the endpoint's schema. Refer to the category for more information.".to_owned()),
                 )
             }
 
@@ -143,4 +156,32 @@ pub struct InvalidParameter {
 #[serde(rename_all = "camelCase")]
 pub struct RateLimitError {
     pub wait_time_millis: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum JsonDeserializeErrorCategory {
+    Syntactic,
+    Semantic,
+    PrematureEnd,
+    Other,
+}
+
+impl From<serde_json::error::Category> for JsonDeserializeErrorCategory {
+    fn from(category: serde_json::error::Category) -> Self {
+        use serde_json::error::Category::*;
+
+        match category {
+            Syntax => Self::Syntactic,
+            Data => Self::Semantic,
+            Eof => Self::PrematureEnd,
+            _ => Self::Other,
+        }
+    }
+}
+
+impl From<&serde_json::Error> for JsonDeserializeErrorCategory {
+    fn from(error: &serde_json::Error) -> Self {
+        error.classify().into()
+    }
 }

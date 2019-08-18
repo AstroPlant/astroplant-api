@@ -1,5 +1,6 @@
 use crate::problem::{Problem, INTERNAL_SERVER_ERROR};
 
+use bytes::Buf;
 use futures::future::{poll_fn, Future};
 use serde::de::DeserializeOwned;
 use warp::{Filter, Rejection};
@@ -28,7 +29,26 @@ pub fn json_decode<T>() -> impl Filter<Extract = (T,), Error = Rejection> + Copy
 where
     T: DeserializeOwned + Send,
 {
-    warp::body::json().or_else(|_| Err(warp::reject::custom(Problem::InvalidJson)))
+    // Allow a request of at most 64 KiB
+    const CONTENT_LENGTH_LIMIT: u64 = 1024 * 64;
+
+    warp::body::content_length_limit(CONTENT_LENGTH_LIMIT)
+        .or_else(|_| {
+            Err(warp::reject::custom(Problem::PayloadTooLarge {
+                limit: CONTENT_LENGTH_LIMIT,
+            }))
+        })
+        .and(warp::body::concat())
+        .and_then(|body_buffer: warp::body::FullBody| {
+            let body: Vec<u8> = body_buffer.collect();
+
+            serde_json::from_slice(&body).map_err(|err| {
+                debug!("Request JSON deserialize error: {}", err);
+                warp::reject::custom(Problem::InvalidJson {
+                    category: (&err).into(),
+                })
+            })
+        })
 }
 
 pub fn pg(

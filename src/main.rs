@@ -6,8 +6,6 @@ extern crate diesel;
 
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
-use futures::future::Future;
-use serde::Deserialize;
 use warp::{self, path, Filter, Rejection, Reply};
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
@@ -20,7 +18,10 @@ mod schema;
 
 mod controllers;
 mod models;
+mod response;
 mod views;
+
+use response::Response;
 
 static VERSION: &str = "1.0.0-alpha";
 
@@ -39,37 +40,34 @@ fn main() {
 
     let pg = helpers::pg(pg_pool);
 
-    let version = || VERSION;
-    let time = || chrono::Utc::now().to_rfc3339();
-    let test = pg
-        .clone()
-        .and_then(|conn: PgPooled| {
-            helpers::threadpool(move || {
-                models::NewUser::new("test", "asd", "asd@asd.asd").create(&conn)
-            })
-        })
-        .map(|res| {
-            println!("{:?}", res);
-            "asd"
-        });
+    let all = rate_limit
+        .and(
+            path!("version").map(|| Response::ok(VERSION))
+                .or(path!("time").map(|| Response::ok(chrono::Utc::now().to_rfc3339())))
+                .unify()
+                .or(path!("kits").and(controllers::kit::router(pg.clone().boxed())))
+                .unify()
+                .or(path!("users").and(controllers::user::router(pg.clone().boxed())))
+                .unify()
+        )
+        .and(warp::header("Accept"))
+        .map(|response: Response, _accept: String| {
+            // TODO: utilize Accept header, e.g. returning XML when requested.
 
-    let all = warp::body::content_length_limit(1024 * 1024 * 10) // 10 MiB
-        .and(rate_limit)
-        .and(path!("version").map(version).map(|v| serialize(&v)))
-        .or(path!("test").and(test))
-        .or(path!("time").map(time).map(|t| serialize(&t)))
-        .or(path!("kits").and(controllers::kit::router(pg.clone().boxed())))
-        .or(path!("users").and(controllers::user::router(pg.clone().boxed())))
+            let mut http_response_builder = warp::http::response::Builder::new();
+            http_response_builder.status(response.status_code());
+            http_response_builder.header("Content-Type", "application/json");
+
+            for (header, value) in response.headers() {
+                http_response_builder.header(header.as_bytes(), value.clone());
+            }
+            http_response_builder
+                .body(serde_json::to_string(response.value()).unwrap())
+                .unwrap()
+        })
         .recover(handle_rejection);
 
     warp::serve(all).run(([127, 0, 0, 1], 8080));
-}
-
-fn serialize<T>(val: &T) -> impl Reply
-where
-    T: serde::Serialize,
-{
-    warp::reply::json(val)
 }
 
 /// Convert rejections into replies.

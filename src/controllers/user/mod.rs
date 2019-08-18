@@ -1,23 +1,23 @@
 use serde::Deserialize;
-use warp::{filters::BoxedFilter, path, Filter, Rejection, Reply};
+use warp::{filters::BoxedFilter, Filter, Rejection};
 
 use crate::helpers;
 use crate::models;
+use crate::response::Response;
 
 pub fn router(
     pg: BoxedFilter<(crate::PgPooled,)>,
-) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
+) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     trace!("Setting up users router.");
 
     warp::path::end()
         .and(warp::post2())
         .and(create_user(pg.clone()))
-        .map(|success: bool| crate::serialize(&success))
 }
 
 pub fn create_user(
     pg: BoxedFilter<(crate::PgPooled,)>,
-) -> impl Filter<Extract = (bool,), Error = Rejection> + Clone {
+) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     #[derive(Deserialize, Debug)]
     #[serde(rename_all = "camelCase")]
     struct User {
@@ -44,5 +44,5 @@ pub fn create_user(
             },
         )
         .and_then(crate::helpers::ok_or_internal_error)
-        .map(|res: Option<_>| res.is_some())
+        .map(|res: Option<_>| Response::ok(res.is_some()))
 }

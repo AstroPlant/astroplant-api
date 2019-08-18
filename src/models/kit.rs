@@ -3,7 +3,6 @@ use diesel::prelude::*;
 use diesel::{Connection, QueryResult, Queryable, Identifiable};
 use diesel::pg::PgConnection;
 use bigdecimal::BigDecimal;
-use serde::Serialize;
 use crate::views::EncodableKit;
 
 #[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable)]

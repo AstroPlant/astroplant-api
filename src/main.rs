@@ -13,11 +13,10 @@ use warp::{self, path, Filter, Rejection, Reply};
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 type PgPooled = PooledConnection<ConnectionManager<PgConnection>>;
 
-mod error;
 mod helpers;
-mod schema;
-use error::Error;
+mod problem;
 mod rate_limit;
+mod schema;
 
 mod controllers;
 mod models;
@@ -54,8 +53,7 @@ fn main() {
             "asd"
         });
 
-    let all =
-        warp::body::content_length_limit(1024 * 1024 * 10) // 10 MiB
+    let all = warp::body::content_length_limit(1024 * 1024 * 10) // 10 MiB
         .and(rate_limit)
         .and(path!("version").map(version).map(|v| serialize(&v)))
         .or(path!("test").and(test))
@@ -74,21 +72,38 @@ where
     warp::reply::json(val)
 }
 
+/// Convert rejections into replies.
 fn handle_rejection(rejection: Rejection) -> Result<impl Reply, Rejection> {
-    if let Some(err) = rejection.find_cause::<Error>() {
-        Ok(warp::reply::with_status(
-            serde_json::to_string(&err.to_flat_error()).unwrap(),
-            err.to_status_code(),
-        ))
+    use problem::{DescriptiveProblem, Problem};
+
+    let reply = if let Some(problem) = rejection.find_cause::<Problem>() {
+        // This rejection originated in this implementation.
+
+        let descriptive_problem = DescriptiveProblem::from(problem);
+
+        warp::reply::with_status(
+            serde_json::to_string(&descriptive_problem).unwrap(),
+            problem.to_status_code(),
+        )
     } else {
-        let err = if rejection.is_not_found() {
-            Error::UnknownEndpoint
+        // This rejection originated in Warp.
+
+        let problem = if rejection.is_not_found() {
+            problem::NOT_FOUND
         } else {
-            Error::InternalServer
+            problem::INTERNAL_SERVER_ERROR
         };
-        Ok(warp::reply::with_status(
-            serde_json::to_string(&err.to_flat_error()).unwrap(),
-            err.to_status_code(),
-        ))
-    }
+        let descriptive_problem = DescriptiveProblem::from(&problem);
+
+        warp::reply::with_status(
+            serde_json::to_string(&descriptive_problem).unwrap(),
+            problem.to_status_code(),
+        )
+    };
+
+    Ok(warp::reply::with_header(
+        reply,
+        "Content-Type",
+        "application/problem+json",
+    ))
 }

@@ -1,3 +1,5 @@
+use crate::problem::{INTERNAL_SERVER_ERROR, NOT_FOUND};
+
 use serde::Deserialize;
 use warp::{filters::BoxedFilter, path, Filter, Rejection, Reply};
 
@@ -19,7 +21,6 @@ struct CursorPage {
 pub fn kits(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
-    use crate::error::Error;
     use crate::{helpers, models};
     use crate::{serialize, PgPooled};
 
@@ -36,9 +37,9 @@ pub fn kits(
                             .map(|kit| kit.encodable())
                             .collect::<Vec<_>>()
                     })
-                    .map_err(|_| warp::reject::custom(Error::InternalServer))
+                    .map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
             })
-            .map_err(|_| warp::reject::custom(Error::InternalServer))
+            .map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
             .then(|v| match v {
                 Ok(t) => t,
                 Err(r) => Err(r),
@@ -63,7 +64,6 @@ pub fn kits(
 pub fn kit_by_id(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
-    use crate::error::Error;
     use crate::{helpers, models};
     use crate::{serialize, PgPooled};
 
@@ -71,9 +71,9 @@ pub fn kit_by_id(
 
     path!(i32).and(pg).and_then(|id: i32, conn: PgPooled| {
         helpers::fut_threadpool(move || {
-            models::Kit::by_id(&conn, id).map_err(|_| warp::reject::custom(Error::NotFound))
+            models::Kit::by_id(&conn, id).map_err(|_| warp::reject::custom(NOT_FOUND))
         })
-        .map_err(|_| warp::reject::custom(Error::InternalServer))
+        .map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
         .then(|v| match v {
             Ok(t) => t,
             Err(r) => Err(r),

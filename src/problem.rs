@@ -2,6 +2,7 @@
 //! Implements RFC7807.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::fmt::{self, Display};
 
@@ -30,7 +31,7 @@ pub enum Problem {
     #[serde(rename = "/probs/invalid-parameters")]
     #[serde(rename_all = "camelCase")]
     InvalidParameters {
-        invalid_parameters: Vec<InvalidParameter>
+        invalid_parameters: InvalidParameters,
     },
 }
 
@@ -143,30 +144,106 @@ impl<'a> From<&'a Problem> for DescriptiveProblem<'a> {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum InvalidParameterReason {
-    MustHaveLengthBetween { min: usize, max: usize },
-    MustBeVariantOf(Vec<String>),
-    AlreadyExists,
-    // MustBeBetween({ min: i64, max: i64}),
+pub struct InvalidParameters {
+    #[serde(flatten)]
+    inner: HashMap<std::borrow::Cow<'static, str>, Vec<InvalidParameterReason>>,
+}
+
+impl InvalidParameters {
+    pub fn new() -> Self {
+        Self {
+            inner: HashMap::new(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        !self.inner.iter().any(|(_, reasons)| !reasons.is_empty())
+    }
+
+    pub fn add<S: Into<std::borrow::Cow<'static, str>>>(
+        &mut self,
+        parameter: S,
+        reason: InvalidParameterReason,
+    ) {
+        self.inner
+            .entry(parameter.into())
+            .or_insert(vec![])
+            .push(reason)
+    }
+}
+
+impl<E: std::borrow::Borrow<validator::ValidationErrors>> From<E> for InvalidParameters {
+    fn from(validation_errors: E) -> InvalidParameters {
+        use heck::MixedCase; // This is "camelCase" in Serde.
+        let mut invalid_parameters = InvalidParameters::new();
+
+        for (field, errors) in validation_errors.borrow().field_errors().into_iter() {
+            for error in errors.into_iter() {
+                invalid_parameters.add(field.to_mixed_case(), error.into())
+            }
+        }
+
+        invalid_parameters
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct InvalidParameter {
-    name: String,
-    reason: InvalidParameterReason,
+pub enum InvalidParameterReason {
+    MustBeEmailAddress,
+    MustBeUrl,
+    MustBeInRange { min: f64, max: f64 },
+    MustHaveLengthBetween { min: u64, max: u64 },
+    MustHaveLengthExactly { length: u64 },
+    AlreadyExists,
+    Other,
 }
 
-impl InvalidParameter {
-    pub fn new(name: String, reason: InvalidParameterReason) -> Self {
-        InvalidParameter { name, reason }
-    }
+impl<E: std::borrow::Borrow<validator::ValidationError>> From<E> for InvalidParameterReason {
+    fn from(validation_error: E) -> InvalidParameterReason {
+        use InvalidParameterReason::*;
 
-    pub fn already_exists(name: String) -> Self {
-        InvalidParameter {
-            name,
-            reason: InvalidParameterReason::AlreadyExists,
+        let validation_error: &validator::ValidationError = validation_error.borrow();
+
+        match validation_error.code.as_ref() {
+            "email" => MustBeEmailAddress,
+            "url" => MustBeUrl,
+            "range" => {
+                let min: Option<f64> = validation_error
+                    .params
+                    .get("min")
+                    .map(|v| v.as_f64().unwrap());
+                let max: Option<f64> = validation_error
+                    .params
+                    .get("max")
+                    .map(|v| v.as_f64().unwrap());
+
+                match (min, max) {
+                    (Some(min), Some(max)) => MustBeInRange { min, max },
+                    _ => Other,
+                }
+            }
+            "length" => {
+                let min: Option<u64> = validation_error
+                    .params
+                    .get("min")
+                    .map(|v| v.as_u64().unwrap());
+                let max: Option<u64> = validation_error
+                    .params
+                    .get("max")
+                    .map(|v| v.as_u64().unwrap());
+                let equal: Option<u64> = validation_error
+                    .params
+                    .get("equal")
+                    .map(|v| v.as_u64().unwrap());
+
+                match (min, max, equal) {
+                    (Some(min), Some(max), None) => MustHaveLengthBetween { min, max },
+                    (None, None, Some(equal)) => MustHaveLengthExactly { length: equal },
+                    _ => Other,
+                }
+            }
+            _ => Other,
         }
     }
 }

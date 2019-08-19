@@ -1,5 +1,6 @@
 use futures::future::Future;
 use serde::Deserialize;
+use validator::Validate;
 use warp::{filters::BoxedFilter, Filter, Rejection};
 
 use crate::helpers;
@@ -41,23 +42,28 @@ pub fn create_user(
                         let user_by_username = models::User::by_username(&conn, &user.username)?;
                         let user_by_email_address = models::User::by_email_address(&conn, &user.email_address)?;
 
-                        let mut errors = vec![];
+                        let hash = astroplant_auth::hash::hash_user_password(&user.password);
+                        let new_user = models::NewUser::new(&user.username, &hash, &user.email_address);
+
+                        if let Err(validation_errors) = new_user.validate() {
+                            let invalid_parameters = problem::InvalidParameters::from(validation_errors);
+                            return Ok(Err(warp::reject::custom(problem::Problem::InvalidParameters { invalid_parameters })))
+                        }
+
+                        let mut invalid_parameters = problem::InvalidParameters::new();
                         if user_by_username.is_some() {
-                            errors.push(problem::InvalidParameter::already_exists("username".to_owned()))
+                            invalid_parameters.add("username", problem::InvalidParameterReason::AlreadyExists)
                         }
 
                         if user_by_email_address.is_some() {
-                            errors.push(problem::InvalidParameter::already_exists("emailAddress".to_owned()))
+                            invalid_parameters.add("username", problem::InvalidParameterReason::AlreadyExists)
                         }
 
-                        if !errors.is_empty() {
-                            return Ok(Err(warp::reject::custom(problem::Problem::InvalidParameters { invalid_parameters: errors })))
+                        if !invalid_parameters.is_empty() {
+                            return Ok(Err(warp::reject::custom(problem::Problem::InvalidParameters { invalid_parameters })))
                         }
 
-                        let hash = astroplant_auth::hash::hash_user_password(&user.password);
-                        let new_user = models::NewUser::new(&user.username, &hash, &user.email_address);
                         let created_user = new_user.create(&conn)?;
-
                         if created_user.is_some() {
                             info!("Created user {:?}", user);
 

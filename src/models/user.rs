@@ -2,6 +2,7 @@ use crate::schema::users;
 use diesel::prelude::*;
 use diesel::{Connection, QueryResult, Queryable, Identifiable};
 use diesel::pg::PgConnection;
+use validator::Validate;
 
 #[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable)]
 pub struct User {
@@ -23,11 +24,15 @@ impl User {
     }
 }
 
-#[derive(Insertable, Debug, Default)]
+#[derive(Insertable, Debug, Default, Validate)]
 #[table_name = "users"]
 pub struct NewUser<'a> {
+    #[validate(length(min = 1, max = 40))]
     pub username: &'a str,
     pub password: &'a str,
+
+    #[validate(length(max = 255))]
+    #[validate(email)]
     pub email_address: &'a str,
     use_gravatar: bool,
     gravatar_alternative: String,

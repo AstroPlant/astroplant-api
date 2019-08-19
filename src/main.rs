@@ -4,6 +4,9 @@ extern crate log;
 #[macro_use]
 extern crate diesel;
 
+#[macro_use]
+extern crate validator_derive;
+
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use warp::{self, path, Filter, Rejection, Reply};

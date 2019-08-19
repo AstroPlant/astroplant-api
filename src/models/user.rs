@@ -44,7 +44,7 @@ impl<'a> NewUser<'a> {
             password,
             email_address,
             use_gravatar: true,
-            gravatar_alternative: "todo".to_owned(),
+            gravatar_alternative: random_string::readable_string(32),
         }
     }
 

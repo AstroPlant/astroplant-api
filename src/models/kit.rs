@@ -1,9 +1,9 @@
 use crate::schema::kits;
+
 use diesel::prelude::*;
 use diesel::{Connection, QueryResult, Queryable, Identifiable};
 use diesel::pg::PgConnection;
 use bigdecimal::BigDecimal;
-use crate::views::EncodableKit;
 
 #[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable)]
 #[table_name = "kits"]
@@ -34,30 +34,6 @@ impl Kit {
             q.filter(kits::columns::id.gt(after)).load(conn)
         } else {
             q.load(conn)
-        }
-    }
-
-    pub fn encodable(self) -> EncodableKit {
-        let Kit {
-            id,
-            serial,
-            name,
-            description,
-            latitude,
-            longitude,
-            privacy_public_dashboard,
-            privacy_show_on_map,
-            ..
-        } = self;
-        EncodableKit {
-            id,
-            serial,
-            name,
-            description,
-            latitude: latitude.map(|l| l.to_string()),
-            longitude: longitude.map(|l| l.to_string()),
-            privacy_public_dashboard,
-            privacy_show_on_map,
         }
     }
 }

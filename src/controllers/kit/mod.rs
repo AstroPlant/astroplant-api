@@ -4,6 +4,7 @@ use serde::Deserialize;
 use warp::{filters::BoxedFilter, path, Filter, Rejection};
 
 use crate::response::Response;
+use crate::views;
 
 pub fn router(
     pg: BoxedFilter<(crate::PgPooled,)>,
@@ -36,7 +37,7 @@ pub fn kits(
                 models::Kit::cursor_page(&conn, cursor.after, 100)
                     .map(|kits| {
                         kits.into_iter()
-                            .map(|kit| kit.encodable())
+                            .map(|kit| views::Kit::from(kit))
                             .collect::<Vec<_>>()
                     })
                     .map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
@@ -76,7 +77,7 @@ pub fn kit_by_id(
             Err(r) => Err(r),
         })
         .map(move |kit| {
-            Response::ok(kit.encodable())
+            Response::ok(views::Kit::from(kit))
         })
     })
 }

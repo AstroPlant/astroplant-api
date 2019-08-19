@@ -18,6 +18,11 @@ pub enum Problem {
     #[serde(rename = "/probs/rate-limit")]
     RateLimit(RateLimitError),
 
+    #[serde(rename = "/probs/authorization-header")]
+    AuthorizationHeader {
+        category: AuthenticationTokenProblemCategory,
+    },
+
     #[serde(rename = "/probs/payload-too-large")]
     #[serde(rename_all = "camelCase")]
     PayloadTooLarge { limit: u64 },
@@ -44,6 +49,7 @@ impl Problem {
             Generic(NotFound) => warp::http::StatusCode::NOT_FOUND,
             Generic(InternalServerError) => warp::http::StatusCode::INTERNAL_SERVER_ERROR,
             RateLimit(_) => warp::http::StatusCode::TOO_MANY_REQUESTS,
+            AuthorizationHeader { .. } => warp::http::StatusCode::UNAUTHORIZED,
             PayloadTooLarge { .. } => warp::http::StatusCode::PAYLOAD_TOO_LARGE,
             InvalidJson { .. } => warp::http::StatusCode::BAD_REQUEST,
             InvalidParameters { .. } => warp::http::StatusCode::BAD_REQUEST,
@@ -112,6 +118,24 @@ impl<'a> From<&'a Problem> for DescriptiveProblem<'a> {
                 )
             }
 
+            AuthorizationHeader { category } => {
+                use AuthenticationTokenProblemCategory::*;
+                match category {
+                    Missing => (
+                        Some("Your request misses the Authorization header.".to_owned()),
+                        None,
+                    ),
+                    Malformed => (
+                        Some("Your request Authorization header was malformed.".to_owned()),
+                        None,
+                    ),
+                    Expired => (
+                        Some("Your request authorization token was expired.".to_owned()),
+                        None,
+                    ),
+                }
+            }
+
             PayloadTooLarge { limit } => {
                 (
                     Some("Your request payload was too large.".to_owned()),
@@ -141,6 +165,14 @@ impl<'a> From<&'a Problem> for DescriptiveProblem<'a> {
             detail,
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AuthenticationTokenProblemCategory {
+    Missing,
+    Malformed,
+    Expired,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -196,6 +228,7 @@ pub enum InvalidParameterReason {
     MustHaveLengthBetween { min: u64, max: u64 },
     MustHaveLengthExactly { length: u64 },
     AlreadyExists,
+    InvalidToken { category: AuthenticationTokenProblemCategory },
     Other,
 }
 

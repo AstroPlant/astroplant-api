@@ -1,8 +1,12 @@
 use crate::schema::users;
+
 use diesel::prelude::*;
 use diesel::{Connection, QueryResult, Queryable, Identifiable};
 use diesel::pg::PgConnection;
 use validator::Validate;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct UserId(pub i32);
 
 #[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable)]
 pub struct User {
@@ -16,8 +20,12 @@ pub struct User {
 }
 
 impl User {
+    pub fn by_id(conn: &PgConnection, id: UserId) -> QueryResult<Option<User>> {
+        users::table.find(id.0).first(conn).optional()
+    }
+
     pub fn by_username(conn: &PgConnection, username: &str) -> QueryResult<Option<User>> {
-        users::table.filter(users::username.ilike(username)).first(conn).optional() // ilike
+        users::table.filter(users::username.ilike(username)).first(conn).optional()
     }
 
     pub fn by_email_address(conn: &PgConnection, email_address: &str) -> QueryResult<Option<User>> {

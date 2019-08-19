@@ -1,21 +1,48 @@
-use std::collections::HashMap;
 use erased_serde::Serialize as ErasedSerialize;
+use serde::Serialize;
+use std::collections::HashMap;
 use warp::http::StatusCode;
 
+#[derive(Serialize)]
+pub enum Never {}
+
 pub struct Response {
-    value: Box<dyn ErasedSerialize + Send>,
+    value: Option<Box<dyn ErasedSerialize + Send>>,
     status_code: StatusCode,
     headers: HashMap<String, String>,
 }
 
 impl Response {
+    pub fn new<T>(
+        value: Option<T>,
+        status_code: StatusCode,
+        headers: HashMap<String, String>,
+    ) -> Self
+    where
+        T: ErasedSerialize + Send + 'static,
+    {
+        Response {
+            value: value.map(|v: T| Box::new(v) as Box<dyn ErasedSerialize + Send>),
+            status_code,
+            headers,
+        }
+    }
+
     /// Create a response with a 200 OK status code.
     pub fn ok<T: ErasedSerialize + Send + 'static>(value: T) -> Self {
-        Response {
-            value: Box::new(value),
-            status_code: StatusCode::OK,
-            headers: HashMap::new(),
-        }
+        Self::new(Some(value), StatusCode::OK, HashMap::new())
+    }
+
+    pub fn ok_empty() -> Self {
+        Self::new::<Never>(None, StatusCode::OK, HashMap::new())
+    }
+
+    pub fn created<T: ErasedSerialize + Send + 'static>(value: T) -> Self {
+        Self::new(Some(value), StatusCode::CREATED, HashMap::new())
+    }
+
+    pub fn created_empty() -> Self {
+        Self::new::<Never>(None, StatusCode::CREATED, HashMap::new())
     }
 
     /// Add a (relative) next-page URI header to the response.
@@ -29,7 +56,7 @@ impl Response {
     }
 
     /// The response value.
-    pub fn value(&self) -> &(dyn ErasedSerialize + Send) {
+    pub fn value(&self) -> &Option<Box<dyn ErasedSerialize + Send>> {
         &self.value
     }
 

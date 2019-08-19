@@ -42,13 +42,14 @@ fn main() {
 
     let all = rate_limit
         .and(
-            path!("version").map(|| Response::ok(VERSION))
+            path!("version")
+                .map(|| Response::ok(VERSION))
                 .or(path!("time").map(|| Response::ok(chrono::Utc::now().to_rfc3339())))
                 .unify()
                 .or(path!("kits").and(controllers::kit::router(pg.clone().boxed())))
                 .unify()
                 .or(path!("users").and(controllers::user::router(pg.clone().boxed())))
-                .unify()
+                .unify(),
         )
         .and(warp::header("Accept"))
         .map(|response: Response, _accept: String| {
@@ -61,9 +62,13 @@ fn main() {
             for (header, value) in response.headers() {
                 http_response_builder.header(header.as_bytes(), value.clone());
             }
-            http_response_builder
-                .body(serde_json::to_string(response.value()).unwrap())
-                .unwrap()
+
+            match response.value() {
+                Some(value) => http_response_builder
+                    .body(serde_json::to_string(value).unwrap())
+                    .unwrap(),
+                None => http_response_builder.body("".to_owned()).unwrap(),
+            }
         })
         .recover(handle_rejection);
 

@@ -45,10 +45,13 @@ pub fn flatten_result<T, E>(nested: Result<Result<T, E>, E>) -> Result<T, E> {
     }
 }
 
-pub fn json_decode<T>() -> impl Filter<Extract = (T,), Error = Rejection> + Copy
+pub fn deserialize<T>() -> impl Filter<Extract = (T,), Error = Rejection> + Copy
 where
     T: DeserializeOwned + Send,
 {
+    // TODO: Also allow e.g. XML, basing the attempted deserialization on the Content-Type header.
+    // Default to JSON.
+
     // Allow a request of at most 64 KiB
     const CONTENT_LENGTH_LIMIT: u64 = 1024 * 64;
 

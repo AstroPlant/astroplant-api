@@ -31,7 +31,7 @@ pub fn create_user(
         email_address: String,
     }
 
-    crate::helpers::json_decode()
+    crate::helpers::deserialize()
         .and(pg)
         .and_then(
             |user: User, conn: crate::PgPooled| {

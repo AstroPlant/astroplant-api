@@ -18,15 +18,20 @@ pub enum Problem {
     RateLimit(RateLimitError),
 
     #[serde(rename = "/probs/payload-too-large")]
+    #[serde(rename_all = "camelCase")]
     PayloadTooLarge { limit: u64 },
 
     #[serde(rename = "/probs/invalid-json")]
+    #[serde(rename_all = "camelCase")]
     InvalidJson {
         category: JsonDeserializeErrorCategory,
     },
 
     #[serde(rename = "/probs/invalid-parameters")]
-    InvalidParameters(Vec<InvalidParameter>),
+    #[serde(rename_all = "camelCase")]
+    InvalidParameters {
+        invalid_parameters: Vec<InvalidParameter>
+    },
 }
 
 impl Problem {
@@ -40,7 +45,7 @@ impl Problem {
             RateLimit(_) => warp::http::StatusCode::TOO_MANY_REQUESTS,
             PayloadTooLarge { .. } => warp::http::StatusCode::PAYLOAD_TOO_LARGE,
             InvalidJson { .. } => warp::http::StatusCode::BAD_REQUEST,
-            InvalidParameters(_) => warp::http::StatusCode::BAD_REQUEST,
+            InvalidParameters { .. } => warp::http::StatusCode::BAD_REQUEST,
         }
     }
 }
@@ -120,7 +125,7 @@ impl<'a> From<&'a Problem> for DescriptiveProblem<'a> {
                 )
             }
 
-            InvalidParameters(_) => {
+            InvalidParameters { .. } => {
                 (
                     Some("Your request parameters did not validate.".to_owned()),
                     None,
@@ -142,6 +147,7 @@ impl<'a> From<&'a Problem> for DescriptiveProblem<'a> {
 pub enum InvalidParameterReason {
     MustHaveLengthBetween { min: usize, max: usize },
     MustBeVariantOf(Vec<String>),
+    AlreadyExists,
     // MustBeBetween({ min: i64, max: i64}),
 }
 
@@ -150,6 +156,19 @@ pub enum InvalidParameterReason {
 pub struct InvalidParameter {
     name: String,
     reason: InvalidParameterReason,
+}
+
+impl InvalidParameter {
+    pub fn new(name: String, reason: InvalidParameterReason) -> Self {
+        InvalidParameter { name, reason }
+    }
+
+    pub fn already_exists(name: String) -> Self {
+        InvalidParameter {
+            name,
+            reason: InvalidParameterReason::AlreadyExists,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -13,6 +13,16 @@ pub struct User {
     pub gravatar_alternative: String,
 }
 
+impl User {
+    pub fn by_username(conn: &PgConnection, username: &str) -> QueryResult<Option<User>> {
+        users::table.filter(users::username.eq(username)).first(conn).optional()
+    }
+
+    pub fn by_email_address(conn: &PgConnection, email_address: &str) -> QueryResult<Option<User>> {
+        users::table.filter(users::email_address.eq(email_address)).first(conn).optional()
+    }
+}
+
 #[derive(Insertable, Debug, Default)]
 #[table_name = "users"]
 pub struct NewUser<'a> {

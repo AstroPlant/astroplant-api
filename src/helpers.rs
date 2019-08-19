@@ -1,7 +1,7 @@
 use crate::problem::{Problem, INTERNAL_SERVER_ERROR};
 
 use bytes::Buf;
-use futures::future::{poll_fn, Future};
+use futures::future::{self, poll_fn, Future};
 use serde::de::DeserializeOwned;
 use warp::{Filter, Rejection};
 
@@ -23,6 +23,26 @@ where
     F: FnOnce() -> T,
 {
     fut_threadpool(f).map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
+}
+
+/// Runs a function on a threadpool, ignoring a potential Diesel error inside the threadpool.
+/// This error is turned into an internal server error (as Diesel errors are unexpected, and
+/// indicative of erroneous queries).
+pub fn threadpool_diesel_ok<F, T>(f: F) -> impl Future<Item = T, Error = Rejection>
+where
+    F: FnOnce() -> Result<T, diesel::result::Error>,
+{
+    threadpool(f).and_then(|result| match result {
+        Ok(v) => future::ok(v),
+        Err(_) => future::err(warp::reject::custom(INTERNAL_SERVER_ERROR)),
+    })
+}
+
+pub fn flatten_result<T, E>(nested: Result<Result<T, E>, E>) -> Result<T, E> {
+    match nested {
+        Err(e) => Err(e),
+        Ok(v) => v,
+    }
 }
 
 pub fn json_decode<T>() -> impl Filter<Extract = (T,), Error = Rejection> + Copy

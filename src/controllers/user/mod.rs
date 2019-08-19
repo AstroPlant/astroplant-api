@@ -28,14 +28,15 @@ pub fn create_user(
     struct User {
         username: String,
         password: String,
-        email_address: String, // todo: validate email matches regex .+@.+\..+
+        email_address: String,
     }
 
     crate::helpers::json_decode()
         .and(pg)
         .and_then(
             |user: User, conn: crate::PgPooled| {
-                trace!("Got request to create user with username: {}", user.username);
+                let username = user.username.clone();
+                trace!("Got request to create user with username: {}", username);
 
                 helpers::threadpool_diesel_ok(move || {
                     conn.transaction(|| {
@@ -43,7 +44,7 @@ pub fn create_user(
                         let user_by_email_address = models::User::by_email_address(&conn, &user.email_address)?;
 
                         let hash = astroplant_auth::hash::hash_user_password(&user.password);
-                        let new_user = models::NewUser::new(&user.username, &hash, &user.email_address);
+                        let new_user = models::NewUser::new(user.username, hash, user.email_address);
 
                         if let Err(validation_errors) = new_user.validate() {
                             let invalid_parameters = problem::InvalidParameters::from(validation_errors);
@@ -65,11 +66,11 @@ pub fn create_user(
 
                         let created_user = new_user.create(&conn)?;
                         if created_user.is_some() {
-                            info!("Created user {:?}", user);
+                            info!("Created user {:?}", username);
 
                             Ok(Ok(Response::created_empty()))
                         } else {
-                            warn!("Unexpected database error: username and email address don't exist, yet user could not be created: {:?}", user);
+                            warn!("Unexpected database error: username and email address don't exist, yet user could not be created: {:?}", username);
                             Ok(Err(warp::reject::custom(problem::INTERNAL_SERVER_ERROR)))
                         }
                     })

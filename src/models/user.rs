@@ -8,7 +8,8 @@ use validator::Validate;
 pub struct User {
     pub id: i32,
     pub username: String,
-    pub password: String,
+    pub display_name: String,
+    pub password_hash: String,
     pub email_address: String,
     pub use_gravatar: bool,
     pub gravatar_alternative: String,
@@ -16,38 +17,44 @@ pub struct User {
 
 impl User {
     pub fn by_username(conn: &PgConnection, username: &str) -> QueryResult<Option<User>> {
-        users::table.filter(users::username.eq(username)).first(conn).optional()
+        users::table.filter(users::username.ilike(username)).first(conn).optional() // ilike
     }
 
     pub fn by_email_address(conn: &PgConnection, email_address: &str) -> QueryResult<Option<User>> {
-        users::table.filter(users::email_address.eq(email_address)).first(conn).optional()
+        users::table.filter(users::email_address.ilike(email_address)).first(conn).optional()
     }
 }
 
 #[derive(Insertable, Debug, Default, Validate)]
 #[table_name = "users"]
-pub struct NewUser<'a> {
+pub struct NewUser {
     #[validate(length(min = 1, max = 40))]
-    pub username: &'a str,
-    pub password: &'a str,
+    pub username: String,
+    #[validate(length(min = 1, max = 40))]
+    pub display_name: String,
+    pub password_hash: String,
 
     #[validate(length(max = 255))]
     #[validate(email)]
-    pub email_address: &'a str,
+    pub email_address: String,
     use_gravatar: bool,
     gravatar_alternative: String,
 }
 
-impl<'a> NewUser<'a> {
+impl NewUser {
     pub fn new(
-        username: &'a str,
-        password: &'a str,
-        email_address: &'a str,
+        username: String,
+        password_hash: String,
+        email_address: String,
     ) -> Self {
         NewUser {
-            username,
-            password,
-            email_address,
+            username: username.to_lowercase(),
+            display_name: username,
+            password_hash,
+
+            // TODO: in principle, only the host-part of the email address should be lowercased.
+            email_address: email_address.to_lowercase(),
+
             use_gravatar: true,
             gravatar_alternative: random_string::readable_string(32),
         }

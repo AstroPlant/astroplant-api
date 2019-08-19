@@ -10,7 +10,7 @@ use crate::views::EncodableKit;
 pub struct Kit {
     pub id: i32,
     pub serial: String,
-    pub password: String,
+    pub password_hash: String,
     pub name: Option<String>,
     pub description: Option<String>,
     pub latitude: Option<BigDecimal>,
@@ -66,7 +66,7 @@ impl Kit {
 #[table_name = "kits"]
 pub struct NewKit<'a> {
     pub serial: &'a str,
-    pub password: &'a str,
+    pub password_hash: &'a str,
     pub name: Option<&'a str>,
     pub description: Option<&'a str>,
     pub latitude: Option<BigDecimal>,
@@ -76,11 +76,11 @@ pub struct NewKit<'a> {
 impl<'a> NewKit<'a> {
     pub fn new(
         serial: &'a str,
-        password: &'a str,
+        password_hash: &'a str,
     ) -> Self {
         NewKit {
             serial,
-            password,
+            password_hash,
             name: None,
             description: None,
             latitude: None,

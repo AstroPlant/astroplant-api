@@ -39,16 +39,16 @@ fn random_string_with_characters(length: usize, characters: &[char]) -> String {
     string
 }
 
-pub fn random_string(length: usize) -> String {
+pub fn string(length: usize) -> String {
     random_string_with_characters(length, RANDOM_CHARACTERS)
 }
 
-pub fn random_readable_string(length: usize) -> String {
+pub fn readable_string(length: usize) -> String {
     random_string_with_characters(length, RANDOM_CHARACTERS_READABLE)
 }
 
 /// Generate a password.
-pub fn generate_password() -> String {
+pub fn password() -> String {
     const PASSWORD_LENGTH: usize = 24;
-    random_readable_string(PASSWORD_LENGTH)
+    readable_string(PASSWORD_LENGTH)
 }

@@ -1,0 +1,8 @@
+[package]
+name = "random-string"
+version = "0.1.0"
+authors = ["Thomas Churchman <thomas@kepow.org>"]
+edition = "2018"
+
+[dependencies]
+rand = "0.7.0"

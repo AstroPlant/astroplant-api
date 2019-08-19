@@ -100,7 +100,7 @@ pub fn hash_kit_password(password: &str) -> String {
     const SALT_LENGTH: usize = 20;
     const PBKDF2_ITERATIONS: u32 = 15_000;
 
-    let salt = super::random::random_string(SALT_LENGTH);
+    let salt = random_string::string(SALT_LENGTH);
     let hash = pbkdf2(password, &salt.as_bytes(), PBKDF2_ITERATIONS);
 
     kit_hash_format(PBKDF2_ITERATIONS, &salt, &hash)
@@ -182,7 +182,7 @@ mod test {
         use crate::random;
 
         for _ in 0..100 {
-            let password = random::generate_password();
+            let password = random_string::password();
             let v1_hash = super::V1Hash::hash_password(&password);
             assert!(v1_hash.check(&password))
         }

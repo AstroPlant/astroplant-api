@@ -5,6 +5,7 @@ use futures::future::{self, poll_fn, Future};
 use serde::de::DeserializeOwned;
 use warp::{Filter, Rejection};
 
+/// Run a function on a threadpool, returning a future resolving when the function completes.
 pub fn fut_threadpool<F, T>(f: F) -> impl Future<Item = T, Error = tokio_threadpool::BlockingError>
 where
     F: FnOnce() -> T,
@@ -18,6 +19,9 @@ where
     })
 }
 
+/// Run a function on a threadpool, returning a future resolving when the function completes.
+/// Any (unexpected!) threadpool error is turned into a Warp rejection, wrapping the Internal Server
+/// Error problem.
 pub fn threadpool<F, T>(f: F) -> impl Future<Item = T, Error = Rejection>
 where
     F: FnOnce() -> T,
@@ -38,6 +42,7 @@ where
     })
 }
 
+/// Flatten a nested result with equal error types to a single result.
 pub fn flatten_result<T, E>(nested: Result<Result<T, E>, E>) -> Result<T, E> {
     match nested {
         Err(e) => Err(e),
@@ -45,6 +50,7 @@ pub fn flatten_result<T, E>(nested: Result<Result<T, E>, E>) -> Result<T, E> {
     }
 }
 
+/// Create a filter to deserialize a request.
 pub fn deserialize<T>() -> impl Filter<Extract = (T,), Error = Rejection> + Copy
 where
     T: DeserializeOwned + Send,
@@ -74,6 +80,7 @@ where
         })
 }
 
+/// Create a filter to get a PostgreSQL connection from a PostgreSQL connection pool.
 pub fn pg(
     pg_pool: crate::PgPool,
 ) -> impl Filter<Extract = (crate::PgPooled,), Error = Rejection> + Clone {
@@ -89,5 +96,49 @@ pub fn ok_or_internal_error<T, E>(r: Result<T, E>) -> Result<T, Rejection> {
     match r {
         Ok(value) => Ok(value),
         Err(_) => Err(warp::reject::custom(INTERNAL_SERVER_ERROR)),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn flatten() {
+        assert_eq!(
+            super::flatten_result::<_, std::convert::Infallible>(Ok(Ok(42))),
+            Ok(42)
+        );
+        assert_eq!(
+            super::flatten_result::<std::convert::Infallible, _>(Ok(Err("oops"))),
+            Err("oops")
+        );
+        assert_eq!(
+            super::flatten_result::<std::convert::Infallible, _>(Err("oops")),
+            Err("oops")
+        );
+    }
+
+    #[test]
+    fn deserialize_json() {
+        use serde::Deserialize;
+
+        #[derive(Debug, Deserialize)]
+        struct TestStruct {
+            value: u64,
+        }
+
+        let value: TestStruct = warp::test::request()
+            .header("Accept", "application/json")
+            .header("Content-Length", 12)
+            .body(r#"{"value":42}"#)
+            .filter(&super::deserialize())
+            .unwrap();
+        assert_eq!(value.value, 42);
+
+        // Should reject requests with too large Content-Length.
+        let req = warp::test::request()
+            .header("Accept", "application/json")
+            .header("Content-Length", 99_999_999)
+            .body(r#"{"value":42}"#);
+        assert!(!req.matches(&super::deserialize::<TestStruct>()));
     }
 }

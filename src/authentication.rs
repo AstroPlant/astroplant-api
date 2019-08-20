@@ -5,6 +5,7 @@ use crate::models::UserId;
 use astroplant_auth::token;
 use warp::{Filter, Rejection};
 
+/// A filter to authenticate a user through a normal token in the Accept header.
 pub fn authenticate_by_token() -> impl Filter<Extract = (UserId,), Error = Rejection> + Copy {
     warp::header("Authorization")
         .or_else(|_| {

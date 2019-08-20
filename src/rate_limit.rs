@@ -4,6 +4,8 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use warp::{Filter, Rejection};
 
+/// Create a filter that gates a request behind a leaky bucket rate limiter.
+///
 /// # Panics
 /// Panics if it is used with a transport not using socket addresses.
 pub fn leaky_bucket() -> impl Filter<Extract = (), Error = Rejection> + Clone {

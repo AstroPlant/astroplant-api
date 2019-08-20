@@ -46,7 +46,7 @@ pub struct FullUser {
     pub username: String,
     pub display_name: String,
     pub email_address: String,
-    pub use_gravatar: bool,
+    pub use_email_address_for_gravatar: bool,
     pub gravatar_alternative: String,
 }
 
@@ -57,7 +57,7 @@ impl From<models::User> for FullUser {
             username,
             display_name,
             email_address,
-            use_gravatar,
+            use_email_address_for_gravatar,
             gravatar_alternative,
             ..
         } = user;
@@ -66,7 +66,7 @@ impl From<models::User> for FullUser {
             username,
             display_name,
             email_address,
-            use_gravatar,
+            use_email_address_for_gravatar,
             gravatar_alternative,
         }
     }
@@ -85,14 +85,14 @@ impl From<models::User> for User {
             username,
             display_name,
             email_address,
-            use_gravatar,
+            use_email_address_for_gravatar,
             gravatar_alternative,
             ..
         } = user;
         Self {
             username,
             display_name,
-            gravatar: if use_gravatar {
+            gravatar: if use_email_address_for_gravatar {
                 email_address
             } else {
                 gravatar_alternative

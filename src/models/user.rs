@@ -19,7 +19,7 @@ pub struct User {
     pub display_name: String,
     pub password_hash: String,
     pub email_address: String,
-    pub use_gravatar: bool,
+    pub use_email_address_for_gravatar: bool,
     pub gravatar_alternative: String,
 }
 
@@ -49,7 +49,7 @@ pub struct NewUser {
     #[validate(length(max = 255))]
     #[validate(email)]
     pub email_address: String,
-    use_gravatar: bool,
+    use_email_address_for_gravatar: bool,
     gravatar_alternative: String,
 }
 
@@ -67,7 +67,7 @@ impl NewUser {
             // TODO: in principle, only the host-part of the email address should be lowercased.
             email_address: email_address.to_lowercase(),
 
-            use_gravatar: true,
+            use_email_address_for_gravatar: true,
             gravatar_alternative: random_string::readable_string(32),
         }
     }

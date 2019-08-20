@@ -25,8 +25,7 @@ pub fn router(
     .unify()
     .or(warp::path::end().and(warp::get2()).and(me(pg.clone())))
     .unify()
-    // TODO: perhaps this is better placed under /kits?mine or something similar
-    .or(path!("kits").and(warp::get2()).and(kits(pg.clone())))
+    .or(path!("memberships").and(warp::get2()).and(kit_memberships(pg.clone())))
     .unify()
 }
 
@@ -45,7 +44,7 @@ pub fn me(
 }
 
 /// Fetch kits belonging to the user.
-pub fn kits(
+pub fn kit_memberships(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     authenticate_by_token()

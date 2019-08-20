@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Serialize, Deserialize};
 use crate::models;
 
@@ -96,6 +97,26 @@ impl From<models::User> for User {
             } else {
                 gravatar_alternative
             },
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct KitMembership {
+    pub id: i32,
+    pub user_id: i32,
+    pub kit_id: i32,
+    pub datetime_linked: DateTime<Utc>,
+}
+
+
+impl From<models::KitMembership> for KitMembership {
+    fn from(models::KitMembership { id, user_id, kit_id, datetime_linked }: models::KitMembership) -> Self {
+        Self {
+            id,
+            user_id,
+            kit_id,
+            datetime_linked,
         }
     }
 }

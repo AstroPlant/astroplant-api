@@ -5,8 +5,12 @@ use diesel::{Connection, QueryResult, Queryable, Identifiable};
 use diesel::pg::PgConnection;
 use validator::Validate;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct UserId(pub i32);
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable)]
+#[table_name = "users"]
+pub struct UserId(
+    #[column_name = "id"]
+    pub i32
+);
 
 #[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable)]
 pub struct User {

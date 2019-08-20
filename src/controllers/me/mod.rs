@@ -25,6 +25,9 @@ pub fn router(
     .unify()
     .or(warp::path::end().and(warp::get2()).and(me(pg.clone())))
     .unify()
+    // TODO: perhaps this is better placed under /kits?mine or something similar
+    .or(path!("kits").and(warp::get2()).and(kits(pg.clone())))
+    .unify()
 }
 
 pub fn me(
@@ -38,5 +41,23 @@ pub fn me(
         .and_then(|user: Option<models::User>| match user {
             Some(user) => Ok(Response::ok(views::FullUser::from(user))),
             None => Err(warp::reject::custom(problem::INTERNAL_SERVER_ERROR)),
+        })
+}
+
+/// Fetch kits belonging to the user.
+pub fn kits(
+    pg: BoxedFilter<(crate::PgPooled,)>,
+) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
+    authenticate_by_token()
+        .and(pg)
+        .and_then(|user_id: models::UserId, conn: crate::PgPooled| {
+            helpers::threadpool_diesel_ok(move || {
+                models::KitMembership::memberships_of_user_id(&conn, user_id)
+            })
+        })
+        .map(|kit_memberships: Vec<models::KitMembership>| {
+            let v: Vec<views::KitMembership> =
+                kit_memberships.into_iter().map(|m| m.into()).collect();
+            Response::ok(v)
         })
 }

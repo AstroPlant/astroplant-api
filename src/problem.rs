@@ -225,7 +225,13 @@ pub enum InvalidParameterReason {
     MustBeEmailAddress,
     MustBeUrl,
     MustBeInRange { min: f64, max: f64 },
-    MustHaveLengthBetween { min: u64, max: u64 },
+    MustHaveLengthBetween {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        min: Option<u64>,
+
+        #[serde(skip_serializing_if = "Option::is_none")]
+        max: Option<u64>
+    },
     MustHaveLengthExactly { length: u64 },
     AlreadyExists,
     InvalidToken { category: AuthenticationTokenProblemCategory },
@@ -271,7 +277,8 @@ impl<E: std::borrow::Borrow<validator::ValidationError>> From<E> for InvalidPara
                     .map(|v| v.as_u64().unwrap());
 
                 match (min, max, equal) {
-                    (Some(min), Some(max), None) => MustHaveLengthBetween { min, max },
+                    (min@Some(_), max, None) => MustHaveLengthBetween { min, max },
+                    (min, max@Some(_), None) => MustHaveLengthBetween { min, max },
                     (None, None, Some(equal)) => MustHaveLengthExactly { length: equal },
                     _ => Other,
                 }

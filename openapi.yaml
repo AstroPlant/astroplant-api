@@ -1,0 +1,474 @@
+---
+openapi: 3.0.0
+info:
+  version: 1.0.0
+  title: AstroPlant API
+servers:
+- url: http://localhost:8080
+paths:
+  "/version":
+    get:
+      summary: Grab the version of the API.
+      tags:
+        - server
+      parameters: []
+      responses:
+        '200':
+          description: The version of the API.
+          content:
+            "application/json":
+              schema:
+                type: string
+                example: 1.0.0
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+  "/time":
+    get:
+      summary: Get the current server time.
+      tags:
+        - server
+      parameters: []
+      responses:
+        '200':
+          description: An RFC3339 and ISO 8601 date and time string.
+          content:
+            "application/json":
+              schema:
+                type: string
+                format: "date-time"
+                example: "2019-08-18T15:30:28+00:00"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+  "/kits":
+    get:
+      summary: List all public kits.
+      operationId: listKits
+      tags:
+        - kits
+      responses:
+        '200':
+          description: A paged array of kits.
+          headers:
+            x-next:
+              $ref: "#/components/headers/CursorPaging"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Kits"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+  "/kits/{kitId}":
+    get:
+      summary: Info for a specific kit.
+      operationId: showKitById
+      tags:
+        - kits
+      parameters:
+        - name: kitId
+          in: path
+          required: true
+          description: The id of the kit to retrieve.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The retrieved kit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Kit"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+  "/users":
+    post:
+      summary: Create a user.
+      operationId: createUser
+      tags:
+        - user
+      requestBody:
+        description: The user to create.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+                - emailAddress
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                emailAddress:
+                  type: string
+                  format: email
+              example:
+                username: douglas
+                password: hunter2
+                email: d.adams@example.com
+      responses:
+        '201':
+          description: The user was created.
+        '400':
+          $ref: "#/components/responses/InvalidParameters"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+  "/me":
+    get:
+      summary: Your user information.
+      operationId: showMe
+      security:
+        - bearerAuth: []
+      tags:
+        - user
+        - me
+      responses:
+        '200':
+          description: Your user information.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FullUser"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+  "/me/auth":
+    post:
+      summary: "Authenticate yourself by username and password."
+      operationId: authenticateByCredentials
+      tags:
+        - authenticate
+      requestBody:
+        description: The login credentials.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+              example:
+                username: douglas
+                password: hunter2
+      responses:
+        '200':
+          description: The authentication JSON Web Token pair; i.e. a refresh token valid for a year and a normal token valid for a much smaller amount of time (generally around 15 minutes). The refresh token should be stored and used to obtain a normal token at regular intervals from the /me/refresh endpoint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthenticationTokens"
+        '400':
+          $ref: "#/components/responses/InvalidParameters"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+  "/me/refresh":
+    post:
+      summary: "Obtain a normal token from a refresh token."
+      operationId: obtainNormalTokenFromRefreshToken
+      tags:
+        - authenticate
+      requestBody:
+        description: The refresh token.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: The JSON Web Token necessary for using authenticated endpoints.
+          content:
+            application/json:
+              schema:
+                type: string
+        '400':
+          $ref: "#/components/responses/InvalidParameters"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+  "/me/memberships":
+    get:
+      summary: Your kit memberships.
+      operationId: showMyKitMemberships
+      security:
+        - bearerAuth: []
+      tags:
+        - me
+      responses:
+        '200':
+          description: Kit memberships.
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ProblemDetails:
+      type: object
+      description: A basic problem report, conforming to RFC7807. Most problems will provide additional fields with information.
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+      example:
+        type:
+          about:blank
+        title: Bad Request
+        status: 400
+    Kit:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          format: int32
+        name:
+          type: string
+        latitude:
+          type: number
+          format: float
+        longitude:
+          type: number
+          format: float
+    Kits:
+      type: array
+      items:
+        $ref: "#/components/schemas/Kit"
+    FullUser:
+      type: object
+      required:
+        - id
+        - username
+        - displayName
+        - emailAddress
+        - useEmailAddressForGravatar
+        - gravatarAlternative
+      properties:
+        id:
+          type: integer
+          format: int32
+        username:
+          type: string
+        displayName:
+          type: string
+        emailAddress:
+          type: string
+          format: email
+        useEmailAddressForGravatar:
+          type: boolean
+        gravatarAlternative:
+          type: string
+      example:
+        id: 42
+        username: douglas
+        displayName: Douglas Adams
+        emailAddress: d.adams@example.com
+        useEmailAddressForGravatar: false
+        gravatarAlternative: "3NbpHjTp4fYyxnPw4$6xcTp!J%hyhdJq"
+    AuthenticationTokens:
+      type: object
+      required:
+        - refreshToken
+        - normalToken
+      properties:
+        refreshToken:
+          type: string
+        normalToken:
+          type: string
+  headers:
+    CursorPaging:
+      description: A link to the next page.
+      required: false
+      schema:
+        type: string
+  responses:
+    InvalidJson:
+      description: The JSON you provided was invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+    InvalidParameters:
+      description: You provided invalid parameters.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/ProblemDetails"
+              - type: object
+                properties:
+                  invalidParameters:
+                    type: object
+                    additionalProperties:
+                      type: array
+                      items:
+                        anyOf:
+                          - type: string
+                            enum:
+                              - mustBeEmailAddress
+                              - mustBeUrl
+                              - alreadyExists
+                              - other
+                          - type: object
+                            required:
+                              - mustBeInRange
+                            properties:
+                              mustBeInRange:
+                                type: object
+                                required:
+                                  - min
+                                  - max
+                                properties:
+                                  min:
+                                    type: number
+                                    format: float
+                                  max:
+                                    type: number
+                                    format: float
+                          - type: object
+                            required:
+                              - mustHaveLengthBetween
+                            properties:
+                              mustHaveLengthBetween:
+                                type: object
+                                anyOf:
+                                  - required:
+                                      - min
+                                  - required:
+                                      - max
+                                properties:
+                                  min:
+                                    type: integer
+                                  max:
+                                    type: integer
+                          - type: object
+                            required:
+                              - mustHaveLengthExactly
+                            properties:
+                              mustHaveLengthExactly:
+                                type: object
+                                required:
+                                  - length
+                                properties:
+                                  length:
+                                    type: integer
+                          - type: object
+                            required:
+                              - invalidToken
+                            properties:
+                              invalidToken:
+                                type: object
+                                required:
+                                  - category
+                                properties:
+                                  category:
+                                    type: string
+                                    enum:
+                                      - missing
+                                      - malformed
+                                      - expired
+                example:
+                  type: "/probs/invalid-parameters"
+                  title: Your request parameters did not validate.
+                  status: 400
+                  invalidParameters:
+                    username:
+                      - mustBeUnique
+                    email:
+                      - mustBeEmailAddress
+                      - mustHaveLengthBetween:
+                        min: 0
+                        max: 255
+    ErrorUnauthorized:
+      description: The request was denied because you are not authorized to access the resource.
+    ErrorRateLimit:
+      description: The request was denied because you exceeded the rate limit.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              errorCode:
+                description: "The error code for rate limit errors: 2"
+                type: integer
+                format: uint16
+              errorName:
+                description: "The error name for rate limit errors: rateLimit"
+                type: string
+              errorValue:
+                type: object
+                properties:
+                  waitTimeMillis:
+                    type: integer
+            example:
+              errorCode: 2
+              errorName: rateLimit
+              errorValue:
+                waitTimeMillis: 226
+    ErrorInternalServer:
+      description: An unexpected error occurred.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              errorCode:
+                description: "The error code for internal server errors: 1"
+                type: integer
+                format: uint16
+              errorName:
+                description: "The error name for internal server errors: internalServer"
+                type: string
+            example:
+              errorCode: 1
+              errorName: internalServerError
+

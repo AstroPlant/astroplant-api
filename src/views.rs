@@ -102,21 +102,25 @@ impl From<models::User> for User {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct KitMembership {
+pub struct KitMembership<U, K> {
     pub id: i32,
-    pub user_id: i32,
-    pub kit_id: i32,
+    pub user: U,
+    pub kit: K,
     pub datetime_linked: DateTime<Utc>,
+    pub access_super: bool,
+    pub access_configure: bool,
 }
 
 
-impl From<models::KitMembership> for KitMembership {
-    fn from(models::KitMembership { id, user_id, kit_id, datetime_linked }: models::KitMembership) -> Self {
+impl From<models::KitMembership> for KitMembership<i32, i32> {
+    fn from(models::KitMembership { id, user_id, kit_id, datetime_linked, access_super, access_configure }: models::KitMembership) -> Self {
         Self {
             id,
-            user_id,
-            kit_id,
+            user: user_id,
+            kit: kit_id,
             datetime_linked,
+            access_super,
+            access_configure,
         }
     }
 }

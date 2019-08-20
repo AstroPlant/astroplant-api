@@ -56,7 +56,7 @@ pub fn kits(
             })
         })
         .map(|kit_memberships: Vec<models::KitMembership>| {
-            let v: Vec<views::KitMembership> =
+            let v: Vec<views::KitMembership<i32, i32>> =
                 kit_memberships.into_iter().map(|m| m.into()).collect();
             Response::ok(v)
         })

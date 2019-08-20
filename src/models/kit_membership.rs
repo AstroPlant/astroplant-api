@@ -18,6 +18,8 @@ pub struct KitMembership {
     pub user_id: i32,
     pub kit_id: i32,
     pub datetime_linked: DateTime<Utc>,
+    pub access_super: bool,
+    pub access_configure: bool,
 }
 
 impl KitMembership {

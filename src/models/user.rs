@@ -68,7 +68,7 @@ impl NewUser {
             email_address: email_address.to_lowercase(),
 
             use_email_address_for_gravatar: true,
-            gravatar_alternative: random_string::readable_string(32),
+            gravatar_alternative: random_string::unambiguous_string(32),
         }
     }
 

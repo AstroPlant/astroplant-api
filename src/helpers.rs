@@ -99,6 +99,13 @@ pub fn ok_or_internal_error<T, E>(r: Result<T, E>) -> Result<T, Rejection> {
     }
 }
 
+pub fn some_or_internal_error<T>(r: Option<T>) -> Result<T, Rejection> {
+    match r {
+        Some(value) => Ok(value),
+        None => Err(warp::reject::custom(INTERNAL_SERVER_ERROR)),
+    }
+}
+
 #[cfg(test)]
 mod test {
     #[test]

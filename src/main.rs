@@ -9,8 +9,8 @@ extern crate validator_derive;
 
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
-use warp::{self, path, Filter, Rejection, Reply};
 use once_cell::sync::OnceCell;
+use warp::{self, path, Filter, Rejection, Reply};
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 type PgPooled = PooledConnection<ConnectionManager<PgConnection>>;
@@ -26,7 +26,7 @@ mod models;
 mod response;
 mod views;
 
-use response::Response;
+use response::{Response, ResponseBuilder};
 
 static VERSION: &str = "1.0.0-alpha";
 
@@ -52,8 +52,9 @@ fn main() {
     let all = rate_limit
         .and(
             path!("version")
-                .map(|| Response::ok(VERSION))
-                .or(path!("time").map(|| Response::ok(chrono::Utc::now().to_rfc3339())))
+                .map(|| ResponseBuilder::ok().body(VERSION))
+                .or(path!("time")
+                    .map(|| ResponseBuilder::ok().body(chrono::Utc::now().to_rfc3339())))
                 .unify()
                 .or(path!("kits").and(controllers::kit::router(pg.clone().boxed())))
                 .unify()
@@ -127,13 +128,20 @@ fn handle_rejection(rejection: Rejection) -> Result<impl Reply, Rejection> {
 /// # Panics
 /// This function is only callable once; it panics if called multiple times.
 fn init_token_signer() {
-    let key_file_path = std::env::var("TOKEN_SIGNER_KEY").unwrap_or("./token_signer.key".to_owned());
+    let key_file_path =
+        std::env::var("TOKEN_SIGNER_KEY").unwrap_or("./token_signer.key".to_owned());
     debug!("Using token signer key file {}", key_file_path);
 
     let token_signer_key: Vec<u8> = std::fs::read(&key_file_path).unwrap();
-    trace!("Using token signer key of {} bits", token_signer_key.len() * 8);
+    trace!(
+        "Using token signer key of {} bits",
+        token_signer_key.len() * 8
+    );
 
-    if TOKEN_SIGNER.set(astroplant_auth::token::TokenSigner::new(token_signer_key)).is_err() {
+    if TOKEN_SIGNER
+        .set(astroplant_auth::token::TokenSigner::new(token_signer_key))
+        .is_err()
+    {
         panic!("Token signer initialization called more than once.")
     }
 }

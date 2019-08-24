@@ -63,6 +63,72 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+    post:
+      summary: Create a kit.
+      operationId: createKit
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      requestBody:
+        description: The kit to create.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - privacyPublicDashboard
+                - privacyShowOnMap
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                latitude:
+                  type: number
+                  format: float
+                longitude:
+                  type: number
+                  format: float
+                privacyPublicDashboard:
+                  type: boolean
+                privacyShowOnMap:
+                  type: boolean
+              example:
+                latitude: 52.1326
+                longitude: 5.2913
+                privacyShowOnMap: true
+                privacyPublicDashboard: false
+      responses:
+        '201':
+          description: The created kit.
+          headers:
+            Location:
+              description: A link to the created kit.
+              required: false
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - kitSerial
+                  - password
+                properties:
+                  kitSerial:
+                    type: string
+                  password:
+                    type: string
+        '400':
+          $ref: "#/components/responses/InvalidJson"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
   "/kits/{kitId}":
     get:
       summary: Info for a specific kit.

@@ -6,7 +6,7 @@ use crate::authentication::authenticate_by_token;
 use crate::helpers;
 use crate::models;
 use crate::problem;
-use crate::response::Response;
+use crate::response::{Response, ResponseBuilder};
 use crate::views;
 
 pub fn router(
@@ -25,11 +25,13 @@ pub fn router(
     .unify()
     .or(warp::path::end().and(warp::get2()).and(me(pg.clone())))
     .unify()
-    .or(path!("memberships").and(warp::get2()).and(kit_memberships(pg.clone())))
+    .or(path!("memberships")
+        .and(warp::get2())
+        .and(kit_memberships(pg.clone())))
     .unify()
 }
 
-pub fn me(
+fn me(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     authenticate_by_token()
@@ -38,25 +40,31 @@ pub fn me(
             helpers::threadpool_diesel_ok(move || models::User::by_id(&conn, user_id))
         })
         .and_then(|user: Option<models::User>| match user {
-            Some(user) => Ok(Response::ok(views::FullUser::from(user))),
+            Some(user) => Ok(ResponseBuilder::ok().body(views::FullUser::from(user))),
             None => Err(warp::reject::custom(problem::INTERNAL_SERVER_ERROR)),
         })
 }
 
 /// Fetch kits belonging to the user.
-pub fn kit_memberships(
+fn kit_memberships(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     authenticate_by_token()
         .and(pg)
         .and_then(|user_id: models::UserId, conn: crate::PgPooled| {
             helpers::threadpool_diesel_ok(move || {
-                models::KitMembership::memberships_of_user_id(&conn, user_id)
+                models::KitMembership::memberships_with_kit_of_user_id(&conn, user_id)
             })
         })
-        .map(|kit_memberships: Vec<models::KitMembership>| {
-            let v: Vec<views::KitMembership<i32, i32>> =
-                kit_memberships.into_iter().map(|m| m.into()).collect();
-            Response::ok(v)
-        })
+        .map(
+            |kit_memberships: Vec<(models::Kit, models::KitMembership)>| {
+                let v: Vec<views::KitMembership<i32, views::Kit>> = kit_memberships
+                    .into_iter()
+                    .map(|(kit, membership)| {
+                        views::KitMembership::from(membership).with_kit(views::Kit::from(kit))
+                    })
+                    .collect();
+                ResponseBuilder::ok().body(v)
+            },
+        )
 }

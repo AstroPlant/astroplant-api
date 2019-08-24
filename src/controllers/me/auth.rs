@@ -4,7 +4,7 @@ use warp::{filters::BoxedFilter, Filter, Rejection};
 use crate::helpers;
 use crate::models;
 use crate::problem::{self, Problem};
-use crate::response::Response;
+use crate::response::{Response, ResponseBuilder};
 
 /// Authenticate a user through provided credentials.
 /// Returns both a refresh token and normal token.
@@ -51,10 +51,12 @@ pub fn authenticate_by_credentials(
                             .unwrap();
                         debug!("Authenticated user: {}.", user.username);
 
-                        return Ok(Response::ok(AuthenticationTokens {
+                        let response = ResponseBuilder::ok().body(AuthenticationTokens {
                             refresh_token,
                             normal_token,
-                        }));
+                        });
+
+                        return Ok(response);
                     }
                 }
                 None => {
@@ -97,7 +99,7 @@ pub fn normal_token_from_refresh_token(
         match token_signer.normal_token_from_refresh_token(&refresh_token) {
             Ok(normal_token) => {
                 trace!("Token refreshed.");
-                Ok(Response::ok(normal_token))
+                Ok(ResponseBuilder::ok().body(normal_token))
             }
             Err(token::Error::Expired) => {
                 let mut invalid_parameters = InvalidParameters::new();

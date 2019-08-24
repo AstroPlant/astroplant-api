@@ -6,7 +6,7 @@ use warp::{filters::BoxedFilter, Filter, Rejection};
 use crate::helpers;
 use crate::models;
 use crate::problem;
-use crate::response::Response;
+use crate::response::{Response, ResponseBuilder};
 
 pub fn router(
     pg: BoxedFilter<(crate::PgPooled,)>,
@@ -68,7 +68,7 @@ pub fn create_user(
                         if created_user.is_some() {
                             info!("Created user {:?}", username);
 
-                            Ok(Ok(Response::created_empty()))
+                            Ok(Ok(ResponseBuilder::created().empty()))
                         } else {
                             warn!("Unexpected database error: username and email address don't exist, yet user could not be created: {:?}", username);
                             Ok(Err(warp::reject::custom(problem::INTERNAL_SERVER_ERROR)))

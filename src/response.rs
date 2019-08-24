@@ -1,10 +1,6 @@
 use erased_serde::Serialize as ErasedSerialize;
-use serde::Serialize;
 use std::collections::HashMap;
 use warp::http::StatusCode;
-
-#[derive(Serialize)]
-pub enum Never {}
 
 pub struct Response {
     value: Option<Box<dyn ErasedSerialize + Send>>,
@@ -13,48 +9,6 @@ pub struct Response {
 }
 
 impl Response {
-    pub fn new<T>(
-        value: Option<T>,
-        status_code: StatusCode,
-        headers: HashMap<String, String>,
-    ) -> Self
-    where
-        T: ErasedSerialize + Send + 'static,
-    {
-        Response {
-            value: value.map(|v: T| Box::new(v) as Box<dyn ErasedSerialize + Send>),
-            status_code,
-            headers,
-        }
-    }
-
-    /// Create a response with a 200 OK status code.
-    pub fn ok<T: ErasedSerialize + Send + 'static>(value: T) -> Self {
-        Self::new(Some(value), StatusCode::OK, HashMap::new())
-    }
-
-    pub fn ok_empty() -> Self {
-        Self::new::<Never>(None, StatusCode::OK, HashMap::new())
-    }
-
-    pub fn created<T: ErasedSerialize + Send + 'static>(value: T) -> Self {
-        Self::new(Some(value), StatusCode::CREATED, HashMap::new())
-    }
-
-    pub fn created_empty() -> Self {
-        Self::new::<Never>(None, StatusCode::CREATED, HashMap::new())
-    }
-
-    /// Add a (relative) next-page URI header to the response.
-    pub fn set_next_page_uri(&mut self, uri: String) {
-        self.headers.insert("x-next".to_owned(), uri);
-    }
-
-    /// Set a response header.
-    pub fn set_header(&mut self, header_name: String, header_value: String) {
-        self.headers.insert(header_name, header_value);
-    }
-
     /// The response value.
     pub fn value(&self) -> &Option<Box<dyn ErasedSerialize + Send>> {
         &self.value
@@ -68,5 +22,70 @@ impl Response {
     /// The response headers.
     pub fn headers(&self) -> &HashMap<String, String> {
         &self.headers
+    }
+}
+
+pub struct ResponseBuilder {
+    status_code: StatusCode,
+    headers: HashMap<String, String>,
+}
+
+
+impl ResponseBuilder {
+    /// Create a new response builder with the given status code.
+    pub fn new(status_code: StatusCode) -> Self {
+        ResponseBuilder {
+            status_code,
+            headers: HashMap::new(),
+        }
+    }
+
+    /// Create a response with a 200 OK status code.
+    pub fn ok() -> Self {
+        Self::new(StatusCode::OK)
+    }
+
+    /// Create a response with a 201 Created status code.
+    pub fn created() -> Self {
+        Self::new(StatusCode::CREATED)
+    }
+
+    /// Add a (relative) next-page URI header to the response.
+    pub fn next_page_uri(mut self, uri: String) -> Self {
+        self.headers.insert("x-next".to_owned(), uri);
+        self
+    }
+
+    /// Add a Location URI header. Only makes sense with the Created or a Redirection status.
+    pub fn content_uri(mut self, uri: String) -> Self {
+        self.headers.insert("Location".to_owned(), uri);
+        self
+    }
+
+    /// Set a response header.
+    pub fn header(mut self, header_name: String, header_value: String) -> Self {
+        self.headers.insert(header_name, header_value);
+        self
+    }
+
+    /// Build an empty response.
+    pub fn empty(self) -> Response {
+        Response {
+            value: None,
+            status_code: self.status_code,
+            headers: self.headers,
+        }
+    }
+
+    /// Build the response with the given value.
+    pub fn body<T>(self, value: T) -> Response
+    where
+        T: ErasedSerialize + Send + 'static,
+    {
+        Response {
+            value: Some(Box::new(value) as Box<dyn ErasedSerialize + Send>),
+            status_code: self.status_code,
+            headers: self.headers,
+        }
     }
 }

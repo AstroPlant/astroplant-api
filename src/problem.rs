@@ -1,5 +1,7 @@
 //! The problems that can occur when using this API.
 //! Implements RFC7807.
+//!
+//! TODO: ensure each status code has exactly one problem variant
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

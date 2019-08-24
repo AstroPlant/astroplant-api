@@ -1,6 +1,6 @@
-use chrono::{DateTime, Utc};
-use serde::{Serialize, Deserialize};
 use crate::models;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Kit {
@@ -8,14 +8,16 @@ pub struct Kit {
     pub serial: String,
     pub name: Option<String>,
     pub description: Option<String>,
-    pub latitude: Option<String>,
-    pub longitude: Option<String>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
     pub privacy_public_dashboard: bool,
     pub privacy_show_on_map: bool,
 }
 
 impl From<models::Kit> for Kit {
     fn from(kit: models::Kit) -> Self {
+        use bigdecimal::ToPrimitive;
+
         let models::Kit {
             id,
             serial,
@@ -32,8 +34,8 @@ impl From<models::Kit> for Kit {
             serial,
             name,
             description,
-            latitude: latitude.map(|l| l.to_string()),
-            longitude: longitude.map(|l| l.to_string()),
+            latitude: latitude.and_then(|l| l.to_f64()),
+            longitude: longitude.and_then(|l| l.to_f64()),
             privacy_public_dashboard,
             privacy_show_on_map,
         }
@@ -111,9 +113,41 @@ pub struct KitMembership<U, K> {
     pub access_configure: bool,
 }
 
+impl<U, K> KitMembership<U, K> {
+    pub fn with_kit<NK>(self, kit: NK) -> KitMembership<U, NK> {
+        KitMembership {
+            id: self.id,
+            user: self.user,
+            kit,
+            datetime_linked: self.datetime_linked,
+            access_super: self.access_super,
+            access_configure: self.access_configure,
+        }
+    }
+
+    pub fn with_user<NU>(self, user: NU) -> KitMembership<NU, K> {
+        KitMembership {
+            id: self.id,
+            user,
+            kit: self.kit,
+            datetime_linked: self.datetime_linked,
+            access_super: self.access_super,
+            access_configure: self.access_configure,
+        }
+    }
+}
 
 impl From<models::KitMembership> for KitMembership<i32, i32> {
-    fn from(models::KitMembership { id, user_id, kit_id, datetime_linked, access_super, access_configure }: models::KitMembership) -> Self {
+    fn from(
+        models::KitMembership {
+            id,
+            user_id,
+            kit_id,
+            datetime_linked,
+            access_super,
+            access_configure,
+        }: models::KitMembership,
+    ) -> Self {
         Self {
             id,
             user: user_id,

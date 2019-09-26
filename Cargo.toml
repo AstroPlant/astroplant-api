@@ -11,7 +11,7 @@ astroplant-auth = { path = "./astroplant-auth" }
 random-string = { path = "./random-string" }
 once_cell = "0.2.6"
 chrono = { version = "0.4", features = ["serde"] }
-warp = "0.1"
+warp = "0.1.20"
 bytes = "0.4.8"
 rumqtt = "0.30.1"
 diesel = { version = "1.4.2", features = ["postgres", "numeric", "r2d2", "chrono"] }

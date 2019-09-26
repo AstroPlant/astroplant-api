@@ -10,7 +10,7 @@ extern crate validator_derive;
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use once_cell::sync::OnceCell;
-use warp::{self, path, Filter, Rejection, Reply};
+use warp::{self, http::Method, path, Filter, Rejection, Reply};
 
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 type PgPooled = PooledConnection<ConnectionManager<PgConnection>>;
@@ -82,7 +82,16 @@ fn main() {
                 None => http_response_builder.body("".to_owned()).unwrap(),
             }
         })
-        .recover(handle_rejection);
+        .recover(handle_rejection)
+        .with(warp::log("astroplant_rs_api::api"))
+        // TODO: this wrapper might be better placed per-endpoint, to have accurate allowed metods
+        .with(warp::cors().allow_any_origin().allow_methods(vec![
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ]).allow_headers(vec!["Content-Type"]));
 
     warp::serve(all).run(([127, 0, 0, 1], 8080));
 }

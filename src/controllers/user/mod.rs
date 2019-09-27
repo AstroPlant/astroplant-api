@@ -57,7 +57,7 @@ pub fn create_user(
                         }
 
                         if user_by_email_address.is_some() {
-                            invalid_parameters.add("username", problem::InvalidParameterReason::AlreadyExists)
+                            invalid_parameters.add("emailAddress", problem::InvalidParameterReason::AlreadyExists)
                         }
 
                         if !invalid_parameters.is_empty() {

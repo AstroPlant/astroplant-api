@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 enum TokenType {
     Refresh,
-    Normal,
+    Authentication,
 }
 
 #[derive(Debug)]
@@ -21,9 +21,7 @@ pub struct AuthenticationState {
 
 impl AuthenticationState {
     pub fn new(user_id: i32) -> Self {
-        Self {
-            user_id,
-        }
+        Self { user_id }
     }
 }
 
@@ -78,20 +76,22 @@ impl TokenSigner {
         self.create_token(VALIDITY_TIME, TokenType::Refresh, state)
     }
 
-    pub fn normal_token_from_refresh_token(&self, token: &str) -> Result<String, Error> {
+    pub fn authentication_token_from_refresh_token(&self, token: &str) -> Result<String, Error> {
         const VALIDITY_TIME: usize = 60 * 15;
 
         let claims = self.decode_token(token)?;
         match claims.token_type {
-            TokenType::Refresh => Ok(self.create_token(VALIDITY_TIME, TokenType::Normal, claims.state)),
+            TokenType::Refresh => {
+                Ok(self.create_token(VALIDITY_TIME, TokenType::Authentication, claims.state))
+            }
             _ => Err(Error::Other),
         }
     }
 
-    pub fn decode_normal_token(&self, token: &str) -> Result<AuthenticationState, Error> {
+    pub fn decode_authentication_token(&self, token: &str) -> Result<AuthenticationState, Error> {
         let claims = self.decode_token(token)?;
         match claims.token_type {
-            TokenType::Normal => Ok(claims.state),
+            TokenType::Authentication => Ok(claims.state),
             _ => Err(Error::Other),
         }
     }
@@ -109,12 +109,14 @@ mod test {
             let state = super::AuthenticationState { user_id: id };
 
             let refresh_token = token_signer.create_refresh_token(state.clone());
-            let normal_token = token_signer.normal_token_from_refresh_token(&refresh_token).unwrap();
+            let authentication_token = token_signer
+                .authentication_token_from_refresh_token(&refresh_token)
+                .unwrap();
 
             assert_eq!(
                 state,
                 token_signer
-                    .decode_normal_token(&normal_token)
+                    .decode_normal_token(&authentication_token)
                     .unwrap()
             );
         }

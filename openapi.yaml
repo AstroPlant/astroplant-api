@@ -241,7 +241,7 @@ paths:
                 password: hunter2
       responses:
         '200':
-          description: The authentication JSON Web Token pair; i.e. a refresh token valid for a year and a normal token valid for a much smaller amount of time (generally around 15 minutes). The refresh token should be stored and used to obtain a normal token at regular intervals from the /me/refresh endpoint.
+          description: The authentication JSON Web Token pair; i.e. a refresh token valid for a year and an authentication token valid for a much smaller amount of time (generally around 15 minutes). The refresh token should be stored and used to obtain an authentication token at regular intervals from the /me/refresh endpoint.
           content:
             application/json:
               schema:
@@ -254,8 +254,8 @@ paths:
           $ref: "#/components/responses/ErrorInternalServer"
   "/me/refresh":
     post:
-      summary: "Obtain a normal token from a refresh token."
-      operationId: obtainNormalTokenFromRefreshToken
+      summary: "Obtain an authentication token from a refresh token."
+      operationId: obtainAuthenticationTokenFromRefreshToken
       tags:
         - authenticate
       requestBody:
@@ -384,11 +384,11 @@ components:
       type: object
       required:
         - refreshToken
-        - normalToken
+        - authenticationToken
       properties:
         refreshToken:
           type: string
-        normalToken:
+        authenticationToken:
           type: string
   headers:
     CursorPaging:

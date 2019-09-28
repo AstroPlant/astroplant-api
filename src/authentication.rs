@@ -24,14 +24,14 @@ pub fn authenticate_by_token() -> impl Filter<Extract = (UserId,), Error = Rejec
             if parts[0] != "Bearer" {
                 return Err(warp::reject::custom(Problem::AuthorizationHeader {
                     category: Malformed,
-                }))
+                }));
             }
 
             let token_signer: &token::TokenSigner = crate::TOKEN_SIGNER.get().unwrap();
 
-            let normal_token = parts[1];
+            let authentication_token = parts[1];
             let authentication_state: token::AuthenticationState =
-                match token_signer.decode_normal_token(&normal_token) {
+                match token_signer.decode_authentication_token(&authentication_token) {
                     Ok(authentication_state) => authentication_state,
                     Err(token::Error::Expired) => {
                         return Err(warp::reject::custom(Problem::AuthorizationHeader {

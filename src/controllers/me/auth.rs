@@ -7,7 +7,7 @@ use crate::problem::{self, Problem};
 use crate::response::{Response, ResponseBuilder};
 
 /// Authenticate a user through provided credentials.
-/// Returns both a refresh token and normal token.
+/// Returns both a refresh token and authentication token.
 pub fn authenticate_by_credentials(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
@@ -22,7 +22,7 @@ pub fn authenticate_by_credentials(
     #[serde(rename_all = "camelCase")]
     struct AuthenticationTokens {
         refresh_token: String,
-        normal_token: String,
+        authentication_token: String,
     }
 
     crate::helpers::deserialize()
@@ -46,14 +46,14 @@ pub fn authenticate_by_credentials(
 
                         let authentication_state = token::AuthenticationState::new(user.id);
                         let refresh_token = token_signer.create_refresh_token(authentication_state);
-                        let normal_token = token_signer
-                            .normal_token_from_refresh_token(&refresh_token)
+                        let authentication_token = token_signer
+                            .authentication_token_from_refresh_token(&refresh_token)
                             .unwrap();
                         debug!("Authenticated user: {}.", user.username);
 
                         let response = ResponseBuilder::ok().body(AuthenticationTokens {
                             refresh_token,
-                            normal_token,
+                            authentication_token,
                         });
 
                         return Ok(response);
@@ -76,11 +76,11 @@ pub fn authenticate_by_credentials(
         })
 }
 
-/// Get a normal token through a refresh token.
+/// Get an authentication token through a refresh token.
 ///
 /// # TODO
 /// Check refresh token against the database for revocation.
-pub fn normal_token_from_refresh_token(
+pub fn authentication_token_from_refresh_token(
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     use astroplant_auth::token;
     use problem::{
@@ -96,10 +96,10 @@ pub fn normal_token_from_refresh_token(
     crate::helpers::deserialize().and_then(|TaggedToken { refresh_token }| {
         let token_signer: &token::TokenSigner = crate::TOKEN_SIGNER.get().unwrap();
 
-        match token_signer.normal_token_from_refresh_token(&refresh_token) {
-            Ok(normal_token) => {
+        match token_signer.authentication_token_from_refresh_token(&refresh_token) {
+            Ok(authentication_token) => {
                 trace!("Token refreshed.");
-                Ok(ResponseBuilder::ok().body(normal_token))
+                Ok(ResponseBuilder::ok().body(authentication_token))
             }
             Err(token::Error::Expired) => {
                 let mut invalid_parameters = InvalidParameters::new();

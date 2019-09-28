@@ -21,7 +21,7 @@ pub fn router(
     .or(path!("refresh")
         .and(warp::path::end())
         .and(warp::post2())
-        .and(auth::normal_token_from_refresh_token()))
+        .and(auth::authentication_token_from_refresh_token()))
     .unify()
     .or(warp::path::end().and(warp::get2()).and(me(pg.clone())))
     .unify()

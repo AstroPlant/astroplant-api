@@ -91,7 +91,7 @@ fn main() {
             Method::PUT,
             Method::DELETE,
             Method::OPTIONS,
-        ]).allow_headers(vec!["Content-Type"]));
+        ]).allow_headers(vec!["Authorization", "Content-Type"]));
 
     warp::serve(all).run(([127, 0, 0, 1], 8080));
 }

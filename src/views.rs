@@ -3,6 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Kit {
     pub id: i32,
     pub serial: String,
@@ -43,6 +44,7 @@ impl From<models::Kit> for Kit {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct FullUser {
     pub id: i32,
     pub username: String,
@@ -75,6 +77,7 @@ impl From<models::User> for FullUser {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct User {
     pub username: String,
     pub display_name: String,
@@ -104,6 +107,7 @@ impl From<models::User> for User {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct KitMembership<U, K> {
     pub id: i32,
     pub user: U,

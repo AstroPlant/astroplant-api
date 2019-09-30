@@ -297,7 +297,9 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                type: array
+                items:
+                  $ref: "#/components/schemas/KitMembership"
         '401':
           $ref: "#/components/responses/ErrorUnauthorized"
         '429':
@@ -349,6 +351,31 @@ components:
       type: array
       items:
         $ref: "#/components/schemas/Kit"
+    KitMembership:
+      type: object
+      required:
+        - id
+        - user
+        - kit
+        - accessConfigure
+        - accessSuper
+        - datetimeLinked
+      properties:
+        id:
+          type: integer
+          format: int32
+        user:
+          type: integer
+          format: int32
+        kit:
+          $ref: "#/components/schemas/Kit"
+        accessConfigure:
+          type: boolean
+        accessSuper:
+          type: boolean
+        datetimeLinked:
+          type: string
+          format: "date-time"
     FullUser:
       type: object
       required:

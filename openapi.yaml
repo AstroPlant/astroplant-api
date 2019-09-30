@@ -334,12 +334,17 @@ components:
       type: object
       required:
         - id
+        - serial
         - name
       properties:
         id:
           type: integer
           format: int32
+        serial:
+          type: string
         name:
+          type: string
+        description:
           type: string
         latitude:
           type: number
@@ -347,6 +352,10 @@ components:
         longitude:
           type: number
           format: float
+        privacyPublicDashboard:
+          type: boolean
+        privacyShowOnMap:
+          type: boolean
     Kits:
       type: array
       items:

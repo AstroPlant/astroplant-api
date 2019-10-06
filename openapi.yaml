@@ -37,7 +37,7 @@ paths:
             "application/json":
               schema:
                 type: string
-                format: "date-time"
+                # format: "date-time"
                 example: "2019-08-18T15:30:28+00:00"
         '429':
           $ref: "#/components/responses/ErrorRateLimit"
@@ -76,30 +76,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - privacyPublicDashboard
-                - privacyShowOnMap
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                latitude:
-                  type: number
-                  format: float
-                longitude:
-                  type: number
-                  format: float
-                privacyPublicDashboard:
-                  type: boolean
-                privacyShowOnMap:
-                  type: boolean
-              example:
-                latitude: 52.1326
-                longitude: 5.2913
-                privacyShowOnMap: true
-                privacyPublicDashboard: false
+              $ref: "#/components/schemas/NewKit"
       responses:
         '201':
           description: The created kit.
@@ -167,23 +144,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - username
-                - password
-                - emailAddress
-              properties:
-                username:
-                  type: string
-                password:
-                  type: string
-                emailAddress:
-                  type: string
-                  format: email
-              example:
-                username: douglas
-                password: hunter2
-                email: d.adams@example.com
+              $ref: "#/components/schemas/NewUser"
       responses:
         '201':
           description: The user was created.
@@ -227,18 +188,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - username
-                - password
-              properties:
-                username:
-                  type: string
-                password:
-                  type: string
-              example:
-                username: douglas
-                password: hunter2
+              $ref: "#/components/schemas/AuthUser"
       responses:
         '200':
           description: The authentication JSON Web Token pair; i.e. a refresh token valid for a year and an authentication token valid for a much smaller amount of time (generally around 15 minutes). The refresh token should be stored and used to obtain an authentication token at regular intervals from the /me/refresh endpoint.
@@ -264,12 +214,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - refreshToken
-              properties:
-                refreshToken:
-                  type: string
+              $ref: "#/components/schemas/AuthRefreshToken"
       responses:
         '200':
           description: The JSON Web Token necessary for using authenticated endpoints.
@@ -356,6 +301,31 @@ components:
           type: boolean
         privacyShowOnMap:
           type: boolean
+    NewKit:
+      type: object
+      required:
+            - privacyPublicDashboard
+            - privacyShowOnMap
+      properties:
+            name:
+              type: string
+            description:
+              type: string
+            latitude:
+              type: number
+              format: float
+            longitude:
+              type: number
+              format: float
+            privacyPublicDashboard:
+              type: boolean
+            privacyShowOnMap:
+              type: boolean
+      example:
+            latitude: 52.1326
+            longitude: 5.2913
+            privacyShowOnMap: true
+            privacyPublicDashboard: false
     Kits:
       type: array
       items:
@@ -385,6 +355,37 @@ components:
         datetimeLinked:
           type: string
           format: "date-time"
+    NewUser:
+      type: object
+      required:
+        - username
+        - password
+        - emailAddress
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        emailAddress:
+          type: string
+          format: email
+      example:
+        username: douglas
+        password: hunter2
+        email: d.adams@example.com
+    AuthUser:
+      type: object
+      required:
+            - username
+            - password
+      properties:
+            username:
+              type: string
+            password:
+              type: string
+      example:
+            username: douglas
+            password: hunter2
     FullUser:
       type: object
       required:
@@ -416,6 +417,13 @@ components:
         emailAddress: d.adams@example.com
         useEmailAddressForGravatar: false
         gravatarAlternative: "3NbpHjTp4fYyxnPw4$6xcTp!J%hyhdJq"
+    AuthRefreshToken:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
     AuthenticationTokens:
       type: object
       required:

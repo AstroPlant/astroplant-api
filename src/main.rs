@@ -61,6 +61,10 @@ fn main() {
                 .or(path!("users").and(controllers::user::router(pg.clone().boxed())))
                 .unify()
                 .or(path!("me").and(controllers::me::router(pg.clone().boxed())))
+                .unify()
+                .or(path!("peripheral-definitions").and(
+                    controllers::peripheral_definition::router(pg.clone().boxed()),
+                ))
                 .unify(),
         )
         .and(warp::header("Accept"))
@@ -85,13 +89,18 @@ fn main() {
         .recover(handle_rejection)
         .with(warp::log("astroplant_rs_api::api"))
         // TODO: this wrapper might be better placed per-endpoint, to have accurate allowed metods
-        .with(warp::cors().allow_any_origin().allow_methods(vec![
-            Method::GET,
-            Method::POST,
-            Method::PUT,
-            Method::DELETE,
-            Method::OPTIONS,
-        ]).allow_headers(vec!["Authorization", "Content-Type"]));
+        .with(
+            warp::cors()
+                .allow_any_origin()
+                .allow_methods(vec![
+                    Method::GET,
+                    Method::POST,
+                    Method::PUT,
+                    Method::DELETE,
+                    Method::OPTIONS,
+                ])
+                .allow_headers(vec!["Authorization", "Content-Type"]),
+        );
 
     warp::serve(all).run(([127, 0, 0, 1], 8080));
 }

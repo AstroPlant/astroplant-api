@@ -49,6 +49,12 @@ paths:
       operationId: listKits
       tags:
         - kits
+      parameters:
+        - in: query
+          name: after
+          schema:
+            type: integer
+          description: Fetch all kits after the given identifier.
       responses:
         '200':
           description: A paged array of kits.
@@ -251,6 +257,32 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+  "/peripheral-definitions":
+    get:
+      summary: List all peripheral device definitions.
+      operationId: listPeripheralDefinitions
+      tags:
+        - peripheralDefinition
+      parameters:
+        - in: query
+          name: after
+          schema:
+            type: integer
+          description: Fetch all kits after the given identifier.
+      responses:
+        '200':
+          description: A paged array of peripheral definitions.
+          headers:
+            x-next:
+              $ref: "#/components/headers/CursorPaging"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeripheralDefinitions"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
 components:
   securitySchemes:
     bearerAuth:
@@ -434,6 +466,36 @@ components:
           type: string
         authenticationToken:
           type: string
+    PeripheralDefinition:
+      type: object
+      required:
+        - id
+        - name
+        - module_name
+        - class_name
+        - configuration_schema
+      properties:
+        id:
+          type: integer
+          format: int32
+        name:
+          type: string
+        description:
+          type: string
+        brand:
+          type: string
+        model:
+          type: string
+        module_name:
+          type: string
+        class_name:
+          type: string
+        configuration_schema:
+          type: object
+    PeripheralDefinitions:
+      type: array
+      items:
+        $ref: "#/components/schemas/PeripheralDefinition"
   headers:
     CursorPaging:
       description: A link to the next page.

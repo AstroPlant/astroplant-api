@@ -162,3 +162,41 @@ impl From<models::KitMembership> for KitMembership<i32, i32> {
         }
     }
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PeripheralDefinition {
+    pub id: i32,
+    pub name: String,
+    pub description: Option<String>,
+    pub brand: Option<String>,
+    pub model: Option<String>,
+    pub module_name: String,
+    pub class_name: String,
+    pub configuration_schema: serde_json::Value,
+}
+
+impl From<models::PeripheralDefinition> for PeripheralDefinition {
+    fn from(peripheral_definition: models::PeripheralDefinition) -> Self {
+        let models::PeripheralDefinition {
+            id,
+            name,
+            description,
+            brand,
+            model,
+            module_name,
+            class_name,
+            configuration_schema,
+        } = peripheral_definition;
+        Self {
+            id,
+            name,
+            description,
+            brand,
+            model,
+            module_name,
+            class_name,
+            configuration_schema,
+        }
+    }
+}

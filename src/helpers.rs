@@ -1,4 +1,4 @@
-use crate::problem::{Problem, INTERNAL_SERVER_ERROR};
+use crate::problem::{Problem, INTERNAL_SERVER_ERROR, NOT_FOUND};
 
 use bytes::Buf;
 use futures::future::{self, poll_fn, Future};
@@ -103,6 +103,13 @@ pub fn some_or_internal_error<T>(r: Option<T>) -> Result<T, Rejection> {
     match r {
         Some(value) => Ok(value),
         None => Err(warp::reject::custom(INTERNAL_SERVER_ERROR)),
+    }
+}
+
+pub fn some_or_not_found<T>(r: Option<T>) -> Result<T, Rejection> {
+    match r {
+        Some(value) => Ok(value),
+        None => Err(warp::reject::custom(NOT_FOUND)),
     }
 }
 

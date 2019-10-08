@@ -1,5 +1,3 @@
-use crate::problem::{INTERNAL_SERVER_ERROR, NOT_FOUND};
-
 use serde::{Deserialize, Serialize};
 use warp::{filters::BoxedFilter, path, Filter, Rejection};
 
@@ -68,10 +66,10 @@ pub fn kit_by_serial(
         .and_then(|serial: String, conn: PgPooled| {
             helpers::threadpool_diesel_ok(move || models::Kit::by_serial(&conn, serial))
         })
-        .and_then(move |kit| match kit {
-            None => Err(warp::reject::custom(NOT_FOUND)),
-            Some(kit) => Ok(ResponseBuilder::ok().body(views::Kit::from(kit))),
-        })
+        .and_then(helpers::some_or_not_found)
+        .map(move |kit|
+            ResponseBuilder::ok().body(views::Kit::from(kit)),
+        )
 }
 
 /// Handles the `POST /kits` route.

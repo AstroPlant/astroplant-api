@@ -35,33 +35,24 @@ pub fn kits(
     use crate::PgPooled;
     use crate::{helpers, models};
 
-    use futures::future::Future;
-
     warp::query::query::<CursorPage>()
         .and(pg)
         .and_then(|cursor: CursorPage, conn: PgPooled| {
-            helpers::fut_threadpool(move || {
-                models::Kit::cursor_page(&conn, cursor.after, 100)
-                    .map(|kits| {
-                        kits.into_iter()
-                            .map(|kit| views::Kit::from(kit))
-                            .collect::<Vec<_>>()
-                    })
-                    .map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
+            helpers::threadpool_diesel_ok(move || {
+                models::Kit::cursor_page(&conn, cursor.after, 100).map(|kits| {
+                    kits.into_iter()
+                        .map(|kit| views::Kit::from(kit))
+                        .collect::<Vec<_>>()
+                })
             })
-            .map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
-            .then(|v| match v {
-                Ok(t) => t,
-                Err(r) => Err(r),
-            })
-            .map(move |kits| {
-                let next_page_uri = kits.last().map(|last| format!("/kits?after={}", last.id));
-                let mut response_builder = ResponseBuilder::ok();
-                if let Some(next_page_uri) = next_page_uri {
-                    response_builder = response_builder.next_page_uri(next_page_uri);
-                }
-                response_builder.body(kits)
-            })
+        })
+        .map(move |kits: Vec<views::Kit>| {
+            let next_page_uri = kits.last().map(|last| format!("/kits?after={}", last.id));
+            let mut response_builder = ResponseBuilder::ok();
+            if let Some(next_page_uri) = next_page_uri {
+                response_builder = response_builder.next_page_uri(next_page_uri);
+            }
+            response_builder.body(kits)
         })
 }
 
@@ -72,20 +63,14 @@ pub fn kit_by_serial(
     use crate::PgPooled;
     use crate::{helpers, models};
 
-    use futures::future::Future;
-
     path!(String)
         .and(pg)
         .and_then(|serial: String, conn: PgPooled| {
-            helpers::fut_threadpool(move || {
-                models::Kit::by_serial(&conn, serial).map_err(|_| warp::reject::custom(NOT_FOUND))
-            })
-            .map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
-            .then(|v| match v {
-                Ok(t) => t,
-                Err(r) => Err(r),
-            })
-            .map(move |kit| ResponseBuilder::ok().body(views::Kit::from(kit)))
+            helpers::threadpool_diesel_ok(move || models::Kit::by_serial(&conn, serial))
+        })
+        .and_then(move |kit| match kit {
+            None => Err(warp::reject::custom(NOT_FOUND)),
+            Some(kit) => Ok(ResponseBuilder::ok().body(views::Kit::from(kit))),
         })
 }
 

@@ -29,8 +29,8 @@ impl Kit {
         kits::table.find(id).first(conn)
     }
 
-    pub fn by_serial(conn: &PgConnection, serial: String) -> QueryResult<Kit> {
-        kits::table.filter(kits::columns::serial.eq(serial)).first(conn)
+    pub fn by_serial(conn: &PgConnection, serial: String) -> QueryResult<Option<Kit>> {
+        kits::table.filter(kits::columns::serial.eq(serial)).first(conn).optional()
     }
 
     pub fn all(conn: &PgConnection) -> QueryResult<Vec<Kit>> {
@@ -48,6 +48,10 @@ impl Kit {
         } else {
             q.load(conn)
         }
+    }
+
+    pub fn get_id(&self) -> KitId {
+        KitId(self.id)
     }
 }
 

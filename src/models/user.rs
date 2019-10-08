@@ -35,6 +35,10 @@ impl User {
     pub fn by_email_address(conn: &PgConnection, email_address: &str) -> QueryResult<Option<User>> {
         users::table.filter(users::email_address.ilike(email_address)).first(conn).optional()
     }
+
+    pub fn get_id(&self) -> UserId {
+        UserId(self.id)
+    }
 }
 
 #[derive(Insertable, Debug, Default, Validate)]

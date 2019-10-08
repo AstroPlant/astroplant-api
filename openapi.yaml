@@ -112,17 +112,17 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
-  "/kits/{kitId}":
+  "/kits/{kitSerial}":
     get:
       summary: Info for a specific kit.
-      operationId: showKitById
+      operationId: showKitBySerial
       tags:
         - kits
       parameters:
-        - name: kitId
+        - name: kitSerial
           in: path
           required: true
-          description: The id of the kit to retrieve.
+          description: The serial of the kit to retrieve.
           schema:
             type: string
       responses:

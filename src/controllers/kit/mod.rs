@@ -12,7 +12,7 @@ pub fn router(
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     trace!("Setting up kits router.");
 
-    kit_by_id(pg.clone().boxed())
+    kit_by_serial(pg.clone().boxed())
         .or(warp::path::end()
             .and(warp::get2())
             .and(kits(pg.clone().boxed())))
@@ -65,8 +65,8 @@ pub fn kits(
         })
 }
 
-/// Handles the `GET /kits/{kitId}` route.
-pub fn kit_by_id(
+/// Handles the `GET /kits/{kitSerial}` route.
+pub fn kit_by_serial(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     use crate::PgPooled;
@@ -74,17 +74,19 @@ pub fn kit_by_id(
 
     use futures::future::Future;
 
-    path!(i32).and(pg).and_then(|id: i32, conn: PgPooled| {
-        helpers::fut_threadpool(move || {
-            models::Kit::by_id(&conn, id).map_err(|_| warp::reject::custom(NOT_FOUND))
+    path!(String)
+        .and(pg)
+        .and_then(|serial: String, conn: PgPooled| {
+            helpers::fut_threadpool(move || {
+                models::Kit::by_serial(&conn, serial).map_err(|_| warp::reject::custom(NOT_FOUND))
+            })
+            .map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
+            .then(|v| match v {
+                Ok(t) => t,
+                Err(r) => Err(r),
+            })
+            .map(move |kit| ResponseBuilder::ok().body(views::Kit::from(kit)))
         })
-        .map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
-        .then(|v| match v {
-            Ok(t) => t,
-            Err(r) => Err(r),
-        })
-        .map(move |kit| ResponseBuilder::ok().body(views::Kit::from(kit)))
-    })
 }
 
 /// Handles the `POST /kits` route.
@@ -95,8 +97,8 @@ pub fn create_kit(
 
     use bigdecimal::{BigDecimal, FromPrimitive};
     use diesel::Connection;
-    use validator::Validate;
     use futures::future::{self, Future};
+    use validator::Validate;
 
     #[derive(Deserialize, Debug)]
     #[serde(rename_all = "camelCase")]

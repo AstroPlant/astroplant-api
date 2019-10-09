@@ -7,6 +7,9 @@ extern crate diesel;
 #[macro_use]
 extern crate validator_derive;
 
+#[macro_use]
+extern crate strum_macros;
+
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use once_cell::sync::OnceCell;
@@ -16,6 +19,7 @@ type PgPool = Pool<ConnectionManager<PgConnection>>;
 type PgPooled = PooledConnection<ConnectionManager<PgConnection>>;
 
 mod authentication;
+mod authorization;
 mod helpers;
 mod problem;
 mod rate_limit;
@@ -64,6 +68,10 @@ fn main() {
                 .unify()
                 .or(path!("peripheral-definitions").and(
                     controllers::peripheral_definition::router(pg.clone().boxed()),
+                ))
+                .unify()
+                .or(path!("permissions").and(
+                    controllers::permission::router(pg.clone().boxed()),
                 ))
                 .unify(),
         )

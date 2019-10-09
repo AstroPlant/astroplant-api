@@ -10,6 +10,7 @@ use std::fmt::{self, Display};
 
 pub const NOT_FOUND: Problem = Problem::Generic(GenericProblem::NotFound);
 pub const INTERNAL_SERVER_ERROR: Problem = Problem::Generic(GenericProblem::InternalServerError);
+pub const FORBIDDEN: Problem = Problem::Generic(GenericProblem::Forbidden);
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -50,6 +51,7 @@ impl Problem {
         match self {
             Generic(NotFound) => warp::http::StatusCode::NOT_FOUND,
             Generic(InternalServerError) => warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+            Generic(Forbidden) => warp::http::StatusCode::FORBIDDEN,
             RateLimit(_) => warp::http::StatusCode::TOO_MANY_REQUESTS,
             AuthorizationHeader { .. } => warp::http::StatusCode::UNAUTHORIZED,
             PayloadTooLarge { .. } => warp::http::StatusCode::PAYLOAD_TOO_LARGE,
@@ -85,6 +87,9 @@ pub enum GenericProblem {
 
     #[serde(rename = "Internal Server Error")]
     InternalServerError,
+
+    #[serde(rename = "Forbidden")]
+    Forbidden,
 }
 
 #[derive(Debug, Serialize)]

@@ -2,7 +2,7 @@ mod auth;
 
 use warp::{filters::BoxedFilter, path, Filter, Rejection};
 
-use crate::authentication::authenticate_by_token;
+use crate::authentication;
 use crate::helpers;
 use crate::models;
 use crate::problem;
@@ -34,7 +34,7 @@ pub fn router(
 fn me(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    authenticate_by_token()
+    authentication::by_token()
         .and(pg)
         .and_then(|user_id: models::UserId, conn: crate::PgPooled| {
             helpers::threadpool_diesel_ok(move || models::User::by_id(&conn, user_id))
@@ -49,7 +49,7 @@ fn me(
 fn kit_memberships(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    authenticate_by_token()
+    authentication::by_token()
         .and(pg)
         .and_then(|user_id: models::UserId, conn: crate::PgPooled| {
             helpers::threadpool_diesel_ok(move || {

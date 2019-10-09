@@ -46,6 +46,22 @@ impl KitMembership {
     pub fn memberships_of_user(conn: &PgConnection, user: &User) -> QueryResult<Vec<Self>> {
         KitMembership::belonging_to(user).load(conn)
     }
+
+    pub fn by_user_id_and_kit_id(
+        conn: &PgConnection,
+        user_id: UserId,
+        kit_id: KitId,
+    ) -> QueryResult<Option<Self>> {
+        use kit_memberships::dsl;
+        kit_memberships::table
+            .filter(dsl::user_id.eq(&user_id.0).and(dsl::kit_id.eq(&kit_id.0)))
+            .first(conn)
+            .optional()
+    }
+
+    pub fn by_user_and_kit(conn: &PgConnection, user: &User, kit: &Kit) -> QueryResult<Option<Self>> {
+        Self::by_user_id_and_kit_id(conn, UserId(user.id), KitId(kit.id))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Insertable)]

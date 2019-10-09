@@ -1,4 +1,4 @@
-use crate::problem::{Problem, INTERNAL_SERVER_ERROR, NOT_FOUND};
+use crate::problem::{Problem, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND};
 
 use bytes::Buf;
 use futures::future::{self, poll_fn, Future};
@@ -111,6 +111,79 @@ pub fn some_or_not_found<T>(r: Option<T>) -> Result<T, Rejection> {
         Some(value) => Ok(value),
         None => Err(warp::reject::custom(NOT_FOUND)),
     }
+}
+
+/**
+ * Ensure the user has permission to perform the action on the kit.
+ * Rejects the request otherwise.
+ */
+pub fn permission_or_forbidden(
+    user: &Option<crate::models::User>,
+    kit_membership: &Option<crate::models::KitMembership>,
+    kit: &crate::models::Kit,
+    action: crate::authorization::KitAction,
+) -> Result<(), Rejection> {
+    if action.permission(user, kit_membership, kit) {
+        Ok(())
+    } else {
+        Err(warp::reject::custom(FORBIDDEN))
+    }
+}
+
+/**
+ * Ensure the user has permission to perform the action on the kit.
+ * Rejects the request with FORBIDDEN otherwise.
+ *
+ * Fetches the required information from the database.
+ * If the user id is given but the user cannot be found or if the kit cannot be found with the
+ * given serial, the request is rejected with NOT_FOUND. If the request is *not* rejected, this
+ * returns the fetched user, membership and kit.
+ */
+pub fn fut_permission_or_forbidden<'a>(
+    conn: crate::PgPooled,
+    user_id: Option<crate::models::UserId>,
+    kit_serial: String,
+    action: crate::authorization::KitAction,
+) -> impl Future<
+    Item = (
+        Option<crate::models::User>,
+        Option<crate::models::KitMembership>,
+        crate::models::Kit,
+    ),
+    Error = Rejection,
+> + 'a {
+    use diesel::Connection;
+
+    threadpool_diesel_ok(move || {
+        conn.transaction(|| {
+            let user = if let Some(user_id) = user_id {
+                match crate::models::User::by_id(&conn, user_id)? {
+                    Some(user) => Some(user),
+                    // User id set but user is not found.
+                    None => return Ok(None),
+                }
+            } else {
+                None
+            };
+
+            let kit = match crate::models::Kit::by_serial(&conn, kit_serial)? {
+                Some(kit) => kit,
+                None => return Ok(None),
+            };
+
+            let membership = if let Some(user_id) = user_id {
+                crate::models::KitMembership::by_user_id_and_kit_id(&conn, user_id, kit.get_id())?
+            } else {
+                None
+            };
+
+            Ok(Some((user, membership, kit)))
+        })
+    })
+    .and_then(some_or_not_found)
+    .and_then(move |(user, membership, kit)| {
+        permission_or_forbidden(&user, &membership, &kit, action).map(|_| (user, membership, kit))
+    })
 }
 
 #[cfg(test)]

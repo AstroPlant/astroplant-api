@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use warp::{filters::BoxedFilter, path, Filter, Rejection};
 
-use crate::authentication::authenticate_by_token;
+use crate::authentication;
 use crate::response::{Response, ResponseBuilder};
 use crate::views;
 
@@ -61,15 +61,20 @@ pub fn kit_by_serial(
     use crate::PgPooled;
     use crate::{helpers, models};
 
+    use futures::future::Future;
+
     path!(String)
-        .and(pg)
-        .and_then(|serial: String, conn: PgPooled| {
-            helpers::threadpool_diesel_ok(move || models::Kit::by_serial(&conn, serial))
+        .and(authentication::option_by_token())
+        .and(pg.clone())
+        .and_then(|kit_serial: String, user_id: Option<models::UserId>, conn: PgPooled| {
+            helpers::fut_permission_or_forbidden(
+                conn,
+                user_id,
+                kit_serial,
+                crate::authorization::KitAction::view,
+            ).map(|(_, _, kit)| kit)
         })
-        .and_then(helpers::some_or_not_found)
-        .map(move |kit|
-            ResponseBuilder::ok().body(views::Kit::from(kit)),
-        )
+        .map(move |kit| ResponseBuilder::ok().body(views::Kit::from(kit)))
 }
 
 /// Handles the `POST /kits` route.
@@ -101,7 +106,7 @@ pub fn create_kit(
         password: String,
     }
 
-    authenticate_by_token()
+    authentication::by_token()
         .and(crate::helpers::deserialize())
         .and(pg)
         .and_then(|user_id: models::UserId, kit: Kit, conn: crate::PgPooled| {

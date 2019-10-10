@@ -9,7 +9,7 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     trace!("Setting up kits router.");
 
-    kit_by_serial(pg.clone().boxed())
+    (warp::get2().and(kit_by_serial(pg.clone().boxed())))
         .or(warp::path::end()
             .and(warp::get2())
             .and(kits(pg.clone().boxed())))
@@ -64,6 +64,7 @@ pub fn kit_by_serial(
     use futures::future::Future;
 
     path!(String)
+        .and(warp::path::end())
         .and(authentication::option_by_token())
         .and(pg.clone())
         .and_then(

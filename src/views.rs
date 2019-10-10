@@ -200,3 +200,84 @@ impl From<models::PeripheralDefinition> for PeripheralDefinition {
         }
     }
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct KitConfiguration {
+    pub id: i32,
+    pub kit_id: i32,
+    pub description: Option<String>,
+    pub active: bool,
+    pub never_used: bool,
+}
+
+impl KitConfiguration {
+    pub fn with_peripherals<P>(self, peripherals: Vec<P>) -> KitConfigurationWithPeripherals<P> {
+        KitConfigurationWithPeripherals {
+            kit_configuration: self,
+            peripherals,
+        }
+    }
+}
+
+impl From<models::KitConfiguration> for KitConfiguration {
+    fn from(
+        models::KitConfiguration {
+            id,
+            kit_id,
+            description,
+            active,
+            never_used,
+        }: models::KitConfiguration,
+    ) -> Self {
+        Self {
+            id,
+            kit_id,
+            description,
+            active,
+            never_used,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct KitConfigurationWithPeripherals<P> {
+    #[serde(flatten)]
+    pub kit_configuration: KitConfiguration,
+    pub peripherals: Vec<P>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Peripheral {
+    pub id: i32,
+    pub kit_id: i32,
+    pub kit_configuration_id: i32,
+    pub peripheral_definition_id: i32,
+    pub name: String,
+    pub configuration: serde_json::Value,
+}
+
+impl From<models::Peripheral> for Peripheral {
+    fn from(
+        models::Peripheral {
+            id,
+            kit_id,
+            kit_configuration_id,
+            peripheral_definition_id,
+            name,
+            configuration,
+            ..
+        }: models::Peripheral,
+    ) -> Self {
+        Self {
+            id,
+            kit_id,
+            kit_configuration_id,
+            peripheral_definition_id,
+            name,
+            configuration,
+        }
+    }
+}

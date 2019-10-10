@@ -4,6 +4,10 @@ use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::{Identifiable, QueryResult, Queryable};
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable)]
+#[table_name = "peripheral_definitions"]
+pub struct PeripheralDefinitionId(#[column_name = "id"] pub i32);
+
 #[derive(Clone, Debug, PartialEq, Queryable, Identifiable)]
 #[table_name = "peripheral_definitions"]
 pub struct PeripheralDefinition {
@@ -37,5 +41,9 @@ impl PeripheralDefinition {
         } else {
             q.load(conn)
         }
+    }
+
+    pub fn get_id(&self) -> PeripheralDefinitionId {
+        PeripheralDefinitionId(self.id)
     }
 }

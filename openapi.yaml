@@ -116,6 +116,8 @@ paths:
     get:
       summary: Info for a specific kit.
       operationId: showKitBySerial
+      security:
+        - bearerAuth: []
       tags:
         - kits
       parameters:
@@ -279,6 +281,98 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PeripheralDefinitions"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+  "/permissions":
+    get:
+      summary: List all actions you are permitted to perform on the specified kit.
+      operationId: listPermissions
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - in: query
+          name: kitSerial
+          schema:
+            type: string
+          description: The serial of the kit to fetch the permissions for.
+      responses:
+        '200':
+          description: An array of actions you are permitted to perform on the specified kit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Permissions"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+  "/kit-configurations":
+    get:
+      summary: The configurations of the specified kit.
+      operationId: listConfigurations
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: query
+          required: true
+          description: The serial of the kit to retrieve the configurations of.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The retrieved configurations.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KitConfigurationWithPeripherals"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+    post:
+      summary: Create a new configuration.
+      operationId: createConfiguration
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: query
+          required: true
+          description: The serial of the kit to create a configuration for.
+          schema:
+            type: string
+      requestBody:
+        description: The configuration to create.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewKitConfiguration"
+      responses:
+        '201':
+          description: The created kit configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KitConfiguration"
+                type: object
+        '400':
+          $ref: "#/components/responses/InvalidJson"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
         '429':
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
@@ -471,9 +565,9 @@ components:
       required:
         - id
         - name
-        - module_name
-        - class_name
-        - configuration_schema
+        - moduleName
+        - className
+        - configurationSchema
       properties:
         id:
           type: integer
@@ -486,16 +580,91 @@ components:
           type: string
         model:
           type: string
-        module_name:
+        moduleName:
           type: string
-        class_name:
+        className:
           type: string
-        configuration_schema:
+        configurationSchema:
           type: object
     PeripheralDefinitions:
       type: array
       items:
         $ref: "#/components/schemas/PeripheralDefinition"
+    Peripheral:
+      type: object
+      required:
+        - id
+        - kitId
+        - configurationId
+        - peripheralDefinitionId
+        - name
+        - configuration
+      properties:
+        id:
+          type: integer
+          format: int32
+        kitId:
+          type: integer
+          format: int32
+        configurationId:
+          type: integer
+          format: int32
+        peripheralDefinitionId:
+          type: integer
+          format: int32
+        name:
+          type: string
+        configuration:
+          type: object
+    Peripherals:
+      type: array
+      items:
+        $ref: "#/components/schemas/Peripheral"
+    Permission:
+      type: string
+      enum:
+        - view
+        - subscribeRealTimeMeasurements
+        - editDetails
+        - editConfiguration
+        - editMembers
+        - setSuperMember
+    Permissions:
+      type: array
+      items:
+        $ref: "#/components/schemas/Permission"
+    KitConfiguration:
+      type: object
+      required:
+        - id
+        - kitId
+        - active
+        - neverUsed
+      properties:
+        id:
+          type: integer
+          format: int32
+        kitId:
+          type: integer
+          format: int32
+        description:
+          type: string
+        active:
+          type: boolean
+        neverUsed:
+          type: boolean
+    NewKitConfiguration:
+      type: object
+      properties:
+        description:
+          type: string
+    KitConfigurationWithPeripherals:
+      allOf:
+        - $ref: "#/components/schemas/KitConfiguration"
+        - type: object
+          properties:
+            peripherals:
+              $ref: "#/components/schemas/Peripherals"
   headers:
     CursorPaging:
       description: A link to the next page.

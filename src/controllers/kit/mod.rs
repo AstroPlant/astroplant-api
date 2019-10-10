@@ -5,9 +5,8 @@ use crate::authentication;
 use crate::response::{Response, ResponseBuilder};
 use crate::views;
 
-pub fn router(
-    pg: BoxedFilter<(crate::PgPooled,)>,
-) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
+pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
+    //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     trace!("Setting up kits router.");
 
     kit_by_serial(pg.clone().boxed())
@@ -19,6 +18,7 @@ pub fn router(
             .and(warp::post2())
             .and(create_kit(pg.boxed())))
         .unify()
+        .boxed()
 }
 
 #[derive(Deserialize)]
@@ -66,14 +66,17 @@ pub fn kit_by_serial(
     path!(String)
         .and(authentication::option_by_token())
         .and(pg.clone())
-        .and_then(|kit_serial: String, user_id: Option<models::UserId>, conn: PgPooled| {
-            helpers::fut_permission_or_forbidden(
-                conn,
-                user_id,
-                kit_serial,
-                crate::authorization::KitAction::view,
-            ).map(|(_, _, kit)| kit)
-        })
+        .and_then(
+            |kit_serial: String, user_id: Option<models::UserId>, conn: PgPooled| {
+                helpers::fut_permission_or_forbidden(
+                    conn,
+                    user_id,
+                    kit_serial,
+                    crate::authorization::KitAction::view,
+                )
+                .map(|(_, _, kit)| kit)
+            },
+        )
         .map(move |kit| ResponseBuilder::ok().body(views::Kit::from(kit)))
 }
 

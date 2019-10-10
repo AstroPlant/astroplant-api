@@ -10,14 +10,14 @@ use crate::models;
 use crate::response::{Response, ResponseBuilder};
 use crate::views;
 
-pub fn router(
-    pg: BoxedFilter<(crate::PgPooled,)>,
-) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
+pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
+    //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     trace!("Setting up users router.");
 
     warp::path::end()
         .and(warp::get2())
         .and(peripheral_definitions(pg.clone()))
+        .boxed()
 }
 
 /// Handles the `GET /peripheral-definitions/?after=afterId` route.

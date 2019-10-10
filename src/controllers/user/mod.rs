@@ -8,14 +8,14 @@ use crate::models;
 use crate::problem;
 use crate::response::{Response, ResponseBuilder};
 
-pub fn router(
-    pg: BoxedFilter<(crate::PgPooled,)>,
-) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
+pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
+    //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     trace!("Setting up users router.");
 
     warp::path::end()
         .and(warp::post2())
         .and(create_user(pg.clone()))
+        .boxed()
 }
 
 pub fn create_user(

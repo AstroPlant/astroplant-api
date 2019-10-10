@@ -7,12 +7,13 @@ use crate::authentication;
 use crate::response::{Response, ResponseBuilder};
 use crate::views;
 
-pub fn router(
-    pg: BoxedFilter<(crate::PgPooled,)>,
-) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
+pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
+    //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     trace!("Setting up permissions router.");
 
-    warp::path::end().and(user_kit_permissions(pg.clone().boxed()))
+    warp::path::end()
+        .and(user_kit_permissions(pg.clone().boxed()))
+        .boxed()
 }
 
 /// Handles the `GET /permissions/?kitSerial={kitSerial}` route.

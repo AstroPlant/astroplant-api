@@ -44,7 +44,7 @@ pub fn configurations_by_kit_serial(
                     conn,
                     user_id,
                     kit_serial,
-                    crate::authorization::KitAction::view,
+                    crate::authorization::KitAction::View,
                 )
                 .map(|(_, _, kit)| kit)
             },
@@ -113,7 +113,7 @@ pub fn create_configuration(
                     conn,
                     user_id,
                     kit_serial,
-                    crate::authorization::KitAction::editConfiguration,
+                    crate::authorization::KitAction::EditConfiguration,
                 )
                 .map(|(_, _, kit)| kit)
             },

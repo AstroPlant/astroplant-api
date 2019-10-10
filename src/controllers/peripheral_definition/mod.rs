@@ -27,8 +27,6 @@ pub fn peripheral_definitions(
     use crate::PgPooled;
     use crate::{helpers, models};
 
-    use futures::future::Future;
-
     #[derive(Deserialize)]
     struct CursorPage {
         after: Option<i32>,

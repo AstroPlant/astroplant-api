@@ -73,7 +73,7 @@ pub fn kit_by_serial(
                     conn,
                     user_id,
                     kit_serial,
-                    crate::authorization::KitAction::view,
+                    crate::authorization::KitAction::View,
                 )
                 .map(|(_, _, kit)| kit)
             },

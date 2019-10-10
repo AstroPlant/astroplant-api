@@ -1,11 +1,9 @@
-use crate::problem::{INTERNAL_SERVER_ERROR, NOT_FOUND};
+use serde::Deserialize;
+use warp::{filters::BoxedFilter, Filter, Rejection};
 
-use serde::{Deserialize, Serialize};
-use warp::{filters::BoxedFilter, path, Filter, Rejection};
-
-use crate::authentication;
 use crate::response::{Response, ResponseBuilder};
-use crate::views;
+use crate::PgPooled;
+use crate::{authentication, helpers, models, problem};
 
 pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
@@ -20,11 +18,8 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
 pub fn user_kit_permissions(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    use crate::PgPooled;
-    use crate::{helpers, models};
     use diesel::Connection;
-
-    use futures::future::{self, Future};
+    use futures::future::Future;
 
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -65,7 +60,7 @@ pub fn user_kit_permissions(
                     })
                 })
                 .then(move |result| match result {
-                    Ok(None) => Err(warp::reject::custom(NOT_FOUND)),
+                    Ok(None) => Err(warp::reject::custom(problem::NOT_FOUND)),
                     Ok(Some((user, membership, kit))) => {
                         use crate::authorization::KitAction;
                         use strum::IntoEnumIterator;

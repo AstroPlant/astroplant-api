@@ -118,6 +118,7 @@ pub struct KitMembership<U, K> {
 }
 
 impl<U, K> KitMembership<U, K> {
+    #[allow(dead_code)]
     pub fn with_kit<NK>(self, kit: NK) -> KitMembership<U, NK> {
         KitMembership {
             id: self.id,
@@ -129,6 +130,7 @@ impl<U, K> KitMembership<U, K> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_user<NU>(self, user: NU) -> KitMembership<NU, K> {
         KitMembership {
             id: self.id,

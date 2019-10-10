@@ -41,34 +41,40 @@ impl ResponseBuilder {
     }
 
     /// Create a response with a 200 OK status code.
+    #[allow(dead_code)]
     pub fn ok() -> Self {
         Self::new(StatusCode::OK)
     }
 
     /// Create a response with a 201 Created status code.
+    #[allow(dead_code)]
     pub fn created() -> Self {
         Self::new(StatusCode::CREATED)
     }
 
     /// Add a (relative) next-page URI header to the response.
+    #[allow(dead_code)]
     pub fn next_page_uri(mut self, uri: String) -> Self {
         self.headers.insert("x-next".to_owned(), uri);
         self
     }
 
     /// Add a Location URI header. Only makes sense with the Created or a Redirection status.
+    #[allow(dead_code)]
     pub fn content_uri(mut self, uri: String) -> Self {
         self.headers.insert("Location".to_owned(), uri);
         self
     }
 
     /// Set a response header.
+    #[allow(dead_code)]
     pub fn header(mut self, header_name: String, header_value: String) -> Self {
         self.headers.insert(header_name, header_value);
         self
     }
 
     /// Build an empty response.
+    #[allow(dead_code)]
     pub fn empty(self) -> Response {
         Response {
             value: None,
@@ -78,6 +84,7 @@ impl ResponseBuilder {
     }
 
     /// Build the response with the given value.
+    #[allow(dead_code)]
     pub fn body<T>(self, value: T) -> Response
     where
         T: ErasedSerialize + Send + 'static,

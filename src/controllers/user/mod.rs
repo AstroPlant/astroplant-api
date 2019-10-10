@@ -3,10 +3,8 @@ use serde::Deserialize;
 use validator::Validate;
 use warp::{filters::BoxedFilter, Filter, Rejection};
 
-use crate::helpers;
-use crate::models;
-use crate::problem;
 use crate::response::{Response, ResponseBuilder};
+use crate::{helpers, models, problem};
 
 pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {

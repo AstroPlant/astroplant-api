@@ -1,9 +1,9 @@
-use serde::{Deserialize, Serialize};
-use warp::{filters::BoxedFilter, path, Filter, Rejection};
+use serde::Deserialize;
+use warp::{filters::BoxedFilter, Filter, Rejection};
 
-use crate::authentication;
 use crate::response::{Response, ResponseBuilder};
-use crate::views;
+use crate::PgPooled;
+use crate::{authentication, helpers, models, views};
 
 pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
@@ -19,13 +19,10 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
 pub fn configurations_by_kit_serial(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    use crate::PgPooled;
-    use crate::{helpers, models};
     use diesel::Connection;
+    use futures::future::Future;
     use itertools::Itertools;
     use std::collections::HashMap;
-
-    use futures::future::Future;
 
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -82,12 +79,6 @@ pub fn configurations_by_kit_serial(
 pub fn create_configuration(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    use crate::PgPooled;
-    use crate::{helpers, models};
-    use diesel::Connection;
-    use itertools::Itertools;
-    use std::collections::HashMap;
-
     use futures::future::Future;
 
     #[derive(Deserialize)]

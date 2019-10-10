@@ -2,12 +2,8 @@ mod auth;
 
 use warp::{filters::BoxedFilter, path, Filter, Rejection};
 
-use crate::authentication;
-use crate::helpers;
-use crate::models;
-use crate::problem;
 use crate::response::{Response, ResponseBuilder};
-use crate::views;
+use crate::{authentication, helpers, models, problem, views};
 
 pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {

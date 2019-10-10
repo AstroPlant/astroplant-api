@@ -43,6 +43,7 @@ where
 }
 
 /// Flatten a nested result with equal error types to a single result.
+#[allow(dead_code)]
 pub fn flatten_result<T, E>(nested: Result<Result<T, E>, E>) -> Result<T, E> {
     match nested {
         Err(e) => Err(e),
@@ -92,6 +93,7 @@ pub fn pg(
         })
 }
 
+#[allow(dead_code)]
 pub fn ok_or_internal_error<T, E>(r: Result<T, E>) -> Result<T, Rejection> {
     match r {
         Ok(value) => Ok(value),
@@ -99,6 +101,7 @@ pub fn ok_or_internal_error<T, E>(r: Result<T, E>) -> Result<T, Rejection> {
     }
 }
 
+#[allow(dead_code)]
 pub fn some_or_internal_error<T>(r: Option<T>) -> Result<T, Rejection> {
     match r {
         Some(value) => Ok(value),
@@ -106,6 +109,7 @@ pub fn some_or_internal_error<T>(r: Option<T>) -> Result<T, Rejection> {
     }
 }
 
+#[allow(dead_code)]
 pub fn some_or_not_found<T>(r: Option<T>) -> Result<T, Rejection> {
     match r {
         Some(value) => Ok(value),

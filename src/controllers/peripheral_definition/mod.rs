@@ -1,14 +1,12 @@
-use crate::problem::{INTERNAL_SERVER_ERROR, NOT_FOUND};
+use crate::problem::INTERNAL_SERVER_ERROR;
 
 use futures::future::Future;
 use serde::Deserialize;
-use validator::Validate;
 use warp::{filters::BoxedFilter, Filter, Rejection};
 
-use crate::helpers;
-use crate::models;
 use crate::response::{Response, ResponseBuilder};
-use crate::views;
+use crate::PgPooled;
+use crate::{helpers, models, views};
 
 pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
@@ -24,8 +22,6 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
 pub fn peripheral_definitions(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    use crate::PgPooled;
-    use crate::{helpers, models};
 
     #[derive(Deserialize)]
     struct CursorPage {

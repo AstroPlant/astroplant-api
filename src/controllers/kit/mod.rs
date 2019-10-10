@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use warp::{filters::BoxedFilter, path, Filter, Rejection};
 
-use crate::authentication;
 use crate::response::{Response, ResponseBuilder};
-use crate::views;
+use crate::PgPooled;
+use crate::{authentication, helpers, models, views, problem};
 
 pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
@@ -30,9 +30,6 @@ struct CursorPage {
 pub fn kits(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    use crate::PgPooled;
-    use crate::{helpers, models};
-
     warp::query::query::<CursorPage>()
         .and(pg)
         .and_then(|cursor: CursorPage, conn: PgPooled| {
@@ -58,9 +55,6 @@ pub fn kits(
 pub fn kit_by_serial(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    use crate::PgPooled;
-    use crate::{helpers, models};
-
     use futures::future::Future;
 
     path!(String)
@@ -85,8 +79,6 @@ pub fn kit_by_serial(
 pub fn create_kit(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    use crate::{helpers, models, problem};
-
     use bigdecimal::{BigDecimal, FromPrimitive};
     use diesel::Connection;
     use futures::future::{self, Future};

@@ -1,17 +1,46 @@
 use serde::Deserialize;
-use warp::{filters::BoxedFilter, Filter, Rejection};
+use warp::{filters::BoxedFilter, path, Filter, Rejection};
 
 use crate::response::{Response, ResponseBuilder};
 use crate::PgPooled;
-use crate::{authentication, helpers, models, views};
+use crate::{helpers, models, problem, views};
 
 pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     trace!("Setting up configurations router.");
 
-    (warp::get2().and(configurations_by_kit_serial(pg.clone().boxed())))
-        .or(warp::post2().and(create_configuration(pg.clone().boxed())))
+    configurations_by_kit_serial(pg.clone())
+        .or(create_configuration(pg.clone()))
         .unify()
+        .or(patch_configuration(pg.clone()))
+        .unify()
+        .boxed()
+}
+
+/// Get the kit configuration from the path or error with 404.
+fn get_kit_configuration(
+    pg: BoxedFilter<(crate::PgPooled,)>,
+) -> BoxedFilter<(models::KitConfiguration,)> {
+    use futures::future::Future;
+
+    warp::get2()
+        .and(path!(i32))
+        .and(warp::path::end())
+        .and(pg)
+        .and_then(|configuration_id: i32, conn: crate::PgPooled| {
+            helpers::threadpool_diesel_ok(move || {
+                let configuration = match models::KitConfiguration::by_id(
+                    &conn,
+                    models::KitConfigurationId(configuration_id),
+                )? {
+                    Some(configuration) => configuration,
+                    None => return Ok(Err(warp::reject::custom(problem::NOT_FOUND))),
+                };
+
+                Ok(Ok(configuration))
+            })
+            .then(helpers::flatten_result)
+        })
         .boxed()
 }
 
@@ -20,31 +49,17 @@ pub fn configurations_by_kit_serial(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     use diesel::Connection;
-    use futures::future::Future;
     use itertools::Itertools;
     use std::collections::HashMap;
 
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct KitSerial {
-        kit_serial: String,
-    }
-
-    warp::query::query::<KitSerial>()
-        .map(|query: KitSerial| query.kit_serial)
+    warp::get2()
         .and(warp::path::end())
-        .and(authentication::option_by_token())
-        .and(pg.clone())
-        .and_then(
-            |kit_serial: String, user_id: Option<models::UserId>, conn: PgPooled| {
-                helpers::fut_permission_or_forbidden(
-                    conn,
-                    user_id,
-                    kit_serial,
-                    crate::authorization::KitAction::View,
-                )
-                .map(|(_, _, kit)| kit)
-            },
+        .and(
+            helpers::authorization_user_kit_from_query(
+                pg.clone(),
+                crate::authorization::KitAction::View,
+            )
+            .map(|_, _, kit| kit),
         )
         .and(pg)
         .and_then(|kit, conn: PgPooled| {
@@ -75,39 +90,24 @@ pub fn configurations_by_kit_serial(
         })
 }
 
-/// Handles the `POST /kit-configurations/{kitSerial}` route.
+/// Handles the `POST /kit-configurations?kitSerial={kitSerial}` route.
 pub fn create_configuration(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    use futures::future::Future;
-
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct KitSerial {
-        kit_serial: String,
-    }
-
     #[derive(Deserialize, Debug)]
     #[serde(rename_all = "camelCase")]
     struct Configuration {
         description: Option<String>,
     }
 
-    warp::query::query::<KitSerial>()
-        .map(|query: KitSerial| query.kit_serial)
+    warp::post2()
         .and(warp::path::end())
-        .and(authentication::option_by_token())
-        .and(pg.clone())
-        .and_then(
-            |kit_serial: String, user_id: Option<models::UserId>, conn: PgPooled| {
-                helpers::fut_permission_or_forbidden(
-                    conn,
-                    user_id,
-                    kit_serial,
-                    crate::authorization::KitAction::EditConfiguration,
-                )
-                .map(|(_, _, kit)| kit)
-            },
+        .and(
+            helpers::authorization_user_kit_from_query(
+                pg.clone(),
+                crate::authorization::KitAction::EditConfiguration,
+            )
+            .map(|_, _, kit| kit),
         )
         .and(crate::helpers::deserialize())
         .and(pg)
@@ -122,6 +122,74 @@ pub fn create_configuration(
                         ResponseBuilder::ok()
                             .body(views::KitConfiguration::from(new_configuration)),
                     )
+                })
+            },
+        )
+}
+
+/// Handles the `PATCH /kit-configurations/{kitConfigurationId}?kitSerial={kitSerial}` route.
+///
+/// If the configuration is set active, all other configurations of the kit are deactivated.
+pub fn patch_configuration(
+    pg: BoxedFilter<(crate::PgPooled,)>,
+) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
+    use diesel::Connection;
+    use futures::future::{self, Future};
+
+    #[derive(Deserialize, Debug)]
+    #[serde(rename_all = "camelCase")]
+    struct KitConfigurationPatch {
+        description: Option<String>,
+        active: Option<bool>,
+    }
+
+    warp::patch()
+        .and(get_kit_configuration(pg.clone()))
+        .and(warp::path::end())
+        .and(
+            helpers::authorization_user_kit_from_query(
+                pg.clone(),
+                crate::authorization::KitAction::EditConfiguration,
+            )
+            .map(|_, _, kit| kit),
+        )
+        .and(crate::helpers::deserialize())
+        .and(pg)
+        .and_then(
+            |configuration: models::KitConfiguration,
+             kit: models::Kit,
+             configuration_patch: KitConfigurationPatch,
+             conn: PgPooled| {
+                let res = if configuration.kit_id == kit.id {
+                    Ok(())
+                } else {
+                    Err(warp::reject::custom(problem::NOT_FOUND))
+                };
+
+                let patch = models::UpdateKitConfiguration {
+                    id: configuration.id,
+                    description: Some(configuration_patch.description),
+                    active: configuration_patch.active,
+                    never_used: match configuration_patch.active {
+                        Some(true) => Some(false),
+                        _ => None,
+                    },
+                };
+
+                future::result(res).and_then(|_| {
+                    helpers::threadpool_diesel_ok(move || {
+                        conn.transaction(|| {
+                            if let Some(active) = patch.active {
+                                if active != configuration.active {
+                                    models::KitConfiguration::deactivate_all_of_kit(&conn, &kit)?;
+                                }
+                            }
+                            let patched_configuration = patch.update(&conn)?;
+
+                            Ok(ResponseBuilder::ok()
+                                .body(views::KitConfiguration::from(patched_configuration)))
+                        })
+                    })
                 })
             },
         )

@@ -2,8 +2,10 @@ use crate::problem::{Problem, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND};
 
 use bytes::Buf;
 use futures::future::{self, poll_fn, Future};
-use serde::de::DeserializeOwned;
-use warp::{Filter, Rejection};
+use serde::{de::DeserializeOwned, Deserialize};
+use warp::{filters::BoxedFilter, Filter, Rejection};
+
+use crate::{authentication, authorization, models};
 
 /// Run a function on a threadpool, returning a future resolving when the function completes.
 pub fn fut_threadpool<F, T>(f: F) -> impl Future<Item = T, Error = tokio_threadpool::BlockingError>
@@ -188,6 +190,38 @@ pub fn fut_permission_or_forbidden<'a>(
     .and_then(move |(user, membership, kit)| {
         permission_or_forbidden(&user, &membership, &kit, action).map(|_| (user, membership, kit))
     })
+}
+
+/**
+ * Authenticate the user through the Authorization header and the kit from the kitSerial parameter
+ * in the query. Check whether the user is authorized to perform the given action. Returns the
+ * user, kit membership and kit fetched from the database.
+ */
+pub fn authorization_user_kit_from_query(
+    pg: BoxedFilter<(crate::PgPooled,)>,
+    action: authorization::KitAction,
+) -> BoxedFilter<(
+    Option<models::User>,
+    Option<models::KitMembership>,
+    models::Kit,
+)> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct KitSerial {
+        kit_serial: String,
+    }
+
+    warp::query::query::<KitSerial>()
+        .map(|query: KitSerial| query.kit_serial)
+        .and(authentication::option_by_token())
+        .and(pg)
+        .and_then(
+            move |kit_serial: String, user_id: Option<models::UserId>, conn: crate::PgPooled| {
+                fut_permission_or_forbidden(conn, user_id, kit_serial, action)
+            },
+        )
+        .untuple_one()
+        .boxed()
 }
 
 #[cfg(test)]

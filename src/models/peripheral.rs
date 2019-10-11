@@ -3,6 +3,7 @@ use crate::schema::peripherals;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::{Identifiable, QueryResult, Queryable};
+use validator::Validate;
 
 #[rustfmt::skip]
 use super::{
@@ -66,12 +67,13 @@ impl Peripheral {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Insertable)]
+#[derive(Clone, Debug, PartialEq, Insertable, Validate)]
 #[table_name = "peripherals"]
 pub struct NewPeripheral {
     pub kit_id: i32,
     pub kit_configuration_id: i32,
     pub peripheral_definition_id: i32,
+    #[validate(length(min = 1, max = 40))]
     pub name: String,
     pub configuration: serde_json::Value,
 }

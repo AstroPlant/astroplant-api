@@ -1,3 +1,5 @@
+mod peripheral;
+
 use serde::Deserialize;
 use warp::{filters::BoxedFilter, path, Filter, Rejection};
 
@@ -14,6 +16,8 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
         .unify()
         .or(patch_configuration(pg.clone()))
         .unify()
+        .or(peripheral::router(pg.clone()))
+        .unify()
         .boxed()
 }
 
@@ -23,9 +27,7 @@ fn get_kit_configuration(
 ) -> BoxedFilter<(models::KitConfiguration,)> {
     use futures::future::Future;
 
-    warp::get2()
-        .and(path!(i32))
-        .and(warp::path::end())
+    path!(i32)
         .and(pg)
         .and_then(|configuration_id: i32, conn: crate::PgPooled| {
             helpers::threadpool_diesel_ok(move || {
@@ -44,8 +46,41 @@ fn get_kit_configuration(
         .boxed()
 }
 
+/// Authorize the user against the kit in the query for the given action, get the kit configuration
+/// from the path, and compare the configuration's kit id and with the kit's id. Rejects the request
+/// on error.
+fn authorize_and_get_kit_configuration(
+    pg: BoxedFilter<(crate::PgPooled,)>,
+    action: crate::authorization::KitAction,
+) -> BoxedFilter<(
+    Option<models::User>,
+    Option<models::KitMembership>,
+    models::Kit,
+    models::KitConfiguration,
+)> {
+    get_kit_configuration(pg.clone())
+        .and(helpers::authorization_user_kit_from_query(
+            pg.clone(),
+            action,
+        ))
+        .and_then(
+            |kit_configuration: models::KitConfiguration,
+             user: Option<models::User>,
+             kit_membership: Option<models::KitMembership>,
+             kit: models::Kit| {
+                if kit_configuration.kit_id == kit.id {
+                    Ok((user, kit_membership, kit, kit_configuration))
+                } else {
+                    Err(warp::reject::custom(problem::NOT_FOUND))
+                }
+            },
+        )
+        .untuple_one()
+        .boxed()
+}
+
 /// Handles the `GET /kit-configurations/{kitSerial}` route.
-pub fn configurations_by_kit_serial(
+fn configurations_by_kit_serial(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     use diesel::Connection;
@@ -91,7 +126,7 @@ pub fn configurations_by_kit_serial(
 }
 
 /// Handles the `POST /kit-configurations?kitSerial={kitSerial}` route.
-pub fn create_configuration(
+fn create_configuration(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     #[derive(Deserialize, Debug)]
@@ -130,11 +165,10 @@ pub fn create_configuration(
 /// Handles the `PATCH /kit-configurations/{kitConfigurationId}?kitSerial={kitSerial}` route.
 ///
 /// If the configuration is set active, all other configurations of the kit are deactivated.
-pub fn patch_configuration(
+fn patch_configuration(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     use diesel::Connection;
-    use futures::future::{self, Future};
 
     #[derive(Deserialize, Debug)]
     #[serde(rename_all = "camelCase")]
@@ -144,28 +178,20 @@ pub fn patch_configuration(
     }
 
     warp::patch()
-        .and(get_kit_configuration(pg.clone()))
+        .and(authorize_and_get_kit_configuration(
+            pg.clone(),
+            crate::authorization::KitAction::EditConfiguration,
+        ))
         .and(warp::path::end())
-        .and(
-            helpers::authorization_user_kit_from_query(
-                pg.clone(),
-                crate::authorization::KitAction::EditConfiguration,
-            )
-            .map(|_, _, kit| kit),
-        )
         .and(crate::helpers::deserialize())
         .and(pg)
         .and_then(
-            |configuration: models::KitConfiguration,
+            |_user,
+             _kit_membership,
              kit: models::Kit,
+             configuration: models::KitConfiguration,
              configuration_patch: KitConfigurationPatch,
              conn: PgPooled| {
-                let res = if configuration.kit_id == kit.id {
-                    Ok(())
-                } else {
-                    Err(warp::reject::custom(problem::NOT_FOUND))
-                };
-
                 let patch = models::UpdateKitConfiguration {
                     id: configuration.id,
                     description: Some(configuration_patch.description),
@@ -176,19 +202,17 @@ pub fn patch_configuration(
                     },
                 };
 
-                future::result(res).and_then(|_| {
-                    helpers::threadpool_diesel_ok(move || {
-                        conn.transaction(|| {
-                            if let Some(active) = patch.active {
-                                if active != configuration.active {
-                                    models::KitConfiguration::deactivate_all_of_kit(&conn, &kit)?;
-                                }
+                helpers::threadpool_diesel_ok(move || {
+                    conn.transaction(|| {
+                        if let Some(active) = patch.active {
+                            if active != configuration.active {
+                                models::KitConfiguration::deactivate_all_of_kit(&conn, &kit)?;
                             }
-                            let patched_configuration = patch.update(&conn)?;
+                        }
+                        let patched_configuration = patch.update(&conn)?;
 
-                            Ok(ResponseBuilder::ok()
-                                .body(views::KitConfiguration::from(patched_configuration)))
-                        })
+                        Ok(ResponseBuilder::ok()
+                            .body(views::KitConfiguration::from(patched_configuration)))
                     })
                 })
             },

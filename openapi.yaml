@@ -377,6 +377,94 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+  "/kit-configurations/{configurationId}":
+    patch:
+      summary: Update the configuration.
+      operationId: patchConfiguration
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: query
+          required: true
+          description: The serial of the kit to patch the configuration for.
+          schema:
+            type: string
+        - name: configurationId
+          in: path
+          required: true
+          description: The id of the configuration to patch.
+          schema:
+            type: number
+      requestBody:
+        description: The configuration patch.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchKitConfiguration"
+      responses:
+        '201':
+          description: The created kit configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KitConfiguration"
+                type: object
+        '400':
+          $ref: "#/components/responses/InvalidJson"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+  "/kit-configurations/{configurationId}/peripherals":
+    post:
+      summary: Add a peripheral to the configuration.
+      operationId: createPeripheral
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: query
+          required: true
+          description: The serial of the kit to add a peripheral to the configuration to.
+          schema:
+            type: string
+        - name: configurationId
+          in: path
+          required: true
+          description: The id of the configuration to add a peripheral to.
+          schema:
+            type: number
+      requestBody:
+        description: The peripheral to add.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewPeripheral"
+      responses:
+        '201':
+          description: The added peripheral.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Peripheral"
+                type: object
+        '400':
+          $ref: "#/components/responses/InvalidJson"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
 components:
   securitySchemes:
     bearerAuth:
@@ -616,6 +704,20 @@ components:
           type: string
         configuration:
           type: object
+    NewPeripheral:
+      type: object
+      required:
+        - peripheralDefinitionId
+        - name
+        - configuration
+      properties:
+        peripheralDefinitionId:
+          type: integer
+          format: int32
+        name:
+          type: string
+        configuration:
+          type: object
     Peripherals:
       type: array
       items:
@@ -658,6 +760,13 @@ components:
       properties:
         description:
           type: string
+    PatchKitConfiguration:
+      type: object
+      properties:
+        description:
+          type: string
+        active:
+          type: boolean
     KitConfigurationWithPeripherals:
       allOf:
         - $ref: "#/components/schemas/KitConfiguration"

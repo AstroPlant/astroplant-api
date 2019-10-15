@@ -96,10 +96,7 @@ impl KitConfiguration {
 
 impl UpdateKitConfiguration {
     pub fn update(&self, conn: &PgConnection) -> QueryResult<KitConfiguration> {
-        use crate::schema::kit_configurations::dsl;
-        diesel::update(dsl::kit_configurations)
-            .set(self)
-            .get_result(conn)
+        self.save_changes(conn)
     }
 }
 

@@ -3,6 +3,7 @@ mod peripheral;
 use serde::Deserialize;
 use warp::{filters::BoxedFilter, path, Filter, Rejection};
 
+use crate::utils::deserialize_some;
 use crate::response::{Response, ResponseBuilder};
 use crate::PgPooled;
 use crate::{helpers, models, problem, views};
@@ -79,7 +80,7 @@ fn authorize_and_get_kit_configuration(
         .boxed()
 }
 
-/// Handles the `GET /kit-configurations/{kitSerial}` route.
+/// Handles the `GET /kit-configurations?kitSerial={kitSerial}` route.
 fn configurations_by_kit_serial(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
@@ -173,7 +174,8 @@ fn patch_configuration(
     #[derive(Deserialize, Debug)]
     #[serde(rename_all = "camelCase")]
     struct KitConfigurationPatch {
-        description: Option<String>,
+        #[serde(default, deserialize_with = "deserialize_some")]
+        description: Option<Option<String>>,
         active: Option<bool>,
     }
 
@@ -194,7 +196,7 @@ fn patch_configuration(
              conn: PgPooled| {
                 let patch = models::UpdateKitConfiguration {
                     id: configuration.id,
-                    description: Some(configuration_patch.description),
+                    description: configuration_patch.description,
                     active: configuration_patch.active,
                     never_used: match configuration_patch.active {
                         Some(true) => Some(false),

@@ -18,6 +18,8 @@ use warp::{self, http::Method, path, Filter, Rejection, Reply};
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 type PgPooled = PooledConnection<ConnectionManager<PgConnection>>;
 
+mod utils;
+
 mod authentication;
 mod authorization;
 mod helpers;
@@ -106,6 +108,7 @@ fn main() {
                     Method::GET,
                     Method::POST,
                     Method::PUT,
+                    Method::PATCH,
                     Method::DELETE,
                     Method::OPTIONS,
                 ])

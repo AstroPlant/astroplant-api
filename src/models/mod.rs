@@ -16,4 +16,4 @@ mod peripheral_definition;
 pub use peripheral_definition::{PeripheralDefinition, PeripheralDefinitionId};
 
 mod peripheral;
-pub use peripheral::{Peripheral, PeripheralId, NewPeripheral};
+pub use peripheral::{Peripheral, PeripheralId, NewPeripheral, UpdatePeripheral};

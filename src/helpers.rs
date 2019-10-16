@@ -224,6 +224,16 @@ pub fn authorization_user_kit_from_query(
         .boxed()
 }
 
+pub fn guard<T, F>(val: T, f: F) -> Result<T, warp::Rejection>
+where
+    F: Fn(&T) -> Option<warp::Rejection>,
+{
+    match f(&val) {
+        Some(rejection) => Err(rejection),
+        None => Ok(val),
+    }
+}
+
 #[cfg(test)]
 mod test {
     #[test]

@@ -16,7 +16,7 @@ use super::{
 #[table_name = "peripherals"]
 pub struct PeripheralId(#[column_name = "id"] pub i32);
 
-#[derive(Clone, Debug, PartialEq, Queryable, Identifiable, Associations)]
+#[derive(Clone, Debug, PartialEq, Queryable, Identifiable, Associations, AsChangeset, Validate)]
 #[belongs_to(parent = "Kit", foreign_key = "kit_id")]
 #[belongs_to(parent = "KitId", foreign_key = "kit_id")]
 #[belongs_to(parent = "KitConfiguration", foreign_key = "kit_configuration_id")]
@@ -35,11 +35,33 @@ pub struct Peripheral {
     pub kit_id: i32,
     pub kit_configuration_id: i32,
     pub peripheral_definition_id: i32,
+    #[validate(length(min = 1, max = 40))]
     pub name: String,
     pub configuration: serde_json::Value,
 }
 
+#[derive(Clone, Debug, PartialEq, Queryable, Identifiable, AsChangeset, Validate)]
+#[table_name = "peripherals"]
+pub struct UpdatePeripheral {
+    pub id: i32,
+    // None means don't update.
+    #[validate(length(min = 1, max = 40))]
+    pub name: Option<String>,
+    pub configuration: Option<serde_json::Value>,
+}
+
 impl Peripheral {
+    pub fn by_id(conn: &PgConnection, peripheral_id: PeripheralId) -> QueryResult<Option<Self>> {
+        peripherals::table
+            .find(&peripheral_id.0)
+            .first(conn)
+            .optional()
+    }
+
+    pub fn delete(&self, conn: &PgConnection) -> QueryResult<bool> {
+        diesel::delete(self).execute(conn).map(|r| r > 0)
+    }
+
     pub fn peripherals_of_kit(conn: &PgConnection, kit: &Kit) -> QueryResult<Vec<Self>> {
         Peripheral::belonging_to(kit).load(conn)
     }
@@ -64,6 +86,12 @@ impl Peripheral {
 
     pub fn get_id(&self) -> PeripheralId {
         PeripheralId(self.id)
+    }
+}
+
+impl UpdatePeripheral {
+    pub fn update(&self, conn: &PgConnection) -> QueryResult<Peripheral> {
+        self.save_changes(conn)
     }
 }
 

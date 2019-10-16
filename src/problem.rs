@@ -52,6 +52,7 @@ impl Problem {
             Generic(NotFound) => warp::http::StatusCode::NOT_FOUND,
             Generic(InternalServerError) => warp::http::StatusCode::INTERNAL_SERVER_ERROR,
             Generic(Forbidden) => warp::http::StatusCode::FORBIDDEN,
+            Generic(MethodNotAllowed) => warp::http::StatusCode::METHOD_NOT_ALLOWED,
             RateLimit(_) => warp::http::StatusCode::TOO_MANY_REQUESTS,
             AuthorizationHeader { .. } => warp::http::StatusCode::UNAUTHORIZED,
             PayloadTooLarge { .. } => warp::http::StatusCode::PAYLOAD_TOO_LARGE,
@@ -90,6 +91,9 @@ pub enum GenericProblem {
 
     #[serde(rename = "Forbidden")]
     Forbidden,
+
+    #[serde(rename = "Method Not Allowed")]
+    MethodNotAllowed,
 }
 
 #[derive(Debug, Serialize)]
@@ -209,6 +213,10 @@ impl InvalidParameters {
             .or_insert(vec![])
             .push(reason)
     }
+
+    pub fn into_problem(self) -> Problem {
+        Problem::InvalidParameters { invalid_parameters: self }
+    }
 }
 
 impl<E: std::borrow::Borrow<validator::ValidationErrors>> From<E> for InvalidParameters {
@@ -231,18 +239,35 @@ impl<E: std::borrow::Borrow<validator::ValidationErrors>> From<E> for InvalidPar
 pub enum InvalidParameterReason {
     MustBeEmailAddress,
     MustBeUrl,
-    MustBeInRange { min: f64, max: f64 },
+    MustBeInRange {
+        min: f64,
+        max: f64,
+    },
     MustHaveLengthBetween {
         #[serde(skip_serializing_if = "Option::is_none")]
         min: Option<u64>,
 
         #[serde(skip_serializing_if = "Option::is_none")]
-        max: Option<u64>
+        max: Option<u64>,
     },
-    MustHaveLengthExactly { length: u64 },
+    MustHaveLengthExactly {
+        length: u64,
+    },
     AlreadyExists,
-    InvalidToken { category: AuthenticationTokenProblemCategory },
+    AlreadyActivated,
+    InvalidToken {
+        category: AuthenticationTokenProblemCategory,
+    },
+    NotFound,
     Other,
+}
+
+impl InvalidParameterReason {
+    pub fn singleton<S: Into<std::borrow::Cow<'static, str>>>(self, parameter: S) -> InvalidParameters {
+        let mut invalid_parameters = InvalidParameters::new();
+        invalid_parameters.add(parameter, self);
+        invalid_parameters
+    }
 }
 
 impl<E: std::borrow::Borrow<validator::ValidationError>> From<E> for InvalidParameterReason {
@@ -284,8 +309,8 @@ impl<E: std::borrow::Borrow<validator::ValidationError>> From<E> for InvalidPara
                     .map(|v| v.as_u64().unwrap());
 
                 match (min, max, equal) {
-                    (min@Some(_), max, None) => MustHaveLengthBetween { min, max },
-                    (min, max@Some(_), None) => MustHaveLengthBetween { min, max },
+                    (min @ Some(_), max, None) => MustHaveLengthBetween { min, max },
+                    (min, max @ Some(_), None) => MustHaveLengthBetween { min, max },
                     (None, None, Some(equal)) => MustHaveLengthExactly { length: equal },
                     _ => Other,
                 }

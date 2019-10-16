@@ -771,6 +771,8 @@ components:
       allOf:
         - $ref: "#/components/schemas/KitConfiguration"
         - type: object
+          required:
+            - peripherals
           properties:
             peripherals:
               $ref: "#/components/schemas/Peripherals"

@@ -465,6 +465,88 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+  "/kit-configurations/{configurationId}/peripherals/{peripheralId}":
+    patch:
+      summary: Update a peripheral.
+      operationId: patchPeripheral
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: query
+          required: true
+          description: The serial of the kit to update the peripheral of.
+          schema:
+            type: string
+        - name: configurationId
+          in: path
+          required: true
+          description: The id of the configuration to update the peripheral of.
+          schema:
+            type: number
+        - name: peripheralId
+          in: path
+          required: true
+          description: The id of the peripheral to update.
+          schema:
+            type: number
+      requestBody:
+        description: The peripheral patch.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchPeripheral"
+      responses:
+        '200':
+          description: The peripheral has been deleted.
+        '400':
+          $ref: "#/components/responses/InvalidJson"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+    delete:
+      summary: Delete a peripheral.
+      operationId: deletePeripheral
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: query
+          required: true
+          description: The serial of the kit to delete a peripheral from.
+          schema:
+            type: string
+        - name: configurationId
+          in: path
+          required: true
+          description: The id of the configuration to delete a peripheral from.
+          schema:
+            type: number
+        - name: peripheralId
+          in: path
+          required: true
+          description: The id of the peripheral to delete.
+          schema:
+            type: number
+      responses:
+        '200':
+          description: The peripheral has been deleted.
+        '400':
+          $ref: "#/components/responses/InvalidJson"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
 components:
   securitySchemes:
     bearerAuth:
@@ -714,6 +796,13 @@ components:
         peripheralDefinitionId:
           type: integer
           format: int32
+        name:
+          type: string
+        configuration:
+          type: object
+    PatchPeripheral:
+      type: object
+      properties:
         name:
           type: string
         configuration:

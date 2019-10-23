@@ -1,0 +1,30 @@
+[package]
+name = "astroplant-mqtt"
+version = "0.1.0"
+authors = ["Thomas Churchman <thomas@kepow.org>"]
+edition = "2018"
+build = "build.rs"
+
+[dependencies]
+log = "0.4.8"
+futures-preview = "0.3.0-alpha.19"
+futures-timer = "1.0.2"
+crossbeam = "0.7.2"
+rumqtt = "0.31.0"
+serde = { version = "1.0.97", features = ["derive"] }
+serde_json = { version = "1.0.41" }
+avro-rs = "0.6"
+capnp = "0.10"
+capnp-rpc = "0.10"
+ratelimit_meter = "4.1.1"
+
+[build-dependencies]
+capnpc = "0.10"
+
+[lib]
+name = "astroplant_mqtt"
+path = "src/lib.rs"
+
+[[bin]]
+name = "astroplant-mqtt-test"
+path = "src/bin/mock.rs"

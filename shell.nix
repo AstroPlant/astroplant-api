@@ -17,6 +17,7 @@ in
       cacert
       openssl
       postgresql_11
+      capnproto
       # note: install diesel_cli with:
       # cargo install diesel_cli --no-default-features --features postgres
     ];

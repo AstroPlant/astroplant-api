@@ -89,9 +89,13 @@ pub fn pg(
 ) -> impl Filter<Extract = (crate::PgPooled,), Error = Rejection> + Clone {
     warp::any()
         .map(move || pg_pool.clone())
-        .and_then(|pg_pool: crate::PgPool| match pg_pool.get() {
-            Ok(pg_pooled) => Ok(pg_pooled),
-            Err(_) => Err(warp::reject::custom(INTERNAL_SERVER_ERROR)),
+        .and_then(|pg_pool: crate::PgPool| {
+            // TODO: check whether PgPool::get actually needs to be run in a threadpool
+            threadpool(move || match pg_pool.get() {
+                Ok(pg_pooled) => Ok(pg_pooled),
+                Err(_) => Err(warp::reject::custom(INTERNAL_SERVER_ERROR)),
+            })
+            .then(flatten_result)
         })
 }
 

@@ -54,7 +54,7 @@ dependencies = [
 
 [[package]]
 name = "astroplant-rs-api"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "astroplant-auth 0.1.0",
  "astroplant-mqtt 0.1.0",
@@ -65,6 +65,7 @@ dependencies = [
  "env_logger 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "erased-serde 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-preview 0.3.0-alpha.19 (registry+https://github.com/rust-lang/crates.io-index)",
  "heck 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -75,6 +76,7 @@ dependencies = [
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "strum 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "strum_macros 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-threadpool 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "valico 2.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "validator 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -564,6 +566,7 @@ name = "futures-util-preview"
 version = "0.3.0-alpha.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
+ "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-channel-preview 0.3.0-alpha.19 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-core-preview 0.3.0-alpha.19 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-io-preview 0.3.0-alpha.19 (registry+https://github.com/rust-lang/crates.io-index)",

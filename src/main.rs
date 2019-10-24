@@ -18,6 +18,9 @@ use warp::{self, http::Method, path, Filter, Rejection, Reply};
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 type PgPooled = PooledConnection<ConnectionManager<PgConnection>>;
 
+#[macro_use]
+mod futures_compat_shim;
+
 mod utils;
 
 mod authentication;
@@ -32,9 +35,11 @@ mod models;
 mod response;
 mod views;
 
+mod mqtt;
+
 use response::{Response, ResponseBuilder};
 
-static VERSION: &str = "1.0.0-alpha";
+static VERSION: &str = env!("CARGO_PKG_VERSION");
 
 static TOKEN_SIGNER: OnceCell<astroplant_auth::token::TokenSigner> = OnceCell::new();
 

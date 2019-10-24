@@ -1,6 +1,6 @@
 [package]
 name = "astroplant-rs-api"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 authors = ["Thomas Churchman <thomas@kepow.org>"]
 edition = "2018"
 
@@ -24,6 +24,8 @@ validator = "0.9.0"
 validator_derive = "0.9.0"
 heck = "0.3.1"
 futures = "0.1.28"
+futures-preview = { package="futures-preview", version = "0.3.0-alpha.19", features = ["compat"] }
+tokio = "0.1.22"
 tokio-threadpool = "0.1.16"
 strum = "0.16.0"
 strum_macros = "0.16.0"

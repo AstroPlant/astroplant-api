@@ -1,5 +1,6 @@
 use log::{debug, trace, warn};
 
+use capnp::serialize_packed;
 use futures::channel::oneshot;
 use futures::task::SpawnExt;
 use futures::FutureExt;
@@ -22,7 +23,7 @@ pub mod astroplant_capnp {
 pub struct RawMeasurement {
     pub kit_serial: String,
     pub datetime: u64,
-    pub peripheral: String,
+    pub peripheral: i32,
     pub physical_quantity: String,
     pub physical_unit: String,
     pub value: f64,
@@ -65,8 +66,30 @@ pub enum Error {
     ServerRpcError(server_rpc::ServerRpcResponse),
 }
 
-fn parse_raw_measurement(kit_serial: String, payload: &[u8]) -> Result<MqttApiMessage, Error> {
-    unimplemented!()
+fn parse_raw_measurement(kit_serial: String, mut payload: &[u8]) -> Result<MqttApiMessage, Error> {
+    let message_reader =
+        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())
+            .unwrap();
+    let raw_measurement = message_reader
+        .get_root::<astroplant_capnp::raw_measurement::Reader>()
+        .map_err(Error::Capnp)?;
+
+    let measurement = RawMeasurement {
+        kit_serial: kit_serial,
+        datetime: raw_measurement.get_datetime(),
+        peripheral: raw_measurement.get_peripheral(),
+        physical_quantity: raw_measurement
+            .get_physical_quantity()
+            .map_err(Error::Capnp)?
+            .to_owned(),
+        physical_unit: raw_measurement
+            .get_physical_unit()
+            .map_err(Error::Capnp)?
+            .to_owned(),
+        value: raw_measurement.get_value(),
+    };
+
+    Ok(MqttApiMessage::RawMeasurement(measurement))
 }
 
 fn parse_aggregate_measurement(

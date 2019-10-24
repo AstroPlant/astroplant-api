@@ -1,4 +1,4 @@
-use log::{trace, debug};
+use log::{debug, trace};
 
 use super::{astroplant_capnp, Error};
 
@@ -68,7 +68,7 @@ impl ServerRpcResponseBuilder {
         self
     }
 
-    pub fn set_configuration(mut self, configuration: Option<serde_json::Value>) -> Self {
+    pub fn set_active_configuration(mut self, configuration: Option<serde_json::Value>) -> Self {
         let response_builder = self
             .message_builder
             .get_root::<astroplant_capnp::server_rpc_response::Builder>()
@@ -107,18 +107,19 @@ pub struct ServerRpcHandler {
 
 impl ServerRpcHandler {
     pub fn new() -> Self {
-        const NUM_REQUESTS: u32= 15u32;
+        const NUM_REQUESTS: u32 = 15u32;
         const PER: std::time::Duration = std::time::Duration::from_secs(60);
 
-        let rate_limiter = KeyedRateLimiter::<String>::new(
-            std::num::NonZeroU32::new(NUM_REQUESTS).unwrap(),
-            PER,
-        );
+        let rate_limiter =
+            KeyedRateLimiter::<String>::new(std::num::NonZeroU32::new(NUM_REQUESTS).unwrap(), PER);
         Self { rate_limiter }
     }
 
     fn check_rate_limit(&mut self, kit_serial: String, request_id: u64) -> Result<(), Error> {
-        debug!("request id {} of kit {} was rate limited", request_id, kit_serial);
+        debug!(
+            "request id {} of kit {} was rate limited",
+            request_id, kit_serial
+        );
         match self.rate_limiter.check(kit_serial.clone()) {
             Ok(_) => Ok(()),
             Err(neg) => {
@@ -180,7 +181,7 @@ impl ServerRpcHandler {
                 let receiver = receiver.map(move |configuration| match configuration {
                     Ok(configuration) => Some(
                         ServerRpcResponseBuilder::new(kit_serial, id)
-                            .set_configuration(configuration)
+                            .set_active_configuration(configuration)
                             .create(),
                     ),
                     Err(_) => None,

@@ -94,6 +94,9 @@ impl Handler {
         for message in message_receiver {
             match message {
                 MqttApiMessage::ServerRpcRequest(request) => self.server_rpc_request(request),
+                MqttApiMessage::RawMeasurement(measurement) => {
+                    println!("Received measurement: {:?}", measurement);
+                }
                 _ => {}
             }
         }

@@ -56,8 +56,14 @@ fn main() {
     init_token_signer();
 
     let pg_pool = pg_pool();
-    let rate_limit = rate_limit::leaky_bucket();
 
+    // Start MQTT.
+    {
+        let pg_pool = pg_pool.clone();
+        std::thread::spawn(move || mqtt::run(pg_pool));
+    }
+
+    let rate_limit = rate_limit::leaky_bucket();
     let pg = helpers::pg(pg_pool);
 
     let all = rate_limit

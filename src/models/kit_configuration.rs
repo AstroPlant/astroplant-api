@@ -65,6 +65,7 @@ impl KitConfiguration {
         use kit_configurations::dsl;
         kit_configurations::table
             .filter(dsl::kit_id.eq(&kit_id.0))
+            .filter(dsl::active.eq(true))
             .first(conn)
             .optional()
     }

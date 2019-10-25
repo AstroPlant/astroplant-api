@@ -104,27 +104,23 @@ pub fn create_kit(
         .and(crate::helpers::deserialize())
         .and(pg)
         .and_then(|user_id: models::UserId, kit: Kit, conn: crate::PgPooled| {
-            let (new_kit, password) = models::NewKit::new_with_generated_password(
-                kit.name,
-                kit.description,
-                kit.latitude.and_then(|l| BigDecimal::from_f64(l)),
-                kit.longitude.and_then(|l| BigDecimal::from_f64(l)),
-                kit.privacy_public_dashboard,
-                kit.privacy_show_on_map,
-            );
+            async move {
+                let (new_kit, password) = models::NewKit::new_with_generated_password(
+                    kit.name,
+                    kit.description,
+                    kit.latitude.and_then(|l| BigDecimal::from_f64(l)),
+                    kit.longitude.and_then(|l| BigDecimal::from_f64(l)),
+                    kit.privacy_public_dashboard,
+                    kit.privacy_show_on_map,
+                );
 
-            futures::future::ready(match new_kit.validate() {
-                // Does not strictly have to be wrapped in a future, but makes naming the return
-                // type easier.
-                Ok(_) => Ok(()),
-                Err(validation_errors) => {
+                if let Err(validation_errors) = new_kit.validate() {
                     let invalid_parameters = problem::InvalidParameters::from(validation_errors);
-                    Err(warp::reject::custom(problem::Problem::InvalidParameters {
+                    return Err(warp::reject::custom(problem::Problem::InvalidParameters {
                         invalid_parameters,
-                    }))
-                }
-            })
-            .and_then(move |_| {
+                    }));
+                };
+
                 helpers::threadpool_diesel_ok(move || {
                     conn.transaction(|| {
                         let created_kit: models::Kit = new_kit.create(&conn)?;
@@ -142,6 +138,7 @@ pub fn create_kit(
                         Ok(response)
                     })
                 })
-            })
+                .await
+            }
         })
 }

@@ -32,10 +32,7 @@ where
 /// Flatten a nested result with equal error types to a single result.
 #[allow(dead_code)]
 pub fn flatten_result<T, E>(nested: Result<Result<T, E>, E>) -> Result<T, E> {
-    match nested {
-        Err(e) => Err(e),
-        Ok(v) => v,
-    }
+    nested.and_then(|nested| nested)
 }
 
 /// Create a filter to deserialize a request.
@@ -176,12 +173,12 @@ pub async fn fut_permission_or_forbidden<'a>(
             Ok(Some((user, membership, kit)))
         })
     })
-    .and_then(|val| futures::future::ready(some_or_not_found(val)))
-    .and_then(move |(user, membership, kit)| {
-        futures::future::ready(
+    .and_then(|v| async { some_or_not_found(v) })
+    .and_then(|(user, membership, kit)| {
+        async move {
             permission_or_forbidden(&user, &membership, &kit, action)
-                .map(|_| (user, membership, kit)),
-        )
+                .map(|_| (user, membership, kit))
+        }
     })
     .await
 }

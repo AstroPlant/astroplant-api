@@ -59,14 +59,11 @@ pub fn option_by_token() -> impl Filter<Extract = (Option<UserId>,), Error = Rej
 /// A filter to authenticate a user through a normal token in the Accept header.
 /// Rejects the request if the Authorization header is missing or malformed.
 pub fn by_token() -> impl Filter<Extract = (UserId,), Error = Rejection> + Copy {
-    option_by_token().and_then(|user| {
-        async move {
-            match user {
-                Some(user) => Ok(user),
-                None => Err(warp::reject::custom(Problem::AuthorizationHeader {
-                    category: Missing,
-                })),
-            }
-        }
+    option_by_token().and_then(|user: Option<UserId>| {
+        futures::future::ready(
+            user.ok_or(warp::reject::custom(Problem::AuthorizationHeader {
+                category: Missing,
+            })),
+        )
     })
 }

@@ -1,6 +1,4 @@
-use crate::problem::INTERNAL_SERVER_ERROR;
-
-use futures::future::Future;
+use futures::future::TryFutureExt;
 use serde::Deserialize;
 use warp::{filters::BoxedFilter, Filter, Rejection};
 
@@ -22,7 +20,6 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
 pub fn peripheral_definitions(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-
     #[derive(Deserialize)]
     struct CursorPage {
         after: Option<i32>,
@@ -31,22 +28,21 @@ pub fn peripheral_definitions(
     warp::query::query::<CursorPage>()
         .and(pg)
         .and_then(|cursor: CursorPage, conn: PgPooled| {
-            helpers::fut_threadpool(move || {
-                models::PeripheralDefinition::cursor_page(&conn, cursor.after, 100)
-                    .map(|definitions| {
+            helpers::threadpool_diesel_ok(move || {
+                models::PeripheralDefinition::cursor_page(&conn, cursor.after, 100).map(
+                    |definitions| {
                         definitions
                             .into_iter()
                             .map(|definition| views::PeripheralDefinition::from(definition))
                             .collect::<Vec<_>>()
-                    })
-                    .map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
+                    },
+                )
             })
-            .map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
-            .then(|v| match v {
-                Ok(t) => t,
-                Err(r) => Err(r),
-            })
-            .map(move |definitions| {
+            //.then(|v| match v {
+            //    Ok(t) => t,
+            //    Err(r) => Err(r),
+            //})
+            .map_ok(move |definitions| {
                 let next_page_uri = definitions
                     .last()
                     .map(|last| format!("/peripheral-definitions?after={}", last.id));

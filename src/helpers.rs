@@ -1,47 +1,32 @@
 use crate::problem::{Problem, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND};
 
 use bytes::Buf;
-use futures::future::{self, poll_fn, Future};
+use futures::future::TryFutureExt;
 use serde::{de::DeserializeOwned, Deserialize};
 use warp::{filters::BoxedFilter, Filter, Rejection};
 
 use crate::{authentication, authorization, models};
 
-/// Run a function on a threadpool, returning a future resolving when the function completes.
-pub fn fut_threadpool<F, T>(f: F) -> impl Future<Item = T, Error = tokio_threadpool::BlockingError>
+/// Run a blocking function on a threadpool.
+pub async fn threadpool<F, T>(f: F) -> T
 where
-    F: FnOnce() -> T,
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
 {
-    let mut f_only_once = Some(f);
-    poll_fn(move || {
-        tokio_threadpool::blocking(|| {
-            let f = f_only_once.take().unwrap();
-            f()
-        })
-    })
-}
-
-/// Run a function on a threadpool, returning a future resolving when the function completes.
-/// Any (unexpected!) threadpool error is turned into a Warp rejection, wrapping the Internal Server
-/// Error problem.
-pub fn threadpool<F, T>(f: F) -> impl Future<Item = T, Error = Rejection>
-where
-    F: FnOnce() -> T,
-{
-    fut_threadpool(f).map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
+    tokio_executor::blocking::run(f).await
 }
 
 /// Runs a function on a threadpool, ignoring a potential Diesel error inside the threadpool.
 /// This error is turned into an internal server error (as Diesel errors are unexpected, and
 /// indicative of erroneous queries).
-pub fn threadpool_diesel_ok<F, T>(f: F) -> impl Future<Item = T, Error = Rejection>
+pub async fn threadpool_diesel_ok<F, T>(f: F) -> Result<T, Rejection>
 where
-    F: FnOnce() -> Result<T, diesel::result::Error>,
+    F: FnOnce() -> Result<T, diesel::result::Error> + Send + 'static,
+    T: Send + 'static,
 {
-    threadpool(f).and_then(|result| match result {
-        Ok(v) => future::ok(v),
-        Err(_) => future::err(warp::reject::custom(INTERNAL_SERVER_ERROR)),
-    })
+    threadpool(f)
+        .await
+        .map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
 }
 
 /// Flatten a nested result with equal error types to a single result.
@@ -66,20 +51,22 @@ where
 
     warp::body::content_length_limit(CONTENT_LENGTH_LIMIT)
         .or_else(|_| {
-            Err(warp::reject::custom(Problem::PayloadTooLarge {
+            futures::future::err(warp::reject::custom(Problem::PayloadTooLarge {
                 limit: CONTENT_LENGTH_LIMIT,
             }))
         })
         .and(warp::body::concat())
         .and_then(|body_buffer: warp::body::FullBody| {
-            let body: Vec<u8> = body_buffer.collect();
+            async {
+                let body: Vec<u8> = body_buffer.collect();
 
-            serde_json::from_slice(&body).map_err(|err| {
-                debug!("Request JSON deserialize error: {}", err);
-                warp::reject::custom(Problem::InvalidJson {
-                    category: (&err).into(),
+                serde_json::from_slice(&body).map_err(|err| {
+                    debug!("Request JSON deserialize error: {}", err);
+                    warp::reject::custom(Problem::InvalidJson {
+                        category: (&err).into(),
+                    })
                 })
-            })
+            }
         })
 }
 
@@ -95,7 +82,6 @@ pub fn pg(
                 Ok(pg_pooled) => Ok(pg_pooled),
                 Err(_) => Err(warp::reject::custom(INTERNAL_SERVER_ERROR)),
             })
-            .then(flatten_result)
         })
 }
 
@@ -149,19 +135,19 @@ pub fn permission_or_forbidden(
  * given serial, the request is rejected with NOT_FOUND. If the request is *not* rejected, this
  * returns the fetched user, membership and kit.
  */
-pub fn fut_permission_or_forbidden<'a>(
+pub async fn fut_permission_or_forbidden<'a>(
     conn: crate::PgPooled,
     user_id: Option<crate::models::UserId>,
     kit_serial: String,
     action: crate::authorization::KitAction,
-) -> impl Future<
-    Item = (
+) -> Result<
+    (
         Option<crate::models::User>,
         Option<crate::models::KitMembership>,
         crate::models::Kit,
     ),
-    Error = Rejection,
-> + 'a {
+    Rejection,
+> {
     use diesel::Connection;
 
     threadpool_diesel_ok(move || {
@@ -190,10 +176,14 @@ pub fn fut_permission_or_forbidden<'a>(
             Ok(Some((user, membership, kit)))
         })
     })
-    .and_then(some_or_not_found)
+    .and_then(|val| futures::future::ready(some_or_not_found(val)))
     .and_then(move |(user, membership, kit)| {
-        permission_or_forbidden(&user, &membership, &kit, action).map(|_| (user, membership, kit))
+        futures::future::ready(
+            permission_or_forbidden(&user, &membership, &kit, action)
+                .map(|_| (user, membership, kit)),
+        )
     })
+    .await
 }
 
 /**

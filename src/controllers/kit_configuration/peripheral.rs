@@ -1,3 +1,4 @@
+use futures::future::FutureExt;
 use serde::Deserialize;
 use validator::Validate;
 use warp::{filters::BoxedFilter, path, Filter, Rejection};
@@ -66,7 +67,6 @@ fn add_peripheral_to_configuration(
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     use diesel::prelude::*;
     use diesel::Connection;
-    use futures::future::Future;
 
     #[derive(Deserialize, Debug)]
     #[serde(rename_all = "camelCase")]
@@ -91,7 +91,7 @@ fn add_peripheral_to_configuration(
          configuration: models::KitConfiguration,
          peripheral: Peripheral,
          conn: PgPooled| {
-            helpers::guard(
+            futures::future::ready(helpers::guard(
                 (kit, configuration, peripheral, conn),
                 |(_, configuration, _, _)| {
                     if configuration.never_used {
@@ -104,7 +104,7 @@ fn add_peripheral_to_configuration(
                         ))
                     }
                 },
-            )
+            ))
         },
     )
     .untuple_one()
@@ -158,7 +158,7 @@ fn add_peripheral_to_configuration(
                     ))
                 })
             })
-            .then(helpers::flatten_result)
+            .map(helpers::flatten_result)
         },
     )
 }
@@ -170,7 +170,6 @@ fn patch_or_delete_peripheral(
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     use diesel::prelude::*;
     use diesel::Connection;
-    use futures::future::Future;
 
     #[derive(Deserialize, Debug)]
     #[serde(rename_all = "camelCase")]
@@ -194,7 +193,7 @@ fn patch_or_delete_peripheral(
                         None => Ok(Err(warp::reject::custom(problem::NOT_FOUND))),
                     }
                 })
-                .then(helpers::flatten_result)
+                .map(helpers::flatten_result)
             }),
     )
     .and(warp::path::end())
@@ -206,20 +205,22 @@ fn patch_or_delete_peripheral(
          configuration: models::KitConfiguration,
          peripheral: models::Peripheral,
          conn: PgPooled| {
-            helpers::guard(
-                (configuration, peripheral, conn),
-                |(configuration, _, _)| {
-                    if configuration.never_used {
-                        None
-                    } else {
-                        Some(warp::reject::custom(
-                            problem::InvalidParameterReason::AlreadyActivated
-                                .singleton("configurationId")
-                                .into_problem(),
-                        ))
-                    }
-                },
-            )
+            async {
+                helpers::guard(
+                    (configuration, peripheral, conn),
+                    |(configuration, _, _)| {
+                        if configuration.never_used {
+                            None
+                        } else {
+                            Some(warp::reject::custom(
+                                problem::InvalidParameterReason::AlreadyActivated
+                                    .singleton("configurationId")
+                                    .into_problem(),
+                            ))
+                        }
+                    },
+                )
+            }
         },
     )
     .untuple_one();
@@ -276,7 +277,7 @@ fn patch_or_delete_peripheral(
                         ))
                     })
                 })
-                .then(helpers::flatten_result)
+                .map(helpers::flatten_result)
             },
         ))
     .or(base.and(warp::delete2()).and_then(

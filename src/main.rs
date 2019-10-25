@@ -18,9 +18,6 @@ use warp::{self, http::Method, path, Filter, Rejection, Reply};
 type PgPool = Pool<ConnectionManager<PgConnection>>;
 type PgPooled = PooledConnection<ConnectionManager<PgConnection>>;
 
-#[macro_use]
-mod futures_compat_shim;
-
 mod utils;
 
 mod authentication;
@@ -50,7 +47,8 @@ fn pg_pool() -> PgPool {
     Pool::new(manager).expect("PostgreSQL connection pool could not be created.")
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env_logger::init();
 
     init_token_signer();
@@ -71,11 +69,13 @@ fn main() {
             path!("version")
                 .map(|| ResponseBuilder::ok().body(VERSION))
                 .or(path!("time")
-                    .map(|| ResponseBuilder::ok().body(chrono::Utc::now().to_rfc3339())).boxed())
+                    .map(|| ResponseBuilder::ok().body(chrono::Utc::now().to_rfc3339()))
+                    .boxed())
                 .unify()
                 .or(path!("kits").and(controllers::kit::router(pg.clone().boxed())))
                 .unify()
-                .or(path!("kit-configurations").and(controllers::kit_configuration::router(pg.clone().boxed())))
+                .or(path!("kit-configurations")
+                    .and(controllers::kit_configuration::router(pg.clone().boxed())))
                 .unify()
                 .or(path!("users").and(controllers::user::router(pg.clone().boxed())))
                 .unify()
@@ -85,9 +85,7 @@ fn main() {
                     controllers::peripheral_definition::router(pg.clone().boxed()),
                 ))
                 .unify()
-                .or(path!("permissions").and(
-                    controllers::permission::router(pg.clone().boxed()),
-                ))
+                .or(path!("permissions").and(controllers::permission::router(pg.clone().boxed())))
                 .unify(),
         )
         .and(warp::header("Accept"))
@@ -109,7 +107,7 @@ fn main() {
                 None => http_response_builder.body("".to_owned()).unwrap(),
             }
         })
-        .recover(handle_rejection)
+        .recover(|rejection| async { handle_rejection(rejection) })
         .with(warp::log("astroplant_rs_api::api"))
         // TODO: this wrapper might be better placed per-endpoint, to have accurate allowed metods
         .with(
@@ -126,7 +124,7 @@ fn main() {
                 .allow_headers(vec!["Authorization", "Content-Type"]),
         );
 
-    warp::serve(all).run(([127, 0, 0, 1], 8080));
+    warp::serve(all).run(([127, 0, 0, 1], 8080)).await;
 }
 
 /// Convert rejections into replies.

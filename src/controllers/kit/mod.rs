@@ -1,9 +1,10 @@
+use futures::future::TryFutureExt;
 use serde::{Deserialize, Serialize};
 use warp::{filters::BoxedFilter, path, Filter, Rejection};
 
 use crate::response::{Response, ResponseBuilder};
 use crate::PgPooled;
-use crate::{authentication, helpers, models, views, problem};
+use crate::{authentication, helpers, models, problem, views};
 
 pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
@@ -55,8 +56,6 @@ pub fn kits(
 pub fn kit_by_serial(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    use futures::future::Future;
-
     path!(String)
         .and(warp::path::end())
         .and(authentication::option_by_token())
@@ -69,7 +68,7 @@ pub fn kit_by_serial(
                     kit_serial,
                     crate::authorization::KitAction::View,
                 )
-                .map(|(_, _, kit)| kit)
+                .map_ok(|(_, _, kit)| kit)
             },
         )
         .map(move |kit| ResponseBuilder::ok().body(views::Kit::from(kit)))
@@ -81,7 +80,6 @@ pub fn create_kit(
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     use bigdecimal::{BigDecimal, FromPrimitive};
     use diesel::Connection;
-    use futures::future::{self, Future};
     use validator::Validate;
 
     #[derive(Deserialize, Debug)]
@@ -115,7 +113,7 @@ pub fn create_kit(
                 kit.privacy_show_on_map,
             );
 
-            future::result(match new_kit.validate() {
+            futures::future::ready(match new_kit.validate() {
                 // Does not strictly have to be wrapped in a future, but makes naming the return
                 // type easier.
                 Ok(_) => Ok(()),

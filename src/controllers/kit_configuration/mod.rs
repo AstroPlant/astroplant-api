@@ -1,10 +1,11 @@
 mod peripheral;
 
+use futures::FutureExt;
 use serde::Deserialize;
 use warp::{filters::BoxedFilter, path, Filter, Rejection};
 
-use crate::utils::deserialize_some;
 use crate::response::{Response, ResponseBuilder};
+use crate::utils::deserialize_some;
 use crate::PgPooled;
 use crate::{helpers, models, problem, views};
 
@@ -26,8 +27,6 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
 fn get_kit_configuration(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> BoxedFilter<(models::KitConfiguration,)> {
-    use futures::future::Future;
-
     path!(i32)
         .and(pg)
         .and_then(|configuration_id: i32, conn: crate::PgPooled| {
@@ -42,7 +41,7 @@ fn get_kit_configuration(
 
                 Ok(Ok(configuration))
             })
-            .then(helpers::flatten_result)
+            .map(helpers::flatten_result)
         })
         .boxed()
 }
@@ -70,9 +69,9 @@ fn authorize_and_get_kit_configuration(
              kit_membership: Option<models::KitMembership>,
              kit: models::Kit| {
                 if kit_configuration.kit_id == kit.id {
-                    Ok((user, kit_membership, kit, kit_configuration))
+                    futures::future::ok((user, kit_membership, kit, kit_configuration))
                 } else {
-                    Err(warp::reject::custom(problem::NOT_FOUND))
+                    futures::future::err(warp::reject::custom(problem::NOT_FOUND))
                 }
             },
         )

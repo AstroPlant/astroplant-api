@@ -1,13 +1,12 @@
 use super::{helpers, models, views, PgPool, PgPooled};
 
 use astroplant_mqtt::{MqttApiMessage, ServerRpcRequest};
-use futures::future::Future as Future01;
-use futures_preview::channel::oneshot;
+use futures::channel::oneshot;
+use futures::future::{FutureExt, TryFutureExt};
 use tokio::runtime::{Runtime, TaskExecutor};
 
 #[derive(Debug)]
 enum Error {
-    TokioThreadPool(tokio_threadpool::BlockingError),
     PgPool,
     Internal,
 }
@@ -22,18 +21,16 @@ impl Handler {
         Self { pg_pool, executor }
     }
 
-    fn get_active_configuration(
+    async fn get_active_configuration(
         pg_pool: PgPool,
         kit_serial: String,
         response: oneshot::Sender<Option<serde_json::Value>>,
-    ) -> impl Future01<Item = (), Error = Error> {
+    ) -> Result<(), Error> {
         trace!("handling getActiveConfiguration request for {}", kit_serial);
 
-        helpers::fut_threadpool(move || pg_pool.get().map_err(|_| Error::PgPool))
-            .map_err(Error::TokioThreadPool)
-            .then(helpers::flatten_result)
+        helpers::threadpool(move || pg_pool.get().map_err(|_| Error::PgPool))
             .and_then(|conn: PgPooled| {
-                helpers::fut_threadpool(move || {
+                helpers::threadpool(move || {
                     println!("getting for kit: {}", kit_serial);
                     let kit = match models::Kit::by_serial(&conn, kit_serial)
                         .map_err(|_| Error::Internal)?
@@ -60,14 +57,13 @@ impl Handler {
 
                     Ok(Some(configuration.with_peripherals(peripherals)))
                 })
-                .map_err(Error::TokioThreadPool)
-                .then(helpers::flatten_result)
             })
-            .map(|configuration| {
-                let configuration = configuration
-                    .map(|configuration| serde_json::to_value(configuration).unwrap());
+            .map_ok(|configuration| {
+                let configuration =
+                    configuration.map(|configuration| serde_json::to_value(configuration).unwrap());
                 let _ = response.send(configuration);
             })
+            .await
     }
 
     fn server_rpc_request(&mut self, request: ServerRpcRequest) {
@@ -83,7 +79,7 @@ impl Handler {
             } => {
                 self.executor.spawn(
                     Self::get_active_configuration(self.pg_pool.clone(), kit_serial, response)
-                        .map_err(|_| ()),
+                        .map(|_| ()),
                 );
             }
         }
@@ -105,10 +101,10 @@ impl Handler {
 
 pub fn run(pg_pool: PgPool) {
     let (thread_pool_handle_sender, thread_pool_handle_receiver) = oneshot::channel::<()>();
-    let mut runtime = Runtime::new().unwrap();
+    let runtime = Runtime::new().unwrap();
     let executor = runtime.executor();
 
-    std::thread::spawn(move || runtime.block_on(compat03to01!(thread_pool_handle_receiver)));
+    std::thread::spawn(move || runtime.block_on(thread_pool_handle_receiver));
 
     let mut handler = Handler::new(pg_pool, executor);
     handler.run();

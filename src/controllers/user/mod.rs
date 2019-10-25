@@ -1,4 +1,4 @@
-use futures::future::Future;
+use futures::future::{FutureExt};
 use serde::Deserialize;
 use validator::Validate;
 use warp::{filters::BoxedFilter, Filter, Rejection};
@@ -72,7 +72,7 @@ pub fn create_user(
                             Ok(Err(warp::reject::custom(problem::INTERNAL_SERVER_ERROR)))
                         }
                     })
-                }).then(helpers::flatten_result)
+                }).map(helpers::flatten_result)
             },
         )
 }

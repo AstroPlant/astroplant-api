@@ -12,7 +12,6 @@ astroplant-mqtt = { path = "./astroplant-mqtt" }
 random-string = { path = "./random-string" }
 once_cell = "1.2.0"
 chrono = { version = "0.4", features = ["serde"] }
-warp = "0.1.20"
 bytes = "0.4.8"
 diesel = { version = "1.4.3", features = ["postgres", "numeric", "r2d2", "chrono", "serde_json"] }
 bigdecimal = "0.1.0"
@@ -23,11 +22,14 @@ erased-serde = "0.3"
 validator = "0.9.0"
 validator_derive = "0.9.0"
 heck = "0.3.1"
-futures = "0.1.28"
-futures-preview = { package="futures-preview", version = "0.3.0-alpha.19", features = ["compat"] }
-tokio = "0.1.22"
-tokio-threadpool = "0.1.16"
+futures-preview = "0.3.0-alpha.17"
+tokio = "0.2.0-alpha.6"
+tokio-executor = "0.2.0-alpha.5"
 strum = "0.16.0"
 strum_macros = "0.16.0"
 itertools="0.8.0"
 valico = "2"
+
+[dependencies.warp]
+git = "https://github.com/seanmonstar/warp.git"
+rev = "5c269562a823c5340f3dfc14bdd11af592c03dea"

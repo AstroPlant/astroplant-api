@@ -1,3 +1,4 @@
+use futures::future::FutureExt;
 use serde::Deserialize;
 use warp::{filters::BoxedFilter, Filter, Rejection};
 
@@ -19,7 +20,6 @@ pub fn user_kit_permissions(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     use diesel::Connection;
-    use futures::future::Future;
 
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -59,7 +59,7 @@ pub fn user_kit_permissions(
                         Ok(Some((user, membership, kit)))
                     })
                 })
-                .then(move |result| match result {
+                .map(move |result| match result {
                     Ok(None) => Err(warp::reject::custom(problem::NOT_FOUND)),
                     Ok(Some((user, membership, kit))) => {
                         use crate::authorization::KitAction;

@@ -35,9 +35,13 @@ fn me(
         .and_then(|user_id: models::UserId, conn: crate::PgPooled| {
             helpers::threadpool_diesel_ok(move || models::User::by_id(&conn, user_id))
         })
-        .and_then(|user: Option<models::User>| match user {
-            Some(user) => Ok(ResponseBuilder::ok().body(views::FullUser::from(user))),
-            None => Err(warp::reject::custom(problem::INTERNAL_SERVER_ERROR)),
+        .and_then(|user: Option<models::User>| {
+            async {
+                match user {
+                    Some(user) => Ok(ResponseBuilder::ok().body(views::FullUser::from(user))),
+                    None => Err(warp::reject::custom(problem::INTERNAL_SERVER_ERROR)),
+                }
+            }
         })
 }
 

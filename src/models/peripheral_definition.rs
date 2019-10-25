@@ -26,6 +26,11 @@ impl PeripheralDefinition {
         peripheral_definitions::table.find(id).first(conn)
     }
 
+    pub fn by_ids(conn: &PgConnection, ids: Vec<i32>) -> QueryResult<Vec<Self>> {
+        use peripheral_definitions::dsl;
+        peripheral_definitions::table.filter(dsl::id.eq(diesel::dsl::any(ids))).load(conn)
+    }
+
     pub fn all(conn: &PgConnection) -> QueryResult<Vec<Self>> {
         peripheral_definitions::table.load(conn)
     }

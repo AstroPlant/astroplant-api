@@ -255,19 +255,22 @@ mod test {
             value: u64,
         }
 
-        let value: TestStruct = warp::test::request()
-            .header("Accept", "application/json")
-            .header("Content-Length", 12)
-            .body(r#"{"value":42}"#)
-            .filter(&super::deserialize())
-            .unwrap();
-        assert_eq!(value.value, 42);
+        futures::executor::block_on(async {
+            let value: TestStruct = warp::test::request()
+                .header("Accept", "application/json")
+                .header("Content-Length", 12)
+                .body(r#"{"value":42}"#)
+                .filter(&super::deserialize())
+                .await
+                .unwrap();
+            assert_eq!(value.value, 42);
 
-        // Should reject requests with too large Content-Length.
-        let req = warp::test::request()
-            .header("Accept", "application/json")
-            .header("Content-Length", 99_999_999)
-            .body(r#"{"value":42}"#);
-        assert!(!req.matches(&super::deserialize::<TestStruct>()));
+            // Should reject requests with too large Content-Length.
+            let req = warp::test::request()
+                .header("Accept", "application/json")
+                .header("Content-Length", 99_999_999)
+                .body(r#"{"value":42}"#);
+            assert!(!req.matches(&super::deserialize::<TestStruct>()).await);
+        })
     }
 }

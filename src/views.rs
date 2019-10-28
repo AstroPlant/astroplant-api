@@ -261,6 +261,15 @@ pub struct Peripheral {
     pub configuration: serde_json::Value,
 }
 
+impl Peripheral {
+    pub fn with_definition(self, definition: PeripheralDefinition) -> PeripheralWithDefinition {
+        PeripheralWithDefinition {
+            peripheral: self,
+            definition,
+        }
+    }
+}
+
 impl From<models::Peripheral> for Peripheral {
     fn from(
         models::Peripheral {
@@ -282,4 +291,11 @@ impl From<models::Peripheral> for Peripheral {
             configuration,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PeripheralWithDefinition {
+    pub peripheral: Peripheral,
+    pub definition: PeripheralDefinition,
 }

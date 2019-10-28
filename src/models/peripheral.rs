@@ -1,4 +1,4 @@
-use crate::schema::peripherals;
+use crate::schema::{peripheral_definitions, peripherals};
 
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
@@ -82,6 +82,25 @@ impl Peripheral {
         kit_configuration_id: KitConfigurationId,
     ) -> QueryResult<Vec<Self>> {
         Peripheral::belonging_to(&kit_configuration_id).load(conn)
+    }
+
+    pub fn peripherals_with_definitions_of_kit_configuration(
+        conn: &PgConnection,
+        kit_configuration: &KitConfiguration,
+    ) -> QueryResult<Vec<(Self, PeripheralDefinition)>> {
+        Peripheral::peripherals_with_definitions_of_kit_configuration_id(
+            conn,
+            kit_configuration.get_id(),
+        )
+    }
+
+    pub fn peripherals_with_definitions_of_kit_configuration_id(
+        conn: &PgConnection,
+        kit_configuration_id: KitConfigurationId,
+    ) -> QueryResult<Vec<(Self, PeripheralDefinition)>> {
+        Peripheral::belonging_to(&kit_configuration_id)
+            .inner_join(peripheral_definitions::table)
+            .load(conn)
     }
 
     pub fn get_id(&self) -> PeripheralId {

@@ -34,9 +34,10 @@ pub struct AggregateMeasurement {
     pub kit_serial: String,
     pub datetime_start: u64,
     pub datetime_end: u64,
-    pub peripheral: String,
+    pub peripheral: i32,
     pub physical_quantity: String,
     pub physical_unit: String,
+    pub aggregate_type: String,
     pub value: f64,
 }
 
@@ -69,7 +70,7 @@ pub enum Error {
 fn parse_raw_measurement(kit_serial: String, mut payload: &[u8]) -> Result<MqttApiMessage, Error> {
     let message_reader =
         serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())
-            .unwrap();
+            .map_err(Error::Capnp)?;
     let raw_measurement = message_reader
         .get_root::<astroplant_capnp::raw_measurement::Reader>()
         .map_err(Error::Capnp)?;
@@ -94,9 +95,36 @@ fn parse_raw_measurement(kit_serial: String, mut payload: &[u8]) -> Result<MqttA
 
 fn parse_aggregate_measurement(
     kit_serial: String,
-    payload: &[u8],
+    mut payload: &[u8],
 ) -> Result<MqttApiMessage, Error> {
-    unimplemented!()
+    let message_reader =
+        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())
+            .map_err(Error::Capnp)?;
+    let aggregate_measurement = message_reader
+        .get_root::<astroplant_capnp::aggregate_measurement::Reader>()
+        .map_err(Error::Capnp)?;
+
+    let measurement = AggregateMeasurement {
+        kit_serial: kit_serial,
+        datetime_start: aggregate_measurement.get_datetime_start(),
+        datetime_end: aggregate_measurement.get_datetime_end(),
+        peripheral: aggregate_measurement.get_peripheral(),
+        physical_quantity: aggregate_measurement
+            .get_physical_quantity()
+            .map_err(Error::Capnp)?
+            .to_owned(),
+        physical_unit: aggregate_measurement
+            .get_physical_unit()
+            .map_err(Error::Capnp)?
+            .to_owned(),
+        aggregate_type: aggregate_measurement
+            .get_aggregate_type()
+            .map_err(Error::Capnp)?
+            .to_owned(),
+        value: aggregate_measurement.get_value(),
+    };
+
+    Ok(MqttApiMessage::AggregateMeasurement(measurement))
 }
 
 fn proxy<'a>(

@@ -9,6 +9,7 @@ log = "0.4.0"
 env_logger = "0.6.2"
 astroplant-auth = { path = "./astroplant-auth" }
 astroplant-mqtt = { path = "./astroplant-mqtt" }
+astroplant-websocket = { path = "./astroplant-websocket" }
 random-string = { path = "./random-string" }
 once_cell = "1.2.0"
 chrono = { version = "0.4", features = ["serde"] }

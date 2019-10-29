@@ -1,8 +1,9 @@
 use super::{helpers, models, views, PgPool, PgPooled};
 
 use astroplant_mqtt::{MqttApiMessage, ServerRpcRequest};
-use futures::channel::oneshot;
+use futures::channel::{mpsc, oneshot};
 use futures::future::FutureExt;
+use futures::sink::SinkExt;
 use tokio::runtime::{Runtime, TaskExecutor};
 
 #[derive(Debug)]
@@ -14,11 +15,20 @@ enum Error {
 struct Handler {
     pg_pool: PgPool,
     executor: TaskExecutor,
+    raw_measurement_sender: mpsc::Sender<astroplant_mqtt::RawMeasurement>,
 }
 
 impl Handler {
-    pub fn new(pg_pool: PgPool, executor: TaskExecutor) -> Self {
-        Self { pg_pool, executor }
+    pub fn new(
+        pg_pool: PgPool,
+        executor: TaskExecutor,
+        raw_measurement_sender: mpsc::Sender<astroplant_mqtt::RawMeasurement>,
+    ) -> Self {
+        Self {
+            pg_pool,
+            executor,
+            raw_measurement_sender,
+        }
     }
 
     async fn get_active_configuration(
@@ -90,6 +100,10 @@ impl Handler {
         }
     }
 
+    async fn send<T>(mut sender: mpsc::Sender<T>, val: T) {
+        sender.send(val).await;
+    }
+
     pub fn run(&mut self) {
         let (message_receiver, _kits_rpc) = astroplant_mqtt::run();
         for message in message_receiver {
@@ -97,6 +111,8 @@ impl Handler {
                 MqttApiMessage::ServerRpcRequest(request) => self.server_rpc_request(request),
                 MqttApiMessage::RawMeasurement(measurement) => {
                     println!("Received measurement: {:?}", measurement);
+                    self.executor
+                        .spawn(Self::send(self.raw_measurement_sender.clone(), measurement));
                 }
                 _ => {}
             }
@@ -104,15 +120,21 @@ impl Handler {
     }
 }
 
-pub fn run(pg_pool: PgPool) {
-    let (thread_pool_handle_sender, thread_pool_handle_receiver) = oneshot::channel::<()>();
-    let runtime = Runtime::new().unwrap();
-    let executor = runtime.executor();
+pub fn run(pg_pool: PgPool) -> mpsc::Receiver<astroplant_mqtt::RawMeasurement> {
+    let (raw_measurement_sender, raw_measurement_receiver) = mpsc::channel(128);
 
-    std::thread::spawn(move || runtime.block_on(thread_pool_handle_receiver));
+    std::thread::spawn(move || {
+        let (thread_pool_handle_sender, thread_pool_handle_receiver) = oneshot::channel::<()>();
+        let runtime = Runtime::new().unwrap();
+        let executor = runtime.executor();
 
-    let mut handler = Handler::new(pg_pool, executor);
-    handler.run();
+        std::thread::spawn(move || runtime.block_on(thread_pool_handle_receiver));
 
-    thread_pool_handle_sender.send(()).unwrap();
+        let mut handler = Handler::new(pg_pool, executor, raw_measurement_sender);
+        handler.run();
+
+        thread_pool_handle_sender.send(()).unwrap();
+    });
+
+    raw_measurement_receiver
 }

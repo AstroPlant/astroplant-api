@@ -33,6 +33,7 @@ mod response;
 mod views;
 
 mod mqtt;
+mod websocket;
 
 use response::{Response, ResponseBuilder};
 
@@ -56,13 +57,19 @@ async fn main() {
     let pg_pool = pg_pool();
 
     // Start MQTT.
-    {
-        let pg_pool = pg_pool.clone();
-        std::thread::spawn(move || mqtt::run(pg_pool));
-    }
+    let raw_measurement_receiver = mqtt::run(pg_pool.clone());
+
+    // Start WebSockets.
+    tokio::executor::spawn(websocket::run(raw_measurement_receiver));
 
     let rate_limit = rate_limit::leaky_bucket();
     let pg = helpers::pg(pg_pool);
+
+    /*let websocket = path!("ws")
+    .and(warp::filters::ws::ws2())
+    .map(|ws2: warp::filters::ws::Ws2| ws2.on_upgrade(|ws| async {
+        websocket::handle(ws).await;
+    }));*/
 
     let all = rate_limit
         .and(

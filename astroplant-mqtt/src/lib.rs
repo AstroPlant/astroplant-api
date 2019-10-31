@@ -24,8 +24,7 @@ pub struct RawMeasurement {
     pub kit_serial: String,
     pub datetime: u64,
     pub peripheral: i32,
-    pub physical_quantity: String,
-    pub physical_unit: String,
+    pub quantity_type: i32,
     pub value: f64,
 }
 
@@ -35,8 +34,7 @@ pub struct AggregateMeasurement {
     pub datetime_start: u64,
     pub datetime_end: u64,
     pub peripheral: i32,
-    pub physical_quantity: String,
-    pub physical_unit: String,
+    pub quantity_type: i32,
     pub aggregate_type: String,
     pub value: f64,
 }
@@ -79,14 +77,7 @@ fn parse_raw_measurement(kit_serial: String, mut payload: &[u8]) -> Result<MqttA
         kit_serial: kit_serial,
         datetime: raw_measurement.get_datetime(),
         peripheral: raw_measurement.get_peripheral(),
-        physical_quantity: raw_measurement
-            .get_physical_quantity()
-            .map_err(Error::Capnp)?
-            .to_owned(),
-        physical_unit: raw_measurement
-            .get_physical_unit()
-            .map_err(Error::Capnp)?
-            .to_owned(),
+        quantity_type: raw_measurement.get_quantity_type(),
         value: raw_measurement.get_value(),
     };
 
@@ -109,14 +100,7 @@ fn parse_aggregate_measurement(
         datetime_start: aggregate_measurement.get_datetime_start(),
         datetime_end: aggregate_measurement.get_datetime_end(),
         peripheral: aggregate_measurement.get_peripheral(),
-        physical_quantity: aggregate_measurement
-            .get_physical_quantity()
-            .map_err(Error::Capnp)?
-            .to_owned(),
-        physical_unit: aggregate_measurement
-            .get_physical_unit()
-            .map_err(Error::Capnp)?
-            .to_owned(),
+        quantity_type: aggregate_measurement.get_quantity_type(),
         aggregate_type: aggregate_measurement
             .get_aggregate_type()
             .map_err(Error::Capnp)?

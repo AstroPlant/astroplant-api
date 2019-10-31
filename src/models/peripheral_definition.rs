@@ -28,7 +28,9 @@ impl PeripheralDefinition {
 
     pub fn by_ids(conn: &PgConnection, ids: Vec<i32>) -> QueryResult<Vec<Self>> {
         use peripheral_definitions::dsl;
-        peripheral_definitions::table.filter(dsl::id.eq(diesel::dsl::any(ids))).load(conn)
+        peripheral_definitions::table
+            .filter(dsl::id.eq(diesel::dsl::any(ids)))
+            .load(conn)
     }
 
     pub fn all(conn: &PgConnection) -> QueryResult<Vec<Self>> {
@@ -40,9 +42,12 @@ impl PeripheralDefinition {
         after: Option<i32>,
         limit: i64,
     ) -> QueryResult<Vec<Self>> {
-        let q = peripheral_definitions::table.order(peripheral_definitions::columns::id.asc()).limit(limit);
+        let q = peripheral_definitions::table
+            .order(peripheral_definitions::columns::id.asc())
+            .limit(limit);
         if let Some(after) = after {
-            q.filter(peripheral_definitions::columns::id.gt(after)).load(conn)
+            q.filter(peripheral_definitions::columns::id.gt(after))
+                .load(conn)
         } else {
             q.load(conn)
         }

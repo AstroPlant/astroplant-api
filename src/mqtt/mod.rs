@@ -81,6 +81,30 @@ impl Handler {
         Ok(())
     }
 
+    async fn get_quantity_types(
+        pg_pool: PgPool,
+        response: oneshot::Sender<Vec<serde_json::Value>>,
+    ) -> Result<(), Error> {
+        trace!("handling getQuantityTypes request");
+
+        let conn: PgPooled =
+            helpers::threadpool(move || pg_pool.get().map_err(|_| Error::PgPool)).await?;
+        let quantity_types: Vec<_> = helpers::threadpool(move || {
+            let quantity_types = models::QuantityType::all(&conn)
+                .map_err(|_| Error::Internal)?
+                .into_iter()
+                .map(|quantity_type| views::QuantityType::from(quantity_type))
+                .map(|quantity_type| serde_json::to_value(quantity_type).unwrap())
+                .collect();
+
+            Ok(quantity_types)
+        })
+        .await?;
+
+        let _ = response.send(quantity_types);
+        Ok(())
+    }
+
     fn server_rpc_request(&mut self, request: ServerRpcRequest) {
         use ServerRpcRequest::*;
 
@@ -96,6 +120,10 @@ impl Handler {
                     Self::get_active_configuration(self.pg_pool.clone(), kit_serial, response)
                         .map(|_| ()),
                 );
+            }
+            GetQuantityTypes { response } => {
+                self.executor
+                    .spawn(Self::get_quantity_types(self.pg_pool.clone(), response).map(|_| ()));
             }
         }
     }

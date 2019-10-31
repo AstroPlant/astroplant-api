@@ -92,6 +92,10 @@ async fn main() {
                     controllers::peripheral_definition::router(pg.clone().boxed()),
                 ))
                 .unify()
+                .or(path!("quantity-types").and(
+                    controllers::quantity_type::router(pg.clone().boxed()),
+                ))
+                .unify()
                 .or(path!("permissions").and(controllers::permission::router(pg.clone().boxed())))
                 .unify(),
         )

@@ -16,6 +16,9 @@ pub enum ServerRpcRequest {
         kit_serial: String,
         response: oneshot::Sender<Option<serde_json::Value>>,
     },
+    GetQuantityTypes {
+        response: oneshot::Sender<Vec<serde_json::Value>>,
+    },
 }
 
 #[derive(Debug)]
@@ -85,6 +88,15 @@ impl ServerRpcResponseBuilder {
                     .set_none(());
             }
         }
+        self
+    }
+
+    pub fn set_quantity_types(mut self, quantity_types: Vec<serde_json::Value>) -> Self {
+        let mut response_builder = self
+            .message_builder
+            .get_root::<astroplant_capnp::server_rpc_response::Builder>()
+            .expect("could not get root");
+        response_builder.set_get_quantity_types(&serde_json::to_string(&quantity_types).unwrap());
         self
     }
 
@@ -182,6 +194,23 @@ impl ServerRpcHandler {
                     Ok(configuration) => Some(
                         ServerRpcResponseBuilder::new(kit_serial, id)
                             .set_active_configuration(configuration)
+                            .create(),
+                    ),
+                    Err(_) => None,
+                });
+
+                Ok((request, Some(receiver.boxed())))
+            }
+            astroplant_capnp::server_rpc_request::Which::GetQuantityTypes(_) => {
+                trace!("received server RPC quantity types");
+
+                let (sender, receiver) = oneshot::channel();
+                let request = ServerRpcRequest::GetQuantityTypes { response: sender };
+
+                let receiver = receiver.map(move |quantity_types| match quantity_types {
+                    Ok(quantity_types) => Some(
+                        ServerRpcResponseBuilder::new(kit_serial, id)
+                            .set_quantity_types(quantity_types)
                             .create(),
                     ),
                     Err(_) => None,

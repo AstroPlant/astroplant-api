@@ -178,6 +178,18 @@ pub struct PeripheralDefinition {
     pub configuration_schema: serde_json::Value,
 }
 
+impl PeripheralDefinition {
+    pub fn with_expected_quantity_types<Q>(
+        self,
+        expected_quantity_types: Vec<Q>,
+    ) -> PeripheralDefinitionWithExpectedQuantityTypes<Q> {
+        PeripheralDefinitionWithExpectedQuantityTypes {
+            peripheral_definition: self,
+            expected_quantity_types,
+        }
+    }
+}
+
 impl From<models::PeripheralDefinition> for PeripheralDefinition {
     fn from(peripheral_definition: models::PeripheralDefinition) -> Self {
         let models::PeripheralDefinition {
@@ -199,6 +211,65 @@ impl From<models::PeripheralDefinition> for PeripheralDefinition {
             module_name,
             class_name,
             configuration_schema,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PeripheralDefinitionWithExpectedQuantityTypes<Q> {
+    #[serde(flatten)]
+    pub peripheral_definition: PeripheralDefinition,
+    pub expected_quantity_types: Vec<Q>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PeripheralDefinitionExpectedQuantityType<P, Q> {
+    pub id: i32,
+    pub peripheral_definition: P,
+    pub quantity_type: Q,
+}
+
+impl From<models::PeripheralDefinitionExpectedQuantityType>
+    for PeripheralDefinitionExpectedQuantityType<i32, i32>
+{
+    fn from(expected_quantity_type: models::PeripheralDefinitionExpectedQuantityType) -> Self {
+        let models::PeripheralDefinitionExpectedQuantityType {
+            id,
+            peripheral_definition_id,
+            quantity_type_id,
+        } = expected_quantity_type;
+        Self {
+            id,
+            peripheral_definition: peripheral_definition_id,
+            quantity_type: quantity_type_id,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct QuantityType {
+    pub id: i32,
+    pub physical_quantity: String,
+    pub physical_unit: String,
+    pub physical_unit_symbol: Option<String>,
+}
+
+impl From<models::QuantityType> for QuantityType {
+    fn from(quantity_type: models::QuantityType) -> Self {
+        let models::QuantityType {
+            id,
+            physical_quantity,
+            physical_unit,
+            physical_unit_symbol,
+        } = quantity_type;
+        Self {
+            id,
+            physical_quantity,
+            physical_unit,
+            physical_unit_symbol,
         }
     }
 }

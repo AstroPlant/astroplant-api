@@ -15,8 +15,7 @@ struct RawMeasurement {
     pub kit_serial: String,
     pub datetime: u64,
     pub peripheral: i32,
-    pub physical_quantity: String,
-    pub physical_unit: String,
+    pub quantity_type: i32,
     pub value: f64,
 }
 
@@ -29,8 +28,7 @@ pub async fn run(mut raw_measurement_receiver: mpsc::Receiver<astroplant_mqtt::R
             kit_serial,
             datetime,
             peripheral,
-            physical_quantity,
-            physical_unit,
+            quantity_type,
             value,
             ..
         } = raw_measurement;
@@ -38,8 +36,7 @@ pub async fn run(mut raw_measurement_receiver: mpsc::Receiver<astroplant_mqtt::R
             kit_serial,
             datetime,
             peripheral,
-            physical_quantity,
-            physical_unit,
+            quantity_type,
             value,
         };
 

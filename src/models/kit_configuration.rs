@@ -3,6 +3,7 @@ use crate::schema::kit_configurations;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::{Identifiable, QueryResult, Queryable};
+use serde_json::json;
 
 use super::{Kit, KitId};
 
@@ -10,7 +11,7 @@ use super::{Kit, KitId};
 #[table_name = "kit_configurations"]
 pub struct KitConfigurationId(#[column_name = "id"] pub i32);
 
-#[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable, Associations)]
+#[derive(Clone, Debug, PartialEq, Queryable, Identifiable, Associations)]
 #[belongs_to(parent = "Kit", foreign_key = "kit_id")]
 #[belongs_to(parent = "KitId", foreign_key = "kit_id")]
 #[table_name = "kit_configurations"]
@@ -18,16 +19,22 @@ pub struct KitConfiguration {
     pub id: i32,
     pub kit_id: i32,
     pub description: Option<String>,
+    pub rules_supervisor_module_name: String,
+    pub rules_supervisor_class_name: String,
+    pub rules: serde_json::Value,
     pub active: bool,
     pub never_used: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable, AsChangeset)]
+#[derive(Clone, Debug, PartialEq, Queryable, Identifiable, AsChangeset)]
 #[table_name = "kit_configurations"]
 pub struct UpdateKitConfiguration {
     pub id: i32,
     // None means don't update, Some(None) means set to null.
     pub description: Option<Option<String>>,
+    pub rules_supervisor_module_name: Option<String>,
+    pub rules_supervisor_class_name: Option<String>,
+    pub rules: Option<serde_json::Value>,
     pub active: Option<bool>,
     pub never_used: Option<bool>,
 }
@@ -101,11 +108,14 @@ impl UpdateKitConfiguration {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Insertable)]
+#[derive(Clone, Debug, PartialEq, Insertable)]
 #[table_name = "kit_configurations"]
 pub struct NewKitConfiguration {
     pub kit_id: i32,
     pub description: Option<String>,
+    pub rules_supervisor_module_name: String,
+    pub rules_supervisor_class_name: String,
+    pub rules: serde_json::Value,
 }
 
 impl NewKitConfiguration {
@@ -113,6 +123,9 @@ impl NewKitConfiguration {
         Self {
             kit_id: kit_id.0,
             description: description,
+            rules_supervisor_module_name: "astroplant_kit.supervisor".to_owned(),
+            rules_supervisor_class_name: "AstroplantSupervisor".to_owned(),
+            rules: json!({}),
         }
     }
 

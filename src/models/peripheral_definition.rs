@@ -19,6 +19,7 @@ pub struct PeripheralDefinition {
     pub module_name: String,
     pub class_name: String,
     pub configuration_schema: serde_json::Value,
+    pub command_schema: Option<serde_json::Value>,
 }
 
 impl PeripheralDefinition {

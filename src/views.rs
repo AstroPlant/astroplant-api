@@ -176,6 +176,7 @@ pub struct PeripheralDefinition {
     pub module_name: String,
     pub class_name: String,
     pub configuration_schema: serde_json::Value,
+    pub command_schema: Option<serde_json::Value>,
 }
 
 impl PeripheralDefinition {
@@ -201,6 +202,7 @@ impl From<models::PeripheralDefinition> for PeripheralDefinition {
             module_name,
             class_name,
             configuration_schema,
+            command_schema,
         } = peripheral_definition;
         Self {
             id,
@@ -211,6 +213,7 @@ impl From<models::PeripheralDefinition> for PeripheralDefinition {
             module_name,
             class_name,
             configuration_schema,
+            command_schema,
         }
     }
 }
@@ -280,6 +283,9 @@ pub struct KitConfiguration {
     pub id: i32,
     pub kit_id: i32,
     pub description: Option<String>,
+    pub rules_supervisor_module_name: String,
+    pub rules_supervisor_class_name: String,
+    pub rules: serde_json::Value,
     pub active: bool,
     pub never_used: bool,
 }
@@ -299,6 +305,9 @@ impl From<models::KitConfiguration> for KitConfiguration {
             id,
             kit_id,
             description,
+            rules_supervisor_module_name,
+            rules_supervisor_class_name,
+            rules,
             active,
             never_used,
         }: models::KitConfiguration,
@@ -307,6 +316,9 @@ impl From<models::KitConfiguration> for KitConfiguration {
             id,
             kit_id,
             description,
+            rules_supervisor_module_name,
+            rules_supervisor_class_name,
+            rules,
             active,
             never_used,
         }

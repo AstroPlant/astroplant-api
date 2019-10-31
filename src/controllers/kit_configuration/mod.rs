@@ -175,6 +175,9 @@ fn patch_configuration(
     struct KitConfigurationPatch {
         #[serde(default, deserialize_with = "deserialize_some")]
         description: Option<Option<String>>,
+        rules_supervisor_module_name: Option<String>,
+        rules_supervisor_class_name: Option<String>,
+        rules: Option<serde_json::Value>,
         active: Option<bool>,
     }
 
@@ -193,29 +196,48 @@ fn patch_configuration(
              configuration: models::KitConfiguration,
              configuration_patch: KitConfigurationPatch,
              conn: PgPooled| {
-                let patch = models::UpdateKitConfiguration {
-                    id: configuration.id,
-                    description: configuration_patch.description,
-                    active: configuration_patch.active,
-                    never_used: match configuration_patch.active {
-                        Some(true) => Some(false),
-                        _ => None,
-                    },
-                };
-
-                helpers::threadpool_diesel_ok(move || {
-                    conn.transaction(|| {
-                        if let Some(active) = patch.active {
-                            if active != configuration.active {
-                                models::KitConfiguration::deactivate_all_of_kit(&conn, &kit)?;
-                            }
+                async {
+                    if !configuration.never_used {
+                        if configuration_patch.rules_supervisor_module_name.is_some()
+                            || configuration_patch.rules_supervisor_class_name.is_some()
+                            || configuration_patch.rules.is_some()
+                        {
+                            return Err(warp::reject::custom(
+                                problem::InvalidParameterReason::AlreadyActivated
+                                    .singleton("configurationId")
+                                    .into_problem(),
+                            ));
                         }
-                        let patched_configuration = patch.update(&conn)?;
+                    }
 
-                        Ok(ResponseBuilder::ok()
-                            .body(views::KitConfiguration::from(patched_configuration)))
+                    let patch = models::UpdateKitConfiguration {
+                        id: configuration.id,
+                        description: configuration_patch.description,
+                        rules_supervisor_module_name: configuration_patch.rules_supervisor_module_name,
+                        rules_supervisor_class_name: configuration_patch.rules_supervisor_class_name,
+                        rules: configuration_patch.rules,
+                        active: configuration_patch.active,
+                        never_used: match configuration_patch.active {
+                            Some(true) => Some(false),
+                            _ => None,
+                        },
+                    };
+
+                    helpers::threadpool_diesel_ok(move || {
+                        conn.transaction(|| {
+                            if let Some(active) = patch.active {
+                                if active != configuration.active {
+                                    models::KitConfiguration::deactivate_all_of_kit(&conn, &kit)?;
+                                }
+                            }
+                            let patched_configuration = patch.update(&conn)?;
+
+                            Ok(ResponseBuilder::ok()
+                                .body(views::KitConfiguration::from(patched_configuration)))
+                        })
                     })
-                })
+                    .await
+                }
             },
         )
 }

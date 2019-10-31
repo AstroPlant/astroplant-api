@@ -769,6 +769,7 @@ components:
         - moduleName
         - className
         - configurationSchema
+        - commandSchema
       properties:
         id:
           type: integer
@@ -787,6 +788,9 @@ components:
           type: string
         configurationSchema:
           type: object
+        commandSchema:
+          type: object
+          nullable: true
         expectedQuantityTypes:
           type: array
           items:
@@ -901,6 +905,9 @@ components:
       required:
         - id
         - kitId
+        - rules_supervisor_module_name
+        - rules_supervisor_class_name
+        - rules
         - active
         - neverUsed
       properties:
@@ -912,6 +919,12 @@ components:
           format: int32
         description:
           type: string
+        rules_supervisor_module_name:
+          type: string
+        rules_supervisor_class_name:
+          type: string
+        rules:
+          type: object
         active:
           type: boolean
         neverUsed:
@@ -926,6 +939,12 @@ components:
       properties:
         description:
           type: string
+        rules_supervisor_module_name:
+          type: string
+        rules_supervisor_class_name:
+          type: string
+        rules:
+          type: object
         active:
           type: boolean
     KitConfigurationWithPeripherals:

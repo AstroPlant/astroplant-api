@@ -23,7 +23,7 @@ pub enum Problem {
 
     #[serde(rename = "/probs/authorization-header")]
     AuthorizationHeader {
-        category: AuthenticationTokenProblemCategory,
+        category: AccessTokenProblemCategory,
     },
 
     #[serde(rename = "/probs/payload-too-large")]
@@ -130,7 +130,7 @@ impl<'a> From<&'a Problem> for DescriptiveProblem<'a> {
             }
 
             AuthorizationHeader { category } => {
-                use AuthenticationTokenProblemCategory::*;
+                use AccessTokenProblemCategory::*;
                 match category {
                     Missing => (
                         Some("Your request misses the Authorization header.".to_owned()),
@@ -141,7 +141,7 @@ impl<'a> From<&'a Problem> for DescriptiveProblem<'a> {
                         None,
                     ),
                     Expired => (
-                        Some("Your request authorization token was expired.".to_owned()),
+                        Some("Your request access token was expired.".to_owned()),
                         None,
                     ),
                 }
@@ -180,7 +180,7 @@ impl<'a> From<&'a Problem> for DescriptiveProblem<'a> {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum AuthenticationTokenProblemCategory {
+pub enum AccessTokenProblemCategory {
     Missing,
     Malformed,
     Expired,
@@ -256,7 +256,7 @@ pub enum InvalidParameterReason {
     AlreadyExists,
     AlreadyActivated,
     InvalidToken {
-        category: AuthenticationTokenProblemCategory,
+        category: AccessTokenProblemCategory,
     },
     NotFound,
     Other,

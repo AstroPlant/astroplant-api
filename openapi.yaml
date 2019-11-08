@@ -212,8 +212,8 @@ paths:
           $ref: "#/components/responses/ErrorInternalServer"
   "/me/refresh":
     post:
-      summary: "Obtain an authentication token from a refresh token."
-      operationId: obtainAuthenticationTokenFromRefreshToken
+      summary: "Obtain an access token from a refresh token."
+      operationId: obtainAccessTokenFromRefreshToken
       tags:
         - authenticate
       requestBody:
@@ -755,11 +755,11 @@ components:
       type: object
       required:
         - refreshToken
-        - authenticationToken
+        - accessToken
       properties:
         refreshToken:
           type: string
-        authenticationToken:
+        accessToken:
           type: string
     PeripheralDefinition:
       type: object

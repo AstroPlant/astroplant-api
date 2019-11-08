@@ -22,7 +22,7 @@ pub fn authenticate_by_credentials(
     #[serde(rename_all = "camelCase")]
     struct AuthenticationTokens {
         refresh_token: String,
-        authentication_token: String,
+        access_token: String,
     }
 
     crate::helpers::deserialize()
@@ -49,14 +49,14 @@ pub fn authenticate_by_credentials(
                             let authentication_state = token::AuthenticationState::new(user.id);
                             let refresh_token =
                                 token_signer.create_refresh_token(authentication_state);
-                            let authentication_token = token_signer
-                                .authentication_token_from_refresh_token(&refresh_token)
+                            let access_token = token_signer
+                                .access_token_from_refresh_token(&refresh_token)
                                 .unwrap();
                             debug!("Authenticated user: {}.", user.username);
 
                             let response = ResponseBuilder::ok().body(AuthenticationTokens {
                                 refresh_token,
-                                authentication_token,
+                                access_token,
                             });
 
                             return Ok(response);
@@ -80,15 +80,15 @@ pub fn authenticate_by_credentials(
         })
 }
 
-/// Get an authentication token through a refresh token.
+/// Get an access token through a refresh token.
 ///
 /// # TODO
 /// Check refresh token against the database for revocation.
-pub fn authentication_token_from_refresh_token(
+pub fn access_token_from_refresh_token(
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     use astroplant_auth::token;
     use problem::{
-        AuthenticationTokenProblemCategory::*, InvalidParameterReason, InvalidParameters,
+        AccessTokenProblemCategory::*, InvalidParameterReason, InvalidParameters,
     };
 
     #[derive(Deserialize, Debug)]
@@ -101,10 +101,10 @@ pub fn authentication_token_from_refresh_token(
         async move {
             let token_signer: &token::TokenSigner = crate::TOKEN_SIGNER.get().unwrap();
 
-            match token_signer.authentication_token_from_refresh_token(&refresh_token) {
-                Ok(authentication_token) => {
+            match token_signer.access_token_from_refresh_token(&refresh_token) {
+                Ok(access_token) => {
                     trace!("Token refreshed.");
-                    Ok(ResponseBuilder::ok().body(authentication_token))
+                    Ok(ResponseBuilder::ok().body(access_token))
                 }
                 Err(token::Error::Expired) => {
                     let mut invalid_parameters = InvalidParameters::new();

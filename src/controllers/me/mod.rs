@@ -16,7 +16,7 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     .or(path!("refresh")
         .and(warp::path::end())
         .and(warp::post2())
-        .and(auth::authentication_token_from_refresh_token()))
+        .and(auth::access_token_from_refresh_token()))
     .unify()
     .or(warp::path::end().and(warp::get2()).and(me(pg.clone())))
     .unify()

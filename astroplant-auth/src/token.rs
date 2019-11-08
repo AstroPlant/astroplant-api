@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 enum TokenType {
     Refresh,
-    Authentication,
+    Access,
 }
 
 #[derive(Debug)]
@@ -76,22 +76,22 @@ impl TokenSigner {
         self.create_token(VALIDITY_TIME, TokenType::Refresh, state)
     }
 
-    pub fn authentication_token_from_refresh_token(&self, token: &str) -> Result<String, Error> {
+    pub fn access_token_from_refresh_token(&self, token: &str) -> Result<String, Error> {
         const VALIDITY_TIME: usize = 60 * 15;
 
         let claims = self.decode_token(token)?;
         match claims.token_type {
             TokenType::Refresh => {
-                Ok(self.create_token(VALIDITY_TIME, TokenType::Authentication, claims.state))
+                Ok(self.create_token(VALIDITY_TIME, TokenType::Access, claims.state))
             }
             _ => Err(Error::Other),
         }
     }
 
-    pub fn decode_authentication_token(&self, token: &str) -> Result<AuthenticationState, Error> {
+    pub fn decode_access_token(&self, token: &str) -> Result<AuthenticationState, Error> {
         let claims = self.decode_token(token)?;
         match claims.token_type {
-            TokenType::Authentication => Ok(claims.state),
+            TokenType::Access => Ok(claims.state),
             _ => Err(Error::Other),
         }
     }
@@ -109,14 +109,14 @@ mod test {
             let state = super::AuthenticationState { user_id: id };
 
             let refresh_token = token_signer.create_refresh_token(state.clone());
-            let authentication_token = token_signer
-                .authentication_token_from_refresh_token(&refresh_token)
+            let access_token = token_signer
+                .access_token_from_refresh_token(&refresh_token)
                 .unwrap();
 
             assert_eq!(
                 state,
                 token_signer
-                    .decode_normal_token(&authentication_token)
+                    .decode_access_token(&access_token)
                     .unwrap()
             );
         }

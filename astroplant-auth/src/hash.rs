@@ -179,12 +179,8 @@ mod test {
 
     #[test]
     pub fn hash_round_trip() {
-        use crate::random;
-
-        for _ in 0..100 {
-            let password = random_string::password();
-            let v1_hash = super::V1Hash::hash_password(&password);
-            assert!(v1_hash.check(&password))
-        }
+        let password = "It all adds up to normality.";
+        let v1_hash = super::V1Hash::hash_password(password);
+        assert!(v1_hash.check(password))
     }
 }

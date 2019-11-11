@@ -199,7 +199,7 @@ paths:
               $ref: "#/components/schemas/AuthUser"
       responses:
         '200':
-          description: The authentication JSON Web Token pair; i.e. a refresh token valid for a year and an authentication token valid for a much smaller amount of time (generally around 15 minutes). The refresh token should be stored and used to obtain an authentication token at regular intervals from the /me/refresh endpoint.
+          description: The authentication JSON Web Token pair; i.e. a refresh token valid for a year and an access token valid for a much smaller amount of time (generally around 15 minutes). The refresh token should be stored and used to obtain an access token at regular intervals from the /me/refresh endpoint.
           content:
             application/json:
               schema:

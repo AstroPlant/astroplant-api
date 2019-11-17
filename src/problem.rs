@@ -215,7 +215,9 @@ impl InvalidParameters {
     }
 
     pub fn into_problem(self) -> Problem {
-        Problem::InvalidParameters { invalid_parameters: self }
+        Problem::InvalidParameters {
+            invalid_parameters: self,
+        }
     }
 }
 
@@ -263,7 +265,10 @@ pub enum InvalidParameterReason {
 }
 
 impl InvalidParameterReason {
-    pub fn singleton<S: Into<std::borrow::Cow<'static, str>>>(self, parameter: S) -> InvalidParameters {
+    pub fn singleton<S: Into<std::borrow::Cow<'static, str>>>(
+        self,
+        parameter: S,
+    ) -> InvalidParameters {
         let mut invalid_parameters = InvalidParameters::new();
         invalid_parameters.add(parameter, self);
         invalid_parameters

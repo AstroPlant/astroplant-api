@@ -29,14 +29,12 @@ pub fn quantity_types(
         .and(pg)
         .and_then(|cursor: CursorPage, conn: PgPooled| {
             helpers::threadpool_diesel_ok(move || {
-                models::QuantityType::cursor_page(&conn, cursor.after, 100).map(
-                    |quantity_types| {
-                        quantity_types
-                            .into_iter()
-                            .map(|quantity_type| views::QuantityType::from(quantity_type))
-                            .collect::<Vec<_>>()
-                    },
-                )
+                models::QuantityType::cursor_page(&conn, cursor.after, 100).map(|quantity_types| {
+                    quantity_types
+                        .into_iter()
+                        .map(|quantity_type| views::QuantityType::from(quantity_type))
+                        .collect::<Vec<_>>()
+                })
             })
             .map_ok(move |quantity_types| {
                 let next_page_uri = quantity_types

@@ -1,16 +1,13 @@
 use crate::schema::users;
 
-use diesel::prelude::*;
-use diesel::{Connection, QueryResult, Queryable, Identifiable};
 use diesel::pg::PgConnection;
+use diesel::prelude::*;
+use diesel::{Connection, Identifiable, QueryResult, Queryable};
 use validator::Validate;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable)]
 #[table_name = "users"]
-pub struct UserId(
-    #[column_name = "id"]
-    pub i32
-);
+pub struct UserId(#[column_name = "id"] pub i32);
 
 #[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable)]
 pub struct User {
@@ -29,11 +26,17 @@ impl User {
     }
 
     pub fn by_username(conn: &PgConnection, username: &str) -> QueryResult<Option<User>> {
-        users::table.filter(users::username.ilike(username)).first(conn).optional()
+        users::table
+            .filter(users::username.ilike(username))
+            .first(conn)
+            .optional()
     }
 
     pub fn by_email_address(conn: &PgConnection, email_address: &str) -> QueryResult<Option<User>> {
-        users::table.filter(users::email_address.ilike(email_address)).first(conn).optional()
+        users::table
+            .filter(users::email_address.ilike(email_address))
+            .first(conn)
+            .optional()
     }
 
     pub fn get_id(&self) -> UserId {
@@ -58,11 +61,7 @@ pub struct NewUser {
 }
 
 impl NewUser {
-    pub fn new(
-        username: String,
-        password_hash: String,
-        email_address: String,
-    ) -> Self {
+    pub fn new(username: String, password_hash: String, email_address: String) -> Self {
         NewUser {
             username: username.to_lowercase(),
             display_name: username,

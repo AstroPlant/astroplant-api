@@ -1,4 +1,4 @@
-use futures::future::{FutureExt};
+use futures::future::FutureExt;
 use serde::Deserialize;
 use validator::Validate;
 use warp::{filters::BoxedFilter, Filter, Rejection};

@@ -213,8 +213,10 @@ fn patch_configuration(
                     let patch = models::UpdateKitConfiguration {
                         id: configuration.id,
                         description: configuration_patch.description,
-                        rules_supervisor_module_name: configuration_patch.rules_supervisor_module_name,
-                        rules_supervisor_class_name: configuration_patch.rules_supervisor_class_name,
+                        rules_supervisor_module_name: configuration_patch
+                            .rules_supervisor_module_name,
+                        rules_supervisor_class_name: configuration_patch
+                            .rules_supervisor_class_name,
                         rules: configuration_patch.rules,
                         active: configuration_patch.active,
                         never_used: match configuration_patch.active {

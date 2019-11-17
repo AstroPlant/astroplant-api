@@ -30,7 +30,10 @@ impl Kit {
     }
 
     pub fn by_serial(conn: &PgConnection, serial: String) -> QueryResult<Option<Kit>> {
-        kits::table.filter(kits::columns::serial.eq(serial)).first(conn).optional()
+        kits::table
+            .filter(kits::columns::serial.eq(serial))
+            .first(conn)
+            .optional()
     }
 
     pub fn all(conn: &PgConnection) -> QueryResult<Vec<Kit>> {

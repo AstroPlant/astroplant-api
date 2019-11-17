@@ -30,7 +30,6 @@ pub struct ResponseBuilder {
     headers: HashMap<String, String>,
 }
 
-
 impl ResponseBuilder {
     /// Create a new response builder with the given status code.
     pub fn new(status_code: StatusCode) -> Self {

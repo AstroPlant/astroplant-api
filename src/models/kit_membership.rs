@@ -59,7 +59,11 @@ impl KitMembership {
             .optional()
     }
 
-    pub fn by_user_and_kit(conn: &PgConnection, user: &User, kit: &Kit) -> QueryResult<Option<Self>> {
+    pub fn by_user_and_kit(
+        conn: &PgConnection,
+        user: &User,
+        kit: &Kit,
+    ) -> QueryResult<Option<Self>> {
         Self::by_user_id_and_kit_id(conn, UserId(user.id), KitId(kit.id))
     }
 }

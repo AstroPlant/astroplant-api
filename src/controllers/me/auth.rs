@@ -87,9 +87,7 @@ pub fn authenticate_by_credentials(
 pub fn access_token_from_refresh_token(
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     use astroplant_auth::token;
-    use problem::{
-        AccessTokenProblemCategory::*, InvalidParameterReason, InvalidParameters,
-    };
+    use problem::{AccessTokenProblemCategory::*, InvalidParameterReason, InvalidParameters};
 
     #[derive(Deserialize, Debug)]
     #[serde(rename_all = "camelCase")]

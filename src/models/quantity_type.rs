@@ -24,7 +24,9 @@ impl QuantityType {
 
     pub fn by_ids(conn: &PgConnection, ids: Vec<i32>) -> QueryResult<Vec<Self>> {
         use quantity_types::dsl;
-        quantity_types::table.filter(dsl::id.eq(diesel::dsl::any(ids))).load(conn)
+        quantity_types::table
+            .filter(dsl::id.eq(diesel::dsl::any(ids)))
+            .load(conn)
     }
 
     pub fn all(conn: &PgConnection) -> QueryResult<Vec<Self>> {
@@ -36,7 +38,9 @@ impl QuantityType {
         after: Option<i32>,
         limit: i64,
     ) -> QueryResult<Vec<Self>> {
-        let q = quantity_types::table.order(quantity_types::columns::id.asc()).limit(limit);
+        let q = quantity_types::table
+            .order(quantity_types::columns::id.asc())
+            .limit(limit);
         if let Some(after) = after {
             q.filter(quantity_types::columns::id.gt(after)).load(conn)
         } else {

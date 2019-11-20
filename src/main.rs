@@ -65,12 +65,6 @@ async fn main() {
     let rate_limit = rate_limit::leaky_bucket();
     let pg = helpers::pg(pg_pool);
 
-    /*let websocket = path!("ws")
-    .and(warp::filters::ws::ws2())
-    .map(|ws2: warp::filters::ws::Ws2| ws2.on_upgrade(|ws| async {
-        websocket::handle(ws).await;
-    }));*/
-
     let all = rate_limit
         .and(
             path!("version")

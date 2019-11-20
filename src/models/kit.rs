@@ -58,6 +58,45 @@ impl Kit {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Queryable, Identifiable, AsChangeset)]
+#[table_name = "kits"]
+pub struct UpdateKit {
+    pub id: i32,
+    pub password_hash: Option<String>,
+    // None means don't update, Some(None) means set to null.
+    pub name: Option<Option<String>>,
+    pub description: Option<Option<String>>,
+    pub latitude: Option<Option<BigDecimal>>,
+    pub longitude: Option<Option<BigDecimal>>,
+    pub privacy_public_dashboard: Option<bool>,
+    pub privacy_show_on_map: Option<bool>,
+}
+
+impl UpdateKit {
+    pub fn unchanged_for_id(id: i32) -> Self {
+        UpdateKit {
+            id,
+            password_hash: None,
+            name: None,
+            description: None,
+            latitude: None,
+            longitude: None,
+            privacy_public_dashboard: None,
+            privacy_show_on_map: None,
+        }
+    }
+
+    pub fn reset_password(mut self) -> (Self, String) {
+        let password = random_string::password();
+        self.password_hash = Some(astroplant_auth::hash::hash_kit_password(&password));
+        (self, password)
+    }
+
+    pub fn update(&self, conn: &PgConnection) -> QueryResult<Kit> {
+        self.save_changes(conn)
+    }
+}
+
 #[derive(Insertable, Debug, Default, Validate)]
 #[table_name = "kits"]
 pub struct NewKit {

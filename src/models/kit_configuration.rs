@@ -124,7 +124,7 @@ impl NewKitConfiguration {
             kit_id: kit_id.0,
             description: description,
             rules_supervisor_module_name: "astroplant_kit.supervisor".to_owned(),
-            rules_supervisor_class_name: "AstroplantSupervisor".to_owned(),
+            rules_supervisor_class_name: "AstroplantSupervisorV1".to_owned(),
             rules: json!({}),
         }
     }

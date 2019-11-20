@@ -140,6 +140,34 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+  "/kits/{kitSerial}/password":
+    post:
+      summary: Reset the kit's password.
+      operationId: resetPassword
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: path
+          required: true
+          description: The serial of the kit to reset the password for.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The kit's new password.
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
   "/users":
     post:
       summary: Create a user.

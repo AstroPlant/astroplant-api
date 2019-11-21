@@ -9,3 +9,13 @@ The key must be provided in a file (as raw bytes).
 
 By default, this application reads the key from `./token_signer.key` relative to the working directory.
 A different file can be used by naming it in the `TOKEN_SIGNER_KEY` environment variable.
+
+Set environment variables to configure the program.
+
+| Variable | Description | Default |
+|-|-|-|
+| `DATABASE_URL` | The database connection url. | `postgres://astroplant:astroplant@database.ops/astroplant` |
+| `MQTT_HOST` | The hostname of the MQTT broker. | `mqtt.ops` |
+| `MQTT_PORT` | The port of the MQTT broker. | `1883` |
+| `MQTT_USERNAME` | The username for MQTT authentication. | `server` |
+| `MQTT_PASSWORD` | The password for MQTT authentication. | |

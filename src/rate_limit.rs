@@ -11,8 +11,8 @@ use warp::{Filter, Rejection};
 /// Panics if it is used with a transport not using socket addresses.
 pub fn leaky_bucket() -> impl Filter<Extract = (), Error = Rejection> + Clone {
     let limiter = Arc::new(Mutex::new(KeyedRateLimiter::<SocketAddr>::new(
-        std::num::NonZeroU32::new(2u32).unwrap(),
-        std::time::Duration::from_secs(1),
+        std::num::NonZeroU32::new(20u32).unwrap(),
+        std::time::Duration::from_secs(10),
     )));
 
     warp::addr::remote()

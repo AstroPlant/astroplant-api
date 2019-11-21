@@ -38,12 +38,17 @@ mod websocket;
 use response::{Response, ResponseBuilder};
 
 static VERSION: &str = env!("CARGO_PKG_VERSION");
+static DEFAULT_DATABASE_URL: &str = "postgres://astroplant:astroplant@database.ops/astroplant";
+static DEFAULT_MQTT_HOST: &str = "mqtt.ops";
+const DEFAULT_MQTT_PORT: u16 = 1883;
+static DEFAULT_MQTT_USERNAME: &str = "server";
+static DEFAULT_MQTT_PASSWORD: &str = "";
 
 static TOKEN_SIGNER: OnceCell<astroplant_auth::token::TokenSigner> = OnceCell::new();
 
 fn pg_pool() -> PgPool {
     let manager = ConnectionManager::<PgConnection>::new(
-        "postgres://astroplant:astroplant@database.ops/astroplant",
+        std::env::var("DATABASE_URL").unwrap_or(DEFAULT_DATABASE_URL.to_owned()),
     );
     Pool::new(manager).expect("PostgreSQL connection pool could not be created.")
 }

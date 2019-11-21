@@ -244,7 +244,12 @@ impl Handler {
     }
 }
 
-pub fn run() -> (crossbeam::channel::Receiver<MqttApiMessage>, KitsRpc) {
+pub fn run(
+    mqtt_host: String,
+    mqtt_port: u16,
+    mqtt_username: String,
+    mqtt_password: String,
+) -> (crossbeam::channel::Receiver<MqttApiMessage>, KitsRpc) {
     let (mqtt_api_sender, mqtt_api_receiver) = crossbeam::channel::bounded(MQTT_API_MESSAGE_BUFFER);
 
     let thread_pool = futures::executor::ThreadPoolBuilder::new()
@@ -260,8 +265,8 @@ pub fn run() -> (crossbeam::channel::Receiver<MqttApiMessage>, KitsRpc) {
     }
 
     let mqtt_options =
-        MqttOptions::new("astroplant-api-connector", "mqtt.ops", 1883).set_security_opts(
-            SecurityOptions::UsernamePassword("server".to_owned(), "abcdef".to_owned()),
+        MqttOptions::new("astroplant-api-connector", mqtt_host, mqtt_port).set_security_opts(
+            SecurityOptions::UsernamePassword(mqtt_username, mqtt_password),
         );
     let (mqtt_client, notifications) = MqttClient::start(mqtt_options).unwrap();
 

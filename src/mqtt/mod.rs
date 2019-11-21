@@ -133,7 +133,15 @@ impl Handler {
     }
 
     pub fn run(&mut self) {
-        let (message_receiver, _kits_rpc) = astroplant_mqtt::run();
+        let (message_receiver, _kits_rpc) = astroplant_mqtt::run(
+            std::env::var("MQTT_HOST").unwrap_or(crate::DEFAULT_MQTT_HOST.to_owned()),
+            std::env::var("MQTT_PORT")
+                .map_err(|_| ())
+                .and_then(|port| port.parse().map_err(|_| ()))
+                .unwrap_or(crate::DEFAULT_MQTT_PORT),
+            std::env::var("MQTT_USERNAME").unwrap_or(crate::DEFAULT_MQTT_USERNAME.to_owned()),
+            std::env::var("MQTT_PASSWORD").unwrap_or(crate::DEFAULT_MQTT_PASSWORD.to_owned()),
+        );
         for message in message_receiver {
             match message {
                 MqttApiMessage::ServerRpcRequest(request) => self.server_rpc_request(request),

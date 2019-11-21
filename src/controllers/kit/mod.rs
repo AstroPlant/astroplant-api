@@ -11,6 +11,8 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     trace!("Setting up kits router.");
 
     (warp::get2().and(kit_by_serial(pg.clone().boxed())))
+        .or(warp::post2().and(reset_password(pg.clone().boxed())))
+        .unify()
         .or(warp::path::end()
             .and(warp::get2())
             .and(kits(pg.clone().boxed())))
@@ -72,6 +74,40 @@ pub fn kit_by_serial(
             },
         )
         .map(move |kit| ResponseBuilder::ok().body(views::Kit::from(kit)))
+}
+
+/// Handles the `POST /kits/{kitSerial}/password` route.
+pub fn reset_password(
+    pg: BoxedFilter<(crate::PgPooled,)>,
+) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
+    path!(String / "password")
+        .and(warp::path::end())
+        .and(authentication::option_by_token())
+        .and(pg.clone())
+        .and_then(
+            |kit_serial: String, user_id: Option<models::UserId>, conn: PgPooled| {
+                helpers::fut_permission_or_forbidden(
+                    conn,
+                    user_id,
+                    kit_serial,
+                    crate::authorization::KitAction::ResetPassword,
+                )
+                .map_ok(|(_, _, kit)| kit)
+            },
+        )
+        .and(pg)
+        .and_then(move |kit: models::Kit, conn: PgPooled| {
+            async {
+                helpers::threadpool_diesel_ok(move || {
+                    let (update_kit, password) =
+                        models::UpdateKit::unchanged_for_id(kit.id).reset_password();
+                    update_kit.update(&conn)?;
+                    Ok(password)
+                })
+                .await
+                .map(|password| ResponseBuilder::ok().body(password))
+            }
+        })
 }
 
 /// Handles the `POST /kits` route.

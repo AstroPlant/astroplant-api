@@ -6,6 +6,7 @@ use serde::Serialize;
 pub enum KitAction {
     View,
     SubscribeRealTimeMeasurements,
+    ResetPassword,
     EditDetails,
     EditConfiguration,
     EditMembers,
@@ -28,7 +29,7 @@ impl KitAction {
                 .as_ref()
                 .map(|m| m.access_configure)
                 .unwrap_or(false),
-            EditMembers | SetSuperMember => kit_membership
+            ResetPassword | EditMembers | SetSuperMember => kit_membership
                 .as_ref()
                 .map(|m| m.access_super)
                 .unwrap_or(false),

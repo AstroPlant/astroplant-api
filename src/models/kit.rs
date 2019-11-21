@@ -61,7 +61,6 @@ impl Kit {
 #[derive(Insertable, Debug, Default, Validate)]
 #[table_name = "kits"]
 pub struct NewKit {
-    #[validate(length(equal = 14))]
     pub serial: String,
     pub password_hash: String,
     #[validate(length(min = 1, max = 40))]
@@ -87,8 +86,17 @@ impl NewKit {
         let password = random_string::password();
         let password_hash = astroplant_auth::hash::hash_kit_password(&password);
 
+        // FIXME: the serial should be checked on the database for uniqueness.
+        // Roughly 55 bits of entropy.
+        let serial = format!(
+            "k-{}-{}-{}",
+            random_string::unambiguous_lowercase_string(4),
+            random_string::unambiguous_lowercase_string(4),
+            random_string::unambiguous_lowercase_string(4)
+        );
+
         let new_kit = NewKit {
-            serial: random_string::unambiguous_lowercase_string(14),
+            serial,
             password_hash,
             name,
             description,

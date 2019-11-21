@@ -29,8 +29,9 @@ pub static RANDOM_UNAMBIGUOUS_CHARACTERS: &[char] = &[
 ///
 /// also 0, o, 1, l, 2, z, 5, s are removed, as they look similar and can be confused.
 ///
-/// Roughly 4.2 bits of entropy per character.
+/// Roughly 4.6 bits of entropy per character.
 pub static RANDOM_UNAMBIGUOUS_LOWERCASE_CHARACTERS: &[char] = &[
+    '3', '4', '6', '7', '8', '9',
     'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r', 't', 'v', 'w', 'x', 'y',
 ];
 

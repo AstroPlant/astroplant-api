@@ -11,7 +11,7 @@ mod server_rpc;
 pub use server_rpc::{ServerRpcRequest, ServerRpcResponder};
 
 mod kit_rpc;
-pub use kit_rpc::{KitRpc, KitsRpc};
+pub use kit_rpc::{KitRpc, KitsRpc, KitRpcResponseError};
 
 const MQTT_API_MESSAGE_BUFFER: usize = 128;
 

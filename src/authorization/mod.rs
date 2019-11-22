@@ -11,6 +11,8 @@ pub enum KitAction {
     EditConfiguration,
     EditMembers,
     SetSuperMember,
+    RpcVersion,
+    RpcUptime,
 }
 
 impl KitAction {
@@ -30,6 +32,10 @@ impl KitAction {
                 .map(|m| m.access_configure)
                 .unwrap_or(false),
             ResetPassword | EditMembers | SetSuperMember => kit_membership
+                .as_ref()
+                .map(|m| m.access_super)
+                .unwrap_or(false),
+            RpcVersion | RpcUptime => kit_membership
                 .as_ref()
                 .map(|m| m.access_super)
                 .unwrap_or(false),

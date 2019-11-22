@@ -132,16 +132,10 @@ impl Handler {
         sender.send(val).await;
     }
 
-    pub fn run(&mut self) {
-        let (message_receiver, _kits_rpc) = astroplant_mqtt::run(
-            std::env::var("MQTT_HOST").unwrap_or(crate::DEFAULT_MQTT_HOST.to_owned()),
-            std::env::var("MQTT_PORT")
-                .map_err(|_| ())
-                .and_then(|port| port.parse().map_err(|_| ()))
-                .unwrap_or(crate::DEFAULT_MQTT_PORT),
-            std::env::var("MQTT_USERNAME").unwrap_or(crate::DEFAULT_MQTT_USERNAME.to_owned()),
-            std::env::var("MQTT_PASSWORD").unwrap_or(crate::DEFAULT_MQTT_PASSWORD.to_owned()),
-        );
+    pub fn run(
+        &mut self,
+        message_receiver: crossbeam::channel::Receiver<astroplant_mqtt::MqttApiMessage>,
+    ) {
         for message in message_receiver {
             match message {
                 MqttApiMessage::ServerRpcRequest(request) => self.server_rpc_request(request),
@@ -156,8 +150,23 @@ impl Handler {
     }
 }
 
-pub fn run(pg_pool: PgPool) -> mpsc::Receiver<astroplant_mqtt::RawMeasurement> {
+pub fn run(
+    pg_pool: PgPool,
+) -> (
+    mpsc::Receiver<astroplant_mqtt::RawMeasurement>,
+    astroplant_mqtt::KitsRpc,
+) {
     let (raw_measurement_sender, raw_measurement_receiver) = mpsc::channel(128);
+
+    let (message_receiver, kits_rpc) = astroplant_mqtt::run(
+        std::env::var("MQTT_HOST").unwrap_or(crate::DEFAULT_MQTT_HOST.to_owned()),
+        std::env::var("MQTT_PORT")
+            .map_err(|_| ())
+            .and_then(|port| port.parse().map_err(|_| ()))
+            .unwrap_or(crate::DEFAULT_MQTT_PORT),
+        std::env::var("MQTT_USERNAME").unwrap_or(crate::DEFAULT_MQTT_USERNAME.to_owned()),
+        std::env::var("MQTT_PASSWORD").unwrap_or(crate::DEFAULT_MQTT_PASSWORD.to_owned()),
+    );
 
     std::thread::spawn(move || {
         let (thread_pool_handle_sender, thread_pool_handle_receiver) = oneshot::channel::<()>();
@@ -167,10 +176,10 @@ pub fn run(pg_pool: PgPool) -> mpsc::Receiver<astroplant_mqtt::RawMeasurement> {
         std::thread::spawn(move || runtime.block_on(thread_pool_handle_receiver));
 
         let mut handler = Handler::new(pg_pool, executor, raw_measurement_sender);
-        handler.run();
+        handler.run(message_receiver);
 
         thread_pool_handle_sender.send(()).unwrap();
     });
 
-    raw_measurement_receiver
+    (raw_measurement_receiver, kits_rpc)
 }

@@ -168,6 +168,67 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+  "/kit-rpc/{kitSerial}/version":
+    get:
+      summary: Query the kit for the version it is running.
+      operationId: version
+      security:
+        - bearerAuth: []
+      tags:
+        - kitRpc
+      parameters:
+        - name: kitSerial
+          in: path
+          required: true
+          description: The serial of the kit to query.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The version as reported by the kit.
+          content:
+            application/json:
+              schema:
+                type: string
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+        '502':
+          $ref: "#/components/respones/ErrorBadGateway"
+  "/kit-rpc/{kitSerial}/uptime":
+    get:
+      summary: Query the kit for its uptime.
+      operationId: uptime
+      security:
+        - bearerAuth: []
+      tags:
+        - kitRpc
+      parameters:
+        - name: kitSerial
+          in: path
+          required: true
+          description: The serial of the kit to query.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The uptime in seconds as reported by the kit.
+          content:
+            application/json:
+              schema:
+                type: integer
+                format: uint64
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+        '502':
+          $ref: "#/components/respones/ErrorBadGateway"
   "/users":
     post:
       summary: Create a user.
@@ -1131,4 +1192,9 @@ components:
             example:
               errorCode: 1
               errorName: internalServerError
-
+    ErrorBadGateway:
+      description: An error occurred while proxying the RPC request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"

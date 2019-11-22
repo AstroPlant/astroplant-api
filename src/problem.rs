@@ -41,6 +41,10 @@ pub enum Problem {
     InvalidParameters {
         invalid_parameters: InvalidParameters,
     },
+
+    #[serde(rename = "/probs/kit-rpc-problem")]
+    #[serde(rename_all = "camelCase")]
+    KitRpc(KitRpcProblem),
 }
 
 impl Problem {
@@ -58,6 +62,7 @@ impl Problem {
             PayloadTooLarge { .. } => warp::http::StatusCode::PAYLOAD_TOO_LARGE,
             InvalidJson { .. } => warp::http::StatusCode::BAD_REQUEST,
             InvalidParameters { .. } => warp::http::StatusCode::BAD_REQUEST,
+            KitRpc(_) => warp::http::StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -164,6 +169,13 @@ impl<'a> From<&'a Problem> for DescriptiveProblem<'a> {
             InvalidParameters { .. } => {
                 (
                     Some("Your request parameters did not validate.".to_owned()),
+                    None,
+                )
+            }
+
+            KitRpc(_) => {
+                (
+                    Some("There was an issue with the kit RPC response".to_owned()),
                     None,
                 )
             }
@@ -356,5 +368,19 @@ impl From<serde_json::error::Category> for JsonDeserializeErrorCategory {
 impl From<&serde_json::Error> for JsonDeserializeErrorCategory {
     fn from(error: &serde_json::Error) -> Self {
         error.classify().into()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum KitRpcProblem {
+    KitRpcResponseError(String),
+}
+
+impl KitRpcProblem {
+    pub fn kit_rpc_response_error_into_problem(
+        error: astroplant_mqtt::KitRpcResponseError,
+    ) -> Problem {
+        Problem::KitRpc(KitRpcProblem::KitRpcResponseError(format!("{:?}", error)))
     }
 }

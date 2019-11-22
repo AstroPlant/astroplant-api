@@ -62,7 +62,7 @@ async fn main() {
     let pg_pool = pg_pool();
 
     // Start MQTT.
-    let raw_measurement_receiver = mqtt::run(pg_pool.clone());
+    let (raw_measurement_receiver, kits_rpc) = mqtt::run(pg_pool.clone());
 
     // Start WebSockets.
     tokio::executor::spawn(websocket::run(raw_measurement_receiver));
@@ -82,6 +82,8 @@ async fn main() {
                 .unify()
                 .or(path!("kit-configurations")
                     .and(controllers::kit_configuration::router(pg.clone().boxed())))
+                .unify()
+                .or(path!("kit-rpc").and(controllers::kit_rpc::router(kits_rpc, pg.clone().boxed())))
                 .unify()
                 .or(path!("users").and(controllers::user::router(pg.clone().boxed())))
                 .unify()

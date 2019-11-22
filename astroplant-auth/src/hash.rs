@@ -88,7 +88,7 @@ impl ToString for V1Hash {
 
 fn kit_hash_format(iterations: u32, salt: &str, hash: &[u8]) -> String {
     format!(
-        "pbkdf2$sha256${}${}${}",
+        "PBKDF2$sha256${}${}${}",
         iterations,
         salt,
         base64::encode(&hash)
@@ -163,7 +163,7 @@ mod test {
                 "Z416JHE8vSmaiamV5TRz",
                 &base64::decode("z3y6FvWAZtyQe6TV+O/oyhC3oqnF8KJdlB5Lphi+Lwg=").unwrap()
             ),
-            "pbkdf2$sha256$2000$Z416JHE8vSmaiamV5TRz$z3y6FvWAZtyQe6TV+O/oyhC3oqnF8KJdlB5Lphi+Lwg="
+            "PBKDF2$sha256$2000$Z416JHE8vSmaiamV5TRz$z3y6FvWAZtyQe6TV+O/oyhC3oqnF8KJdlB5Lphi+Lwg="
         )
     }
 

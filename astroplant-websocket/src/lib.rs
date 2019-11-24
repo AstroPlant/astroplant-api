@@ -111,7 +111,7 @@ pub fn run() -> WebSocketPublisher {
     let server = ServerBuilder::with_meta_extractor(io, |context: &RequestContext| {
         Arc::new(Session::new(context.sender()))
     })
-    .start(&"127.0.0.1:8081".parse().unwrap())
+    .start(&"0.0.0.0:8081".parse().unwrap())
     .expect("could not start WS server");
 
     WebSocketPublisher {

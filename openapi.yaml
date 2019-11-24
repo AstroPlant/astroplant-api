@@ -667,6 +667,36 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+  "/measurements/aggregate-measurements":
+    get:
+      summary: Aggregate measurements made by a kit in the last 5 days.
+      operationId: listAggregateMeasurements
+      security:
+        - bearerAuth: []
+      tags:
+        - measurements
+      parameters:
+        - name: kitSerial
+          in: query
+          required: true
+          description: The serial of the kit to retrieve aggregate measurements.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The retrieved aggregate measuements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AggregateMeasurement"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
 components:
   securitySchemes:
     bearerAuth:
@@ -1045,6 +1075,44 @@ components:
           properties:
             peripherals:
               $ref: "#/components/schemas/Peripherals"
+    AggregateMeasurement:
+      type: object
+      required:
+        - id
+        - peripheral_id
+        - kit_id
+        - kit_configuration_id
+        - quantity_type_id
+        - aggregate_type
+        - value
+        - datetime_start
+        - datetime_end
+      properties:
+        id:
+          type: string
+          format: uuid
+        peripheral_id:
+          type: number
+          format: int32
+        kit_id:
+          type: number
+          format: int32
+        kit_configuration_id:
+          type: number
+          format: int32
+        quantity_type_id:
+          type: number
+          format: int32
+        aggregate_type:
+          type: string
+        value:
+          type: number
+        datetime_start:
+          type: string
+          format: date-time
+        datetime_end:
+          type: string
+          format: date-time
   headers:
     CursorPaging:
       description: A link to the next page.

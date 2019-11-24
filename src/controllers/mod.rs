@@ -6,3 +6,4 @@ pub mod peripheral_definition;
 pub mod permission;
 pub mod quantity_type;
 pub mod user;
+pub mod measurement;

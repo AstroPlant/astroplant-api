@@ -97,6 +97,8 @@ async fn main() {
                     .and(controllers::quantity_type::router(pg.clone().boxed())))
                 .unify()
                 .or(path!("permissions").and(controllers::permission::router(pg.clone().boxed())))
+                .unify()
+                .or(path!("measurements").and(controllers::measurement::router(pg.clone().boxed())))
                 .unify(),
         )
         .and(warp::header("Accept"))

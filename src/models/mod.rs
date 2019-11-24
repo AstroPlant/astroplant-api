@@ -23,3 +23,6 @@ pub use peripheral::{NewPeripheral, Peripheral, PeripheralId, UpdatePeripheral};
 
 mod peripheral_definition_expected_quantity_type;
 pub use peripheral_definition_expected_quantity_type::PeripheralDefinitionExpectedQuantityType;
+
+mod measurement;
+pub use measurement::{AggregateMeasurement, AggregateMeasurementId};

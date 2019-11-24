@@ -382,3 +382,46 @@ pub struct PeripheralWithDefinition {
     pub peripheral: Peripheral,
     pub definition: PeripheralDefinition,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct AggregateMeasurement {
+    pub id: uuid::Uuid,
+    pub peripheral_id: i32,
+    pub kit_id: i32,
+    pub kit_configuration_id: i32,
+    pub quantity_type_id: i32,
+    pub aggregate_type: String,
+    pub value: f64,
+    pub datetime_start: DateTime<Utc>,
+    pub datetime_end: DateTime<Utc>,
+}
+
+impl From<models::AggregateMeasurement> for AggregateMeasurement {
+    fn from(
+        models::AggregateMeasurement {
+            id,
+            peripheral_id,
+            kit_id,
+            kit_configuration_id,
+            quantity_type_id,
+            aggregate_type,
+            value,
+            datetime_start,
+            datetime_end,
+            ..
+        }: models::AggregateMeasurement,
+    ) -> Self {
+        Self {
+            id,
+            peripheral_id,
+            kit_id,
+            kit_configuration_id,
+            quantity_type_id,
+            aggregate_type,
+            value,
+            datetime_start,
+            datetime_end,
+        }
+    }
+}

@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   title: AstroPlant API
 servers:
-- url: http://localhost:8080
+  - url: https://api.astroplant.sda-projects.nl
 paths:
   "/version":
     get:

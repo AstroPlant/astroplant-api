@@ -4,14 +4,14 @@ use capnp::serialize_packed;
 use futures::channel::oneshot;
 use futures::task::SpawnExt;
 use futures::FutureExt;
-use rumqtt::{MqttClient, MqttOptions, Notification, QoS, SecurityOptions};
+use rumqtt::{MqttClient, MqttOptions, Notification, QoS, ReconnectOptions, SecurityOptions};
 use std::future::Future;
 
 mod server_rpc;
 pub use server_rpc::{ServerRpcRequest, ServerRpcResponder};
 
 mod kit_rpc;
-pub use kit_rpc::{KitRpc, KitsRpc, KitRpcResponseError};
+pub use kit_rpc::{KitRpc, KitRpcResponseError, KitsRpc};
 
 const MQTT_API_MESSAGE_BUFFER: usize = 128;
 
@@ -264,10 +264,12 @@ pub fn run(
         std::thread::spawn(move || thread_pool.run(thread_pool_handle_receiver));
     }
 
-    let mqtt_options =
-        MqttOptions::new("astroplant-api-connector", mqtt_host, mqtt_port).set_security_opts(
-            SecurityOptions::UsernamePassword(mqtt_username, mqtt_password),
-        );
+    let mqtt_options = MqttOptions::new("astroplant-api-connector", mqtt_host, mqtt_port)
+        .set_reconnect_opts(ReconnectOptions::Always(10))
+        .set_security_opts(SecurityOptions::UsernamePassword(
+            mqtt_username,
+            mqtt_password,
+        ));
     let (mqtt_client, notifications) = MqttClient::start(mqtt_options).unwrap();
 
     let kit_rpc_runner = kit_rpc::kit_rpc_runner(mqtt_client.clone(), thread_pool.clone());

@@ -86,7 +86,8 @@ async fn main() {
                 .or(path!("kit-configurations")
                     .and(controllers::kit_configuration::router(pg.clone().boxed())))
                 .unify()
-                .or(path!("kit-rpc").and(controllers::kit_rpc::router(kits_rpc, pg.clone().boxed())))
+                .or(path!("kit-rpc")
+                    .and(controllers::kit_rpc::router(kits_rpc, pg.clone().boxed())))
                 .unify()
                 .or(path!("users").and(controllers::user::router(pg.clone().boxed())))
                 .unify()
@@ -140,7 +141,7 @@ async fn main() {
                 .allow_headers(vec!["Authorization", "Content-Type"]),
         );
 
-    warp::serve(all).run(([127, 0, 0, 1], 8080)).await;
+    warp::serve(all).run(([0, 0, 0, 0], 8080)).await;
 }
 
 /// Convert rejections into replies.

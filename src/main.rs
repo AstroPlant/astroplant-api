@@ -50,7 +50,10 @@ fn pg_pool() -> PgPool {
     let manager = ConnectionManager::<PgConnection>::new(
         std::env::var("DATABASE_URL").unwrap_or(DEFAULT_DATABASE_URL.to_owned()),
     );
-    Pool::new(manager).expect("PostgreSQL connection pool could not be created.")
+    Pool::builder()
+        .connection_timeout(std::time::Duration::from_secs(5))
+        .build(manager)
+        .expect("PostgreSQL connection pool could not be created.")
 }
 
 #[tokio::main]

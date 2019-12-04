@@ -12,7 +12,7 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     trace!("Setting up peripheral definitions router.");
 
     warp::path::end()
-        .and(warp::get2())
+        .and(warp::get())
         .and(peripheral_definitions(pg.clone()))
         .boxed()
 }

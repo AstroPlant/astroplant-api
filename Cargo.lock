@@ -83,7 +83,7 @@ dependencies = [
  "valico 2.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "validator 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "validator_derive 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "warp 0.1.20 (git+https://github.com/seanmonstar/warp.git?rev=5c269562a823c5340f3dfc14bdd11af592c03dea)",
+ "warp 0.2.0-alpha.0 (git+https://github.com/seanmonstar/warp.git?rev=09c215a2efbc60f3905078f22b7c461780a2a421)",
 ]
 
 [[package]]
@@ -2420,8 +2420,8 @@ dependencies = [
 
 [[package]]
 name = "warp"
-version = "0.1.20"
-source = "git+https://github.com/seanmonstar/warp.git?rev=5c269562a823c5340f3dfc14bdd11af592c03dea#5c269562a823c5340f3dfc14bdd11af592c03dea"
+version = "0.2.0-alpha.0"
+source = "git+https://github.com/seanmonstar/warp.git?rev=09c215a2efbc60f3905078f22b7c461780a2a421#09c215a2efbc60f3905078f22b7c461780a2a421"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-preview 0.3.0-alpha.19 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2785,7 +2785,7 @@ dependencies = [
 "checksum vcpkg 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)" = "33dd455d0f96e90a75803cfeb7f948768c08d70a6de9a8d2362461935698bf95"
 "checksum version_check 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "914b1a6776c4c929a602fafd8bc742e06365d4bcbe48c30f9cca5824f70dc9dd"
 "checksum want 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1ce8a968cb1cd110d136ff8b819a556d6fb6d919363c61534f6860c7eb172ba0"
-"checksum warp 0.1.20 (git+https://github.com/seanmonstar/warp.git?rev=5c269562a823c5340f3dfc14bdd11af592c03dea)" = "<none>"
+"checksum warp 0.2.0-alpha.0 (git+https://github.com/seanmonstar/warp.git?rev=09c215a2efbc60f3905078f22b7c461780a2a421)" = "<none>"
 "checksum wasi 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b89c3ce4ce14bdc6fb6beaf9ec7928ca331de5df7e5ea278375642a2f478570d"
 "checksum webpki 0.19.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4f7e1cd7900a3a6b65a3e8780c51a3e6b59c0e2c55c6dc69578c288d69f7d082"
 "checksum winapi 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)" = "167dc9d6949a9b857f3451275e911c3f44255842c1f7a76f33c55103a909087a"

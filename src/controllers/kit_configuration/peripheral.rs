@@ -80,7 +80,7 @@ fn add_peripheral_to_configuration(
         pg.clone(),
         crate::authorization::KitAction::EditConfiguration,
     )
-    .and(warp::post2())
+    .and(warp::post())
     .and(warp::path::end())
     .and(crate::helpers::deserialize())
     .and(pg)
@@ -280,7 +280,7 @@ fn patch_or_delete_peripheral(
                 .map(helpers::flatten_result)
             },
         ))
-    .or(base.and(warp::delete2()).and_then(
+    .or(base.and(warp::delete()).and_then(
         |_configuration: models::KitConfiguration,
          peripheral: models::Peripheral,
          conn: PgPooled| {

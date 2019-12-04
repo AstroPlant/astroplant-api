@@ -11,7 +11,7 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     trace!("Setting up users router.");
 
     warp::path::end()
-        .and(warp::post2())
+        .and(warp::post())
         .and(create_user(pg.clone()))
         .boxed()
 }

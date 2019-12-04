@@ -19,7 +19,7 @@ fn aggregate_measurements(
     use itertools::Itertools;
     use std::collections::HashMap;
 
-    warp::get2()
+    warp::get()
         .and(warp::path!("aggregate-measurements"))
         .and(warp::path::end())
         .and(

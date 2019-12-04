@@ -77,6 +77,7 @@ impl Display for Problem {
 }
 
 impl StdError for Problem {}
+impl warp::reject::Reject for Problem {}
 
 #[derive(Debug, Serialize, Deserialize)]
 // Note: this attribute is a bit hacky, as DescriptiveProblem also defines a title field. But it

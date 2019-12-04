@@ -87,7 +87,7 @@ fn configurations_by_kit_serial(
     use itertools::Itertools;
     use std::collections::HashMap;
 
-    warp::get2()
+    warp::get()
         .and(warp::path::end())
         .and(
             helpers::authorization_user_kit_from_query(
@@ -135,7 +135,7 @@ fn create_configuration(
         description: Option<String>,
     }
 
-    warp::post2()
+    warp::post()
         .and(warp::path::end())
         .and(
             helpers::authorization_user_kit_from_query(

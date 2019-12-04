@@ -11,7 +11,7 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     trace!("Setting up quantity types router.");
 
     warp::path::end()
-        .and(warp::get2())
+        .and(warp::get())
         .and(quantity_types(pg.clone()))
         .boxed()
 }

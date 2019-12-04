@@ -10,15 +10,15 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     trace!("Setting up kits router.");
 
-    (warp::get2().and(kit_by_serial(pg.clone().boxed())))
-        .or(warp::post2().and(reset_password(pg.clone().boxed())))
+    (warp::get().and(kit_by_serial(pg.clone().boxed())))
+        .or(warp::post().and(reset_password(pg.clone().boxed())))
         .unify()
         .or(warp::path::end()
-            .and(warp::get2())
+            .and(warp::get())
             .and(kits(pg.clone().boxed())))
         .unify()
         .or(warp::path::end()
-            .and(warp::post2())
+            .and(warp::post())
             .and(create_kit(pg.boxed())))
         .unify()
         .boxed()

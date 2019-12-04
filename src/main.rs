@@ -148,7 +148,7 @@ async fn main() {
 fn handle_rejection(rejection: Rejection) -> Result<impl Reply, Rejection> {
     use problem::{DescriptiveProblem, Problem};
 
-    let reply = if let Some(problem) = rejection.find_cause::<Problem>() {
+    let reply = if let Some(problem) = rejection.find::<Problem>() {
         // This rejection originated in this implementation.
 
         let descriptive_problem = DescriptiveProblem::from(problem);

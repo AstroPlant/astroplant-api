@@ -35,4 +35,4 @@ valico = "2"
 
 [dependencies.warp]
 git = "https://github.com/seanmonstar/warp.git"
-rev = "5c269562a823c5340f3dfc14bdd11af592c03dea"
+rev = "09c215a2efbc60f3905078f22b7c461780a2a421"

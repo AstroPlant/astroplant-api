@@ -527,7 +527,7 @@ paths:
               $ref: "#/components/schemas/PatchKitConfiguration"
       responses:
         '201':
-          description: The created kit configuration.
+          description: The patched kit configuration.
           content:
             application/json:
               schema:

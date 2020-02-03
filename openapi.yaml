@@ -140,6 +140,43 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+    patch:
+      summary: Update the kit details.
+      operationId: patchKit
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: path
+          required: true
+          description: The serial of the kit to patch.
+          schema:
+            type: string
+      requestBody:
+        description: The kit patch.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchKit"
+      responses:
+        '201':
+          description: The patched kit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Kit"
+                type: object
+        '400':
+          $ref: "#/components/responses/InvalidJson"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
   "/kits/{kitSerial}/password":
     post:
       summary: Reset the kit's password.
@@ -733,6 +770,24 @@ components:
           format: int32
         serial:
           type: string
+        name:
+          type: string
+        description:
+          type: string
+        latitude:
+          type: number
+          format: float
+        longitude:
+          type: number
+          format: float
+        privacyPublicDashboard:
+          type: boolean
+        privacyShowOnMap:
+          type: boolean
+    PatchKit:
+      type: object
+      required: []
+      properties:
         name:
           type: string
         description:

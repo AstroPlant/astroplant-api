@@ -19,7 +19,9 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
         .unify()
         .or(warp::path::end()
             .and(warp::post())
-            .and(create_kit(pg.boxed())))
+            .and(create_kit(pg.clone().boxed())))
+        .unify()
+        .or(patch_kit(pg.boxed()))
         .unify()
         .boxed()
 }
@@ -177,4 +179,74 @@ pub fn create_kit(
                 .await
             }
         })
+}
+
+/// Handles the `PATCH /kits/{kitSerial}` route.
+fn patch_kit(
+    pg: BoxedFilter<(crate::PgPooled,)>,
+) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
+    use bigdecimal::{BigDecimal, FromPrimitive};
+    use diesel::Connection;
+
+    use crate::utils::deserialize_some;
+
+    #[derive(Deserialize, Debug)]
+    #[serde(rename_all = "camelCase")]
+    struct KitPatch {
+        #[serde(default, deserialize_with = "deserialize_some")]
+        name: Option<Option<String>>,
+        #[serde(default, deserialize_with = "deserialize_some")]
+        description: Option<Option<String>>,
+        #[serde(default, deserialize_with = "deserialize_some")]
+        latitude: Option<Option<f64>>,
+        #[serde(default, deserialize_with = "deserialize_some")]
+        longitude: Option<Option<f64>>,
+        privacy_public_dashboard: Option<bool>,
+        privacy_show_on_map: Option<bool>,
+    }
+
+    warp::patch()
+        .and(path!(String))
+        .and(warp::path::end())
+        .and(authentication::option_by_token())
+        .and(pg.clone())
+        .and_then(
+            |kit_serial: String, user_id: Option<models::UserId>, conn: PgPooled| {
+                helpers::fut_permission_or_forbidden(
+                    conn,
+                    user_id,
+                    kit_serial,
+                    crate::authorization::KitAction::EditDetails,
+                )
+                .map_ok(|(_, _, kit)| kit)
+            },
+        )
+        .and(crate::helpers::deserialize())
+        .and(pg)
+        .and_then(
+            move |kit: models::Kit, kit_patch: KitPatch, conn: PgPooled| {
+                async move {
+                    let update_kit = models::UpdateKit {
+                        id: kit.id,
+                        name: kit_patch.name,
+                        description: kit_patch.description,
+                        latitude: kit_patch
+                            .latitude
+                            .map(|l| l.and_then(|l| BigDecimal::from_f64(l))),
+                        longitude: kit_patch
+                            .longitude
+                            .map(|l| l.and_then(|l| BigDecimal::from_f64(l))),
+                        privacy_public_dashboard: kit_patch.privacy_public_dashboard,
+                        privacy_show_on_map: kit_patch.privacy_show_on_map,
+                        password_hash: None,
+                    };
+
+                    helpers::threadpool_diesel_ok(move || {
+                        let patched_kit = update_kit.update(&conn)?;
+                        Ok(ResponseBuilder::ok().body(views::Kit::from(patched_kit)))
+                    })
+                    .await
+                }
+            },
+        )
 }

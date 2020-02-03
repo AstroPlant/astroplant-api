@@ -45,7 +45,10 @@ impl Kit {
         after: Option<i32>,
         limit: i64,
     ) -> QueryResult<Vec<Kit>> {
-        let q = kits::table.order(kits::columns::id.asc()).limit(limit);
+        let q = kits::table
+            .filter(kits::columns::privacy_show_on_map.eq(true))
+            .order(kits::columns::id.asc())
+            .limit(limit);
         if let Some(after) = after {
             q.filter(kits::columns::id.gt(after)).load(conn)
         } else {

@@ -45,7 +45,7 @@ paths:
           $ref: "#/components/responses/ErrorInternalServer"
   "/kits":
     get:
-      summary: List all public kits.
+      summary: List all kits set to be shown on the public map.
       operationId: listKits
       tags:
         - kits

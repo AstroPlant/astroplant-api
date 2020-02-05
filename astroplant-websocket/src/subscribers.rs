@@ -24,16 +24,23 @@ impl<T> Subscribers<T> {
         id
     }
 
+    pub fn get(&mut self, id: &SubscriptionId) -> Option<&T> {
+        self.subscriptions.get(id)
+    }
+
     pub fn remove(&mut self, id: &SubscriptionId) -> Option<T> {
         self.subscriptions.remove(id)
     }
 }
 
 impl<T> Subscribers<Sink<T>> {
-    pub fn add(&mut self, subscriber: Subscriber<T>) {
+    pub fn add(&mut self, subscriber: Subscriber<T>) -> Option<SubscriptionId> {
         let id = SubscriptionId::Number(self.next_id());
         if let Ok(sink) = subscriber.assign_id(id.clone()) {
-            self.subscriptions.insert(id, sink);
+            self.subscriptions.insert(id.clone(), sink);
+            Some(id)
+        } else {
+            None
         }
     }
 }

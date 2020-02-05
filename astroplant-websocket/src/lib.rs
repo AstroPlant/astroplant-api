@@ -10,16 +10,20 @@ use jsonrpc_pubsub::typed::{Sink, Subscriber};
 use jsonrpc_pubsub::{PubSubHandler, Session, SubscriptionId}; //Sink, Subscriber, SubscriptionId};
 use jsonrpc_server_utils::tokio;
 use jsonrpc_ws_server::{RequestContext, ServerBuilder};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use futures::future::Future;
 
+type PeripheralQuantityType = (i32, i32);
+
 #[derive(Clone)]
 struct WebSocketHandler {
     executor: tokio::runtime::TaskExecutor,
     raw_measurement_subscriptions: Arc<RwLock<HashMap<String, Subscribers<Sink<Value>>>>>, //HashMap<String, Vec<Sink>>>>,
+    raw_measurement_buffer:
+        Arc<RwLock<HashMap<String, HashMap<PeripheralQuantityType, RawMeasurement>>>>,
 }
 
 impl WebSocketHandler {
@@ -27,7 +31,18 @@ impl WebSocketHandler {
         Self {
             executor,
             raw_measurement_subscriptions: Arc::new(RwLock::new(HashMap::default())),
+            raw_measurement_buffer: Arc::new(RwLock::new(HashMap::default())),
         }
+    }
+
+    fn buffer_raw_measurement(&self, kit_serial: String, raw_measurement: RawMeasurement) {
+        let mut buffer = self.raw_measurement_buffer.write().unwrap();
+        let index = (raw_measurement.peripheral, raw_measurement.quantity_type);
+
+        buffer
+            .entry(kit_serial)
+            .or_default()
+            .insert(index, raw_measurement);
     }
 
     fn publish_raw_measurement(&self, kit_serial: String, raw_measurement: RawMeasurement) {
@@ -35,7 +50,7 @@ impl WebSocketHandler {
 
         let subscribers: Option<&Subscribers<Sink<Value>>> = subscriptions.get(&kit_serial);
         if let Some(subscribers) = subscribers {
-            let value = serde_json::to_value(raw_measurement).unwrap();
+            let value = serde_json::to_value(raw_measurement.clone()).unwrap();
             for subscriber in subscribers.values() {
                 self.executor.spawn(
                     subscriber
@@ -45,12 +60,33 @@ impl WebSocketHandler {
                 );
             }
         }
+
+        self.buffer_raw_measurement(kit_serial, raw_measurement);
     }
 
     fn add_raw_measurement_subscriber(&self, kit_serial: String, subscriber: Subscriber<Value>) {
+        let buffer = self.raw_measurement_buffer.read().unwrap();
+        let resend: Vec<RawMeasurement> = match buffer.get(&kit_serial) {
+            Some(pqt_raw_measurements) => pqt_raw_measurements.values().cloned().collect(),
+            None => vec![],
+        };
+
         let mut subscriptions = self.raw_measurement_subscriptions.write().unwrap();
         let subscribers = subscriptions.entry(kit_serial).or_default();
-        subscribers.add(subscriber);
+        let id = subscribers.add(subscriber);
+
+        let sink = id.and_then(|id| subscribers.get(&id));
+
+        // Resend buffered raw measurements to new connection.
+        if let Some(sink) = sink {
+            for raw_measurement in resend {
+                self.executor.spawn(
+                    sink.notify(Ok(serde_json::to_value(raw_measurement).unwrap()))
+                        .map(|_| ())
+                        .map_err(|_| ()),
+                )
+            }
+        }
     }
 
     fn remove_raw_measurement_subscriber(&self, id: SubscriptionId) {}

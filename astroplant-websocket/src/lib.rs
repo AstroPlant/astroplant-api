@@ -1,5 +1,8 @@
 mod subscribers;
+mod types;
+
 use subscribers::Subscribers;
+pub use types::RawMeasurement;
 
 use jsonrpc_core::MetaIoHandler;
 use jsonrpc_core::{futures, Params, Value};
@@ -7,7 +10,7 @@ use jsonrpc_pubsub::typed::{Sink, Subscriber};
 use jsonrpc_pubsub::{PubSubHandler, Session, SubscriptionId}; //Sink, Subscriber, SubscriptionId};
 use jsonrpc_server_utils::tokio;
 use jsonrpc_ws_server::{RequestContext, ServerBuilder};
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -27,15 +30,16 @@ impl WebSocketHandler {
         }
     }
 
-    fn publish_raw_measurement(&self, kit_serial: String, raw_measurement: Value) {
+    fn publish_raw_measurement(&self, kit_serial: String, raw_measurement: RawMeasurement) {
         let subscriptions = self.raw_measurement_subscriptions.read().unwrap();
 
         let subscribers: Option<&Subscribers<Sink<Value>>> = subscriptions.get(&kit_serial);
         if let Some(subscribers) = subscribers {
+            let value = serde_json::to_value(raw_measurement).unwrap();
             for subscriber in subscribers.values() {
                 self.executor.spawn(
                     subscriber
-                        .notify(Ok(raw_measurement.clone()))
+                        .notify(Ok(value.clone()))
                         .map(|_| ())
                         .map_err(|_| ()),
                 );
@@ -59,7 +63,7 @@ pub struct WebSocketPublisher {
 }
 
 impl WebSocketPublisher {
-    pub fn publish_raw_measurement(&mut self, kit_serial: String, raw_measurement: Value) {
+    pub fn publish_raw_measurement(&mut self, kit_serial: String, raw_measurement: RawMeasurement) {
         self.handler
             .publish_raw_measurement(kit_serial, raw_measurement);
     }

@@ -9,16 +9,6 @@ use futures::stream::StreamExt;
 use serde::Serialize;
 use tokio::runtime::{Runtime, TaskExecutor};
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct RawMeasurement {
-    pub kit_serial: String,
-    pub datetime: u64,
-    pub peripheral: i32,
-    pub quantity_type: i32,
-    pub value: f64,
-}
-
 pub async fn run(mut raw_measurement_receiver: mpsc::Receiver<astroplant_mqtt::RawMeasurement>) {
     info!("Starting WebSocket server.");
     let mut publisher = astroplant_websocket::run();
@@ -32,7 +22,7 @@ pub async fn run(mut raw_measurement_receiver: mpsc::Receiver<astroplant_mqtt::R
             value,
             ..
         } = raw_measurement;
-        let raw_measurement = RawMeasurement {
+        let raw_measurement = astroplant_websocket::RawMeasurement {
             kit_serial,
             datetime,
             peripheral,
@@ -40,9 +30,6 @@ pub async fn run(mut raw_measurement_receiver: mpsc::Receiver<astroplant_mqtt::R
             value,
         };
 
-        publisher.publish_raw_measurement(
-            raw_measurement.kit_serial.clone(),
-            serde_json::to_value(raw_measurement).unwrap(),
-        )
+        publisher.publish_raw_measurement(raw_measurement.kit_serial.clone(), raw_measurement)
     }
 }

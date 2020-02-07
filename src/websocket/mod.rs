@@ -1,13 +1,7 @@
 use log::info;
 
-use super::{helpers, models, views, PgPool, PgPooled};
-
-use astroplant_mqtt::{MqttApiMessage, ServerRpcRequest};
-use futures::channel::{mpsc, oneshot};
-use futures::future::FutureExt;
+use futures::channel::mpsc;
 use futures::stream::StreamExt;
-use serde::Serialize;
-use tokio::runtime::{Runtime, TaskExecutor};
 
 pub async fn run(mut raw_measurement_receiver: mpsc::Receiver<astroplant_mqtt::RawMeasurement>) {
     info!("Starting WebSocket server.");

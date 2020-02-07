@@ -10,7 +10,7 @@ use jsonrpc_pubsub::typed::{Sink, Subscriber};
 use jsonrpc_pubsub::{PubSubHandler, Session, SubscriptionId}; //Sink, Subscriber, SubscriptionId};
 use jsonrpc_server_utils::tokio;
 use jsonrpc_ws_server::{RequestContext, ServerBuilder};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 

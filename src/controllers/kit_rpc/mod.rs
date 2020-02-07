@@ -1,11 +1,10 @@
-use astroplant_mqtt::{KitRpc, KitsRpc};
+use astroplant_mqtt::KitsRpc;
 use futures::future::TryFutureExt;
-use serde::{Deserialize, Serialize};
 use warp::{filters::BoxedFilter, path, Filter, Rejection};
 
 use crate::response::{Response, ResponseBuilder};
 use crate::PgPooled;
-use crate::{authentication, helpers, models, problem, views};
+use crate::{authentication, helpers, models, problem};
 
 pub fn router(kits_rpc: KitsRpc, pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {

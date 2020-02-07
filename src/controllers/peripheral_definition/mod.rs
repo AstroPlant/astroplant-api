@@ -1,5 +1,3 @@
-use erased_serde::Serialize as ErasedSerialize;
-use futures::future::TryFutureExt;
 use serde::Deserialize;
 use warp::{filters::BoxedFilter, Filter, Rejection};
 
@@ -22,10 +20,11 @@ fn def_false() -> bool {
 }
 
 #[derive(Copy, Clone, Deserialize)]
+#[serde(rename_all="camelCase")]
 struct QueryParams {
     after: Option<i32>,
     #[serde(default = "def_false")]
-    withExpectedQuantityTypes: bool,
+    with_expected_quantity_types: bool,
 }
 
 async fn get_definitions_and_expected_quantity_types(
@@ -41,7 +40,7 @@ async fn get_definitions_and_expected_quantity_types(
     helpers::threadpool_diesel_ok(move || {
         models::PeripheralDefinition::cursor_page(&conn, query_params.after, 100).and_then(
             |definitions| {
-                if query_params.withExpectedQuantityTypes {
+                if query_params.with_expected_quantity_types {
                     models::PeripheralDefinitionExpectedQuantityType::of_peripheral_definitions(
                         &conn,
                         &definitions,
@@ -69,7 +68,7 @@ pub fn peripheral_definitions(
                 let next_page_uri = definitions.last().map(|last| {
                     format!(
                         "/peripheral-definitions?after={}&withExpectedQuantityTypes={}",
-                        last.id, query_params.withExpectedQuantityTypes
+                        last.id, query_params.with_expected_quantity_types
                     )
                 });
 

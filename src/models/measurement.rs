@@ -1,7 +1,6 @@
 use crate::schema::aggregate_measurements;
 
 use chrono::{DateTime, Utc};
-use diesel::dsl::IntervalDsl;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::{Identifiable, QueryResult, Queryable};

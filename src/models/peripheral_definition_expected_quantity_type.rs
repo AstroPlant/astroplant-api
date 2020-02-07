@@ -1,6 +1,5 @@
 use crate::schema::peripheral_definition_expected_quantity_types;
 
-use chrono::{DateTime, Utc};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::{Identifiable, QueryResult, Queryable};

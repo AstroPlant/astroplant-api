@@ -1,8 +1,8 @@
-use warp::{filters::BoxedFilter, path, Filter, Rejection};
+use warp::{filters::BoxedFilter, Filter, Rejection};
 
 use crate::response::{Response, ResponseBuilder};
 use crate::PgPooled;
-use crate::{helpers, models, problem, views};
+use crate::{helpers, models, views};
 
 pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
@@ -15,10 +15,6 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
 fn aggregate_measurements(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    use diesel::Connection;
-    use itertools::Itertools;
-    use std::collections::HashMap;
-
     warp::get()
         .and(warp::path!("aggregate-measurements"))
         .and(warp::path::end())

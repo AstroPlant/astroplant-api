@@ -186,7 +186,6 @@ fn patch_kit(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     use bigdecimal::{BigDecimal, FromPrimitive};
-    use diesel::Connection;
 
     use crate::utils::deserialize_some;
 

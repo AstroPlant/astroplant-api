@@ -1,6 +1,7 @@
 use crate::problem::{Problem, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND};
 
 use bytes::Buf;
+use log::error;
 use futures::future::TryFutureExt;
 use serde::{de::DeserializeOwned, Deserialize};
 use warp::{filters::BoxedFilter, Filter, Rejection};
@@ -26,7 +27,10 @@ where
 {
     threadpool(f)
         .await
-        .map_err(|_| warp::reject::custom(INTERNAL_SERVER_ERROR))
+        .map_err(|diesel_err| {
+            error!("Error in diesel query: {:?}", diesel_err);
+            warp::reject::custom(INTERNAL_SERVER_ERROR)
+        })
 }
 
 /// Flatten a nested result with equal error types to a single result.

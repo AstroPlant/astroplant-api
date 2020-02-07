@@ -257,12 +257,6 @@ pub fn run(
         .name_prefix("responder-proxy-pool")
         .create()
         .expect("Could not build thread pool");
-    let (thread_pool_handle_sender, thread_pool_handle_receiver) = oneshot::channel::<()>();
-
-    {
-        let mut thread_pool = thread_pool.clone();
-        std::thread::spawn(move || thread_pool.run(thread_pool_handle_receiver));
-    }
 
     let mqtt_options = MqttOptions::new("astroplant-api-connector", mqtt_host, mqtt_port)
         .set_reconnect_opts(ReconnectOptions::Always(10))
@@ -274,20 +268,17 @@ pub fn run(
 
     let kit_rpc_runner = kit_rpc::kit_rpc_runner(mqtt_client.clone(), thread_pool.clone());
 
-    {
-        let mut handler = Handler::new();
-        let kit_rpc_mqtt_message_handler = kit_rpc_runner.mqtt_message_handler;
-        std::thread::spawn(move || {
-            handler.runner(
-                thread_pool,
-                mqtt_client,
-                notifications,
-                kit_rpc_mqtt_message_handler,
-                mqtt_api_sender,
-            );
-            thread_pool_handle_sender.send(()).unwrap()
-        });
-    }
+    let mut handler = Handler::new();
+    let kit_rpc_mqtt_message_handler = kit_rpc_runner.mqtt_message_handler;
+    std::thread::spawn(move || {
+        handler.runner(
+            thread_pool,
+            mqtt_client,
+            notifications,
+            kit_rpc_mqtt_message_handler,
+            mqtt_api_sender,
+        );
+    });
 
     (mqtt_api_receiver, kit_rpc_runner.kits_rpc)
 }

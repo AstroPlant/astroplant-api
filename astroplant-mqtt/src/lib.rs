@@ -1,7 +1,6 @@
 use log::{debug, trace, warn};
 
 use capnp::serialize_packed;
-use futures::channel::oneshot;
 use futures::task::SpawnExt;
 use futures::FutureExt;
 use rumqtt::{MqttClient, MqttOptions, Notification, QoS, ReconnectOptions, SecurityOptions};
@@ -188,7 +187,7 @@ impl Handler {
 
     fn runner(
         &mut self,
-        mut thread_pool: futures::executor::ThreadPool,
+        thread_pool: futures::executor::ThreadPool,
         mut mqtt_client: MqttClient,
         notifications: crossbeam_channel::Receiver<Notification>,
         kit_rpc_mqtt_message_handler: crossbeam_channel::Sender<(String, Vec<u8>)>,

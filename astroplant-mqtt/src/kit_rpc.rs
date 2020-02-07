@@ -311,7 +311,7 @@ pub struct KitsRpcRunner {
 
 pub fn kit_rpc_runner(
     mqtt_client: MqttClient,
-    mut thread_pool: futures::executor::ThreadPool,
+    thread_pool: futures::executor::ThreadPool,
 ) -> KitsRpcRunner {
     let kits_rpc = KitsRpc::new(mqtt_client);
     let (sender, receiver) = crossbeam_channel::bounded(KIT_RPC_RESPONSE_BUFFER);
@@ -321,7 +321,7 @@ pub fn kit_rpc_runner(
 
     {
         let handle = kits_rpc.handle.clone();
-        let mut thread_pool = thread_pool.clone();
+        let thread_pool = thread_pool.clone();
         std::thread::spawn(move || {
             for (kit_serial, payload) in receiver {
                 trace!(

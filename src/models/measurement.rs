@@ -51,8 +51,9 @@ impl AggregateMeasurement {
             .optional()
     }
 
-    pub fn recent_measurements(conn: &PgConnection, kit_serial: String) -> QueryResult<Vec<Self>> {
+    pub fn recent_measurements(conn: &PgConnection, kit_id: KitId) -> QueryResult<Vec<Self>> {
         aggregate_measurements::table
+            .filter(aggregate_measurements::columns::kit_id.eq(kit_id.0))
             .filter(
                 aggregate_measurements::columns::datetime_start
                     .gt(chrono::Utc::now() - chrono::Duration::days(5)),

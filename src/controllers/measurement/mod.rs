@@ -29,7 +29,7 @@ fn aggregate_measurements(
         .and_then(|kit: models::Kit, conn: PgPooled| {
             helpers::threadpool_diesel_ok(move || {
                 let aggregate_measurements: Vec<_> =
-                    models::AggregateMeasurement::recent_measurements(&conn, kit.serial)?
+                    models::AggregateMeasurement::recent_measurements(&conn, kit.get_id())?
                         .into_iter()
                         .map(|aggregate_measurement| {
                             views::AggregateMeasurement::from(aggregate_measurement)

@@ -68,7 +68,7 @@ async fn main() {
     let (raw_measurement_receiver, kits_rpc) = mqtt::run(pg_pool.clone());
 
     // Start WebSockets.
-    tokio::executor::spawn(websocket::run(raw_measurement_receiver));
+    tokio::runtime::Handle::current().spawn(websocket::run(raw_measurement_receiver));
 
     let rate_limit = rate_limit::leaky_bucket();
     let pg = helpers::pg(pg_pool);
@@ -81,40 +81,40 @@ async fn main() {
                     .map(|| ResponseBuilder::ok().body(chrono::Utc::now().to_rfc3339()))
                     .boxed())
                 .unify()
-                .or(path!("kits").and(controllers::kit::router(pg.clone().boxed())))
+                .or(path!("kits" / ..).and(controllers::kit::router(pg.clone().boxed())))
                 .unify()
-                .or(path!("kit-configurations")
+                .or(path!("kit-configurations" / ..)
                     .and(controllers::kit_configuration::router(pg.clone().boxed())))
                 .unify()
-                .or(path!("kit-rpc")
+                .or(path!("kit-rpc" / ..)
                     .and(controllers::kit_rpc::router(kits_rpc, pg.clone().boxed())))
                 .unify()
-                .or(path!("users").and(controllers::user::router(pg.clone().boxed())))
+                .or(path!("users" / ..).and(controllers::user::router(pg.clone().boxed())))
                 .unify()
-                .or(path!("me").and(controllers::me::router(pg.clone().boxed())))
+                .or(path!("me" / ..).and(controllers::me::router(pg.clone().boxed())))
                 .unify()
-                .or(path!("peripheral-definitions").and(
+                .or(path!("peripheral-definitions" / ..).and(
                     controllers::peripheral_definition::router(pg.clone().boxed()),
                 ))
                 .unify()
-                .or(path!("quantity-types")
+                .or(path!("quantity-types" / ..)
                     .and(controllers::quantity_type::router(pg.clone().boxed())))
                 .unify()
-                .or(path!("permissions").and(controllers::permission::router(pg.clone().boxed())))
+                .or(path!("permissions" / ..).and(controllers::permission::router(pg.clone().boxed())))
                 .unify()
-                .or(path!("measurements").and(controllers::measurement::router(pg.clone().boxed())))
+                .or(path!("measurements" / ..).and(controllers::measurement::router(pg.clone().boxed())))
                 .unify(),
         )
         .and(warp::header("Accept"))
         .map(|response: Response, _accept: String| {
             // TODO: utilize Accept header, e.g. returning XML when requested.
 
-            let mut http_response_builder = warp::http::response::Builder::new();
-            http_response_builder.status(response.status_code());
-            http_response_builder.header("Content-Type", "application/json");
+            let mut http_response_builder = warp::http::response::Builder::new()
+                .status(response.status_code())
+                .header("Content-Type", "application/json");
 
             for (header, value) in response.headers() {
-                http_response_builder.header(header.as_bytes(), value.clone());
+                http_response_builder = http_response_builder.header(header.as_bytes(), value.clone());
             }
 
             match response.value() {

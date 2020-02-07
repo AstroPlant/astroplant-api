@@ -14,7 +14,7 @@ astroplant-websocket = { path = "./astroplant-websocket" }
 random-string = { path = "./random-string" }
 once_cell = "1.2.0"
 chrono = { version = "0.4", features = ["serde"] }
-bytes = "0.4.8"
+bytes = "^0.5"
 diesel = { version = "1.4.3", features = ["postgres", "numeric", "r2d2", "chrono", "serde_json", "uuidv07"] }
 bigdecimal = "0.1.0"
 ratelimit_meter = "4.1.1"
@@ -25,14 +25,10 @@ validator = "0.9.0"
 validator_derive = "0.9.0"
 heck = "0.3.1"
 futures-preview = "0.3.0-alpha.17"
-tokio = "0.2.0-alpha.6"
-tokio-executor = "0.2.0-alpha.5"
-crossbeam = "0.7.2"
+warp = "0.2.1"
+tokio = { version = "0.2", features = ["macros", "rt-core", "blocking"] }
+crossbeam = "=0.7.2"
 strum = "0.16.0"
 strum_macros = "0.16.0"
-itertools="0.8.0"
+itertools = "0.8.0"
 valico = "2"
-
-[dependencies.warp]
-git = "https://github.com/seanmonstar/warp.git"
-rev = "09c215a2efbc60f3905078f22b7c461780a2a421"

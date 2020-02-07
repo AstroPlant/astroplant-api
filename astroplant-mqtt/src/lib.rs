@@ -190,9 +190,9 @@ impl Handler {
         &mut self,
         mut thread_pool: futures::executor::ThreadPool,
         mut mqtt_client: MqttClient,
-        notifications: crossbeam::channel::Receiver<Notification>,
-        kit_rpc_mqtt_message_handler: crossbeam::channel::Sender<(String, Vec<u8>)>,
-        mqtt_api_sender: crossbeam::channel::Sender<MqttApiMessage>,
+        notifications: crossbeam_channel::Receiver<Notification>,
+        kit_rpc_mqtt_message_handler: crossbeam_channel::Sender<(String, Vec<u8>)>,
+        mqtt_api_sender: crossbeam_channel::Sender<MqttApiMessage>,
     ) {
         establish_subscriptions(&mut mqtt_client);
 
@@ -249,8 +249,8 @@ pub fn run(
     mqtt_port: u16,
     mqtt_username: String,
     mqtt_password: String,
-) -> (crossbeam::channel::Receiver<MqttApiMessage>, KitsRpc) {
-    let (mqtt_api_sender, mqtt_api_receiver) = crossbeam::channel::bounded(MQTT_API_MESSAGE_BUFFER);
+) -> (crossbeam_channel::Receiver<MqttApiMessage>, KitsRpc) {
+    let (mqtt_api_sender, mqtt_api_receiver) = crossbeam_channel::bounded(MQTT_API_MESSAGE_BUFFER);
 
     let thread_pool = futures::executor::ThreadPoolBuilder::new()
         .pool_size(1)

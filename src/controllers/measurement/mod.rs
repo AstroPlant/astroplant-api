@@ -17,7 +17,6 @@ fn aggregate_measurements(
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     warp::get()
         .and(warp::path!("aggregate-measurements"))
-        .and(warp::path::end())
         .and(
             helpers::authorization_user_kit_from_query(
                 pg.clone(),

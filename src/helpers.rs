@@ -1,6 +1,5 @@
 use crate::problem::{Problem, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND};
 
-use bytes::Buf;
 use log::error;
 use futures::future::TryFutureExt;
 use serde::{de::DeserializeOwned, Deserialize};
@@ -14,7 +13,7 @@ where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,
 {
-    tokio_executor::blocking::run(f).await
+    tokio::task::spawn_blocking(f).await.unwrap()
 }
 
 /// Runs a function on a threadpool, ignoring a potential Diesel error inside the threadpool.
@@ -56,10 +55,10 @@ where
                 limit: CONTENT_LENGTH_LIMIT,
             }))
         })
-        .and(warp::body::concat())
-        .and_then(|body_buffer: warp::body::FullBody| {
+        .and(warp::body::bytes())
+        .and_then(|body_buffer: bytes::Bytes| {
             async {
-                let body: Vec<u8> = body_buffer.collect();
+                let body: Vec<u8> = body_buffer.into_iter().collect();
 
                 serde_json::from_slice(&body).map_err(|err| {
                     debug!("Request JSON deserialize error: {}", err);

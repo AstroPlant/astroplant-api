@@ -12,7 +12,7 @@ use warp::{Filter, Rejection};
 pub fn option_by_token() -> impl Filter<Extract = (Option<UserId>,), Error = Rejection> + Copy {
     warp::header("Authorization")
         .map(|a| Some(a))
-        .or_else(|_| futures::future::ok((None,)))
+        .or_else(|_| futures::future::ok::<_, Rejection>((None,)))
         .and_then(|authorization: Option<String>| {
             async {
                 if let Some(authorization) = authorization {

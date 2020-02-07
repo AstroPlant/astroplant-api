@@ -306,7 +306,7 @@ async fn handle_response(handle: Arc<Mutex<Handle>>, kit_serial: String, payload
 
 pub struct KitsRpcRunner {
     pub kits_rpc: KitsRpc,
-    pub mqtt_message_handler: crossbeam::channel::Sender<(String, Vec<u8>)>,
+    pub mqtt_message_handler: crossbeam_channel::Sender<(String, Vec<u8>)>,
 }
 
 pub fn kit_rpc_runner(
@@ -314,7 +314,7 @@ pub fn kit_rpc_runner(
     mut thread_pool: futures::executor::ThreadPool,
 ) -> KitsRpcRunner {
     let kits_rpc = KitsRpc::new(mqtt_client);
-    let (sender, receiver) = crossbeam::channel::bounded(KIT_RPC_RESPONSE_BUFFER);
+    let (sender, receiver) = crossbeam_channel::bounded(KIT_RPC_RESPONSE_BUFFER);
     thread_pool
         .spawn(cleanup(kits_rpc.handle.clone()))
         .expect("Could not spawn kit RPC response handler cleanup");

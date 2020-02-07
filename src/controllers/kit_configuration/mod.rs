@@ -27,7 +27,7 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
 fn get_kit_configuration(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> BoxedFilter<(models::KitConfiguration,)> {
-    path!(i32)
+    path!(i32 / ..)
         .and(pg)
         .and_then(|configuration_id: i32, conn: crate::PgPooled| {
             helpers::threadpool_diesel_ok(move || {

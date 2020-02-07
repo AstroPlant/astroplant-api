@@ -10,11 +10,9 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     trace!("Setting up me router.");
 
     (path!("auth")
-        .and(warp::path::end())
         .and(warp::post())
         .and(auth::authenticate_by_credentials(pg.clone())))
     .or(path!("refresh")
-        .and(warp::path::end())
         .and(warp::post())
         .and(auth::access_token_from_refresh_token()))
     .unify()

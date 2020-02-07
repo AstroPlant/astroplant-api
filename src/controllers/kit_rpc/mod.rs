@@ -22,7 +22,6 @@ pub fn version(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     path!(String / "version")
-        .and(warp::path::end())
         .and(authentication::option_by_token())
         .and(pg.clone())
         .and_then(
@@ -56,7 +55,6 @@ pub fn uptime(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     path!(String / "uptime")
-        .and(warp::path::end())
         .and(authentication::option_by_token())
         .and(pg.clone())
         .and_then(

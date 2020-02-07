@@ -61,7 +61,6 @@ pub fn kit_by_serial(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     path!(String)
-        .and(warp::path::end())
         .and(authentication::option_by_token())
         .and(pg.clone())
         .and_then(
@@ -83,7 +82,6 @@ pub fn reset_password(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     path!(String / "password")
-        .and(warp::path::end())
         .and(authentication::option_by_token())
         .and(pg.clone())
         .and_then(
@@ -206,7 +204,6 @@ fn patch_kit(
 
     warp::patch()
         .and(path!(String))
-        .and(warp::path::end())
         .and(authentication::option_by_token())
         .and(pg.clone())
         .and_then(

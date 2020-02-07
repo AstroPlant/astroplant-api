@@ -27,7 +27,7 @@ fn peripheral_base_filter(
     models::KitConfiguration,
 )> {
     super::authorize_and_get_kit_configuration(pg, action)
-        .and(path!("peripherals"))
+        .and(path!("peripherals" / ..))
         .boxed()
 }
 

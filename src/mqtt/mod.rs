@@ -129,7 +129,8 @@ impl Handler {
     }
 
     async fn send<T>(mut sender: mpsc::Sender<T>, val: T) {
-        sender.send(val).await;
+        // TODO: handle errors.
+        let _ = sender.send(val).await;
     }
 
     pub fn run(

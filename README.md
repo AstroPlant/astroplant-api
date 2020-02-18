@@ -2,6 +2,16 @@
 
 This is the main AstroPlant API, providing access to an AstroPlant backend over HTTP.
 
+## Building with Cargo
+
+Run:
+
+```shell
+$ cargo build --release
+```
+
+The executable will be built to `target/release/astroplant-rs-api`.
+
 ## Configuration
 
 This application requires a secret key for signing and verifying authentication tokens.

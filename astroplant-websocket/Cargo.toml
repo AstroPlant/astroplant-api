@@ -5,11 +5,11 @@ authors = ["Thomas Churchman <thomas@kepow.org>"]
 edition = "2018"
 
 [dependencies]
-log = "0.4.8"
-jsonrpc-ws-server = "14.0.3"
-jsonrpc-pubsub = "14.0.3"
-jsonrpc-core = "14.0.3"
-jsonrpc-server-utils = "14.0.3"
+log = "0.4"
+jsonrpc-ws-server = "14.0.6"
+jsonrpc-pubsub = "14.0.6"
+jsonrpc-core = "14.0.5"
+jsonrpc-server-utils = "14.0.5"
 crossbeam = "0.7"
-serde = { version = "1.0.97", features = ["derive"] }
-serde_json = { version = "1.0.41" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }

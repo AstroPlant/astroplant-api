@@ -9,7 +9,7 @@ let
 in
   with import "${nixpkgs-mozilla.out}/rust-overlay.nix" pkgs pkgs;
   let
-    rust-channel = (rustChannelOf { date="2019-11-03"; channel = "nightly"; });
+    rust-channel = (rustChannelOf { date="2020-02-16"; channel = "nightly"; });
     my-rust = rust-channel.rust.override { extensions = [ "rust-src" ]; };
     my-rust-src = rust-channel.rust-src;
   in

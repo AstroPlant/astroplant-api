@@ -68,78 +68,79 @@ async fn main() {
     let (raw_measurement_receiver, kits_rpc) = mqtt::run(pg_pool.clone());
 
     // Start WebSockets.
-    tokio::runtime::Handle::current().spawn(websocket::run(raw_measurement_receiver));
+    let (ws_endpoint, publisher) = astroplant_websocket::run();
+    tokio::runtime::Handle::current().spawn(websocket::run(publisher, raw_measurement_receiver));
 
     let rate_limit = rate_limit::leaky_bucket();
     let pg = helpers::pg(pg_pool);
 
-    let all = rate_limit
-        .and(
-            path!("version")
-                .map(|| ResponseBuilder::ok().body(VERSION))
-                .or(path!("time")
-                    .map(|| ResponseBuilder::ok().body(chrono::Utc::now().to_rfc3339()))
-                    .boxed())
-                .unify()
-                .or(path!("kits" / ..).and(controllers::kit::router(pg.clone().boxed())))
-                .unify()
-                .or(path!("kit-configurations" / ..)
-                    .and(controllers::kit_configuration::router(pg.clone().boxed())))
-                .unify()
-                .or(path!("kit-rpc" / ..)
-                    .and(controllers::kit_rpc::router(kits_rpc, pg.clone().boxed())))
-                .unify()
-                .or(path!("users" / ..).and(controllers::user::router(pg.clone().boxed())))
-                .unify()
-                .or(path!("me" / ..).and(controllers::me::router(pg.clone().boxed())))
-                .unify()
-                .or(path!("peripheral-definitions" / ..).and(
-                    controllers::peripheral_definition::router(pg.clone().boxed()),
-                ))
-                .unify()
-                .or(path!("quantity-types" / ..)
-                    .and(controllers::quantity_type::router(pg.clone().boxed())))
-                .unify()
-                .or(path!("permissions" / ..).and(controllers::permission::router(pg.clone().boxed())))
-                .unify()
-                .or(path!("measurements" / ..).and(controllers::measurement::router(pg.clone().boxed())))
-                .unify(),
+    let rest_endpoints = (path!("version")
+        .map(|| ResponseBuilder::ok().body(VERSION))
+        .or(path!("time")
+            .map(|| ResponseBuilder::ok().body(chrono::Utc::now().to_rfc3339()))
+            .boxed())
+        .unify()
+        .or(path!("kits" / ..).and(controllers::kit::router(pg.clone().boxed())))
+        .unify()
+        .or(path!("kit-configurations" / ..)
+            .and(controllers::kit_configuration::router(pg.clone().boxed())))
+        .unify()
+        .or(path!("kit-rpc" / ..).and(controllers::kit_rpc::router(kits_rpc, pg.clone().boxed())))
+        .unify()
+        .or(path!("users" / ..).and(controllers::user::router(pg.clone().boxed())))
+        .unify()
+        .or(path!("me" / ..).and(controllers::me::router(pg.clone().boxed())))
+        .unify()
+        .or(
+            path!("peripheral-definitions" / ..).and(controllers::peripheral_definition::router(
+                pg.clone().boxed(),
+            )),
         )
-        .and(warp::header("Accept"))
-        .map(|response: Response, _accept: String| {
-            // TODO: utilize Accept header, e.g. returning XML when requested.
+        .unify()
+        .or(path!("quantity-types" / ..)
+            .and(controllers::quantity_type::router(pg.clone().boxed())))
+        .unify()
+        .or(path!("permissions" / ..).and(controllers::permission::router(pg.clone().boxed())))
+        .unify()
+        .or(path!("measurements" / ..).and(controllers::measurement::router(pg.clone().boxed())))
+        .unify())
+    .and(warp::header("Accept"))
+    .map(|response: Response, _accept: String| {
+        // TODO: utilize Accept header, e.g. returning XML when requested.
 
-            let mut http_response_builder = warp::http::response::Builder::new()
-                .status(response.status_code())
-                .header("Content-Type", "application/json");
+        let mut http_response_builder = warp::http::response::Builder::new()
+            .status(response.status_code())
+            .header("Content-Type", "application/json");
 
-            for (header, value) in response.headers() {
-                http_response_builder = http_response_builder.header(header.as_bytes(), value.clone());
-            }
+        for (header, value) in response.headers() {
+            http_response_builder = http_response_builder.header(header.as_bytes(), value.clone());
+        }
 
-            match response.value() {
-                Some(value) => http_response_builder
-                    .body(serde_json::to_string(value).unwrap())
-                    .unwrap(),
-                None => http_response_builder.body("".to_owned()).unwrap(),
-            }
-        })
-        .recover(|rejection| async { handle_rejection(rejection) })
-        .with(warp::log("astroplant_rs_api::api"))
-        // TODO: this wrapper might be better placed per-endpoint, to have accurate allowed metods
-        .with(
-            warp::cors()
-                .allow_any_origin()
-                .allow_methods(vec![
-                    Method::GET,
-                    Method::POST,
-                    Method::PUT,
-                    Method::PATCH,
-                    Method::DELETE,
-                    Method::OPTIONS,
-                ])
-                .allow_headers(vec!["Authorization", "Content-Type"]),
-        );
+        match response.value() {
+            Some(value) => http_response_builder
+                .body(serde_json::to_string(value).unwrap())
+                .unwrap(),
+            None => http_response_builder.body("".to_owned()).unwrap(),
+        }
+    })
+    .recover(|rejection| async { handle_rejection(rejection) })
+    .with(warp::log("astroplant_rs_api::api"))
+    // TODO: this wrapper might be better placed per-endpoint, to have accurate allowed metods
+    .with(
+        warp::cors()
+            .allow_any_origin()
+            .allow_methods(vec![
+                Method::GET,
+                Method::POST,
+                Method::PUT,
+                Method::PATCH,
+                Method::DELETE,
+                Method::OPTIONS,
+            ])
+            .allow_headers(vec!["Authorization", "Content-Type"]),
+    );
+
+    let all = rate_limit.and(ws_endpoint.or(rest_endpoints));
 
     warp::serve(all).run(([0, 0, 0, 0], 8080)).await;
 }

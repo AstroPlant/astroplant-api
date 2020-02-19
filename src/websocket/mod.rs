@@ -3,9 +3,11 @@ use log::info;
 use futures::channel::mpsc;
 use futures::stream::StreamExt;
 
-pub async fn run(mut raw_measurement_receiver: mpsc::Receiver<astroplant_mqtt::RawMeasurement>) {
+pub async fn run(
+    mut publisher: astroplant_websocket::WebSocketPublisher,
+    mut raw_measurement_receiver: mpsc::Receiver<astroplant_mqtt::RawMeasurement>,
+) {
     info!("Starting WebSocket server.");
-    let mut publisher = astroplant_websocket::run();
 
     while let Some(raw_measurement) = raw_measurement_receiver.next().await {
         let astroplant_mqtt::RawMeasurement {

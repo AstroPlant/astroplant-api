@@ -55,13 +55,20 @@ impl WebSocketHandler {
         let subscribers: Option<&Subscribers<Sink<Value>>> = subscriptions.get(&kit_serial);
         if let Some(subscribers) = subscribers {
             let value = serde_json::to_value(raw_measurement.clone()).unwrap();
-            for subscriber in subscribers.values() {
-                self.executor.spawn(
-                    subscriber
-                        .notify(Ok(value.clone()))
-                        .map(|_| ())
-                        .map_err(|_| ()),
-                );
+            for (id, subscriber) in subscribers.iter() {
+                let id = id.clone();
+                self.executor
+                    .spawn(
+                        subscriber
+                            .notify(Ok(value.clone()))
+                            .map(|_| ())
+                            .map_err(move |_| {
+                                debug!(
+                                    "subscriber {:?}: failed sending raw measurement. Transport has gone away.",
+                                    id
+                                )
+                            }),
+                    );
             }
         }
 
@@ -94,6 +101,13 @@ impl WebSocketHandler {
     }
 
     fn remove_raw_measurement_subscriber(&self, id: SubscriptionId) {
+        let mut subscriptions = self.raw_measurement_subscriptions.write().unwrap();
+
+        // O(n) with n the number of distinct kits subscribed to.
+        subscriptions.retain(|_, s| {
+            s.remove(&id);
+            !s.is_empty()
+        });
         trace!("Raw measurement subscriber removed: {:?}", id);
     }
 }
@@ -162,12 +176,10 @@ pub fn run() -> (BoxedFilter<(impl warp::Reply,)>, WebSocketPublisher) {
             let io_handler = io_handler.clone();
 
             trace!("Websocket {} connecting", socket_id);
-            ws.on_upgrade(move |web_socket| {
-                async move {
-                    debug!("Websocket {} upgraded", socket_id);
-                    web_socket_session::handle_session(socket_id, web_socket, io_handler).await;
-                    debug!("WebSocket {} stopped", socket_id);
-                }
+            ws.on_upgrade(move |web_socket| async move {
+                debug!("Websocket {} upgraded", socket_id);
+                web_socket_session::handle_session(socket_id, web_socket, io_handler).await;
+                debug!("WebSocket {} stopped", socket_id);
             })
         })
         .boxed();

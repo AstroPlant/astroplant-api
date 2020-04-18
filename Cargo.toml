@@ -17,7 +17,7 @@ chrono = { version = "0.4", features = ["serde"] }
 bytes = "^0.5"
 diesel = { version = "1.4.3", features = ["postgres", "numeric", "r2d2", "chrono", "serde_json", "uuidv07"] }
 bigdecimal = "0.1.0"
-ratelimit_meter = "4.1.1"
+ratelimit_meter = "5.0"
 serde = { version = "1.0.97", features = ["derive"] }
 serde_json = "1.0.40"
 erased-serde = "0.3"

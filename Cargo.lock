@@ -49,7 +49,7 @@ dependencies = [
  "futures 0.3.4",
  "futures-timer",
  "log 0.4.8",
- "ratelimit_meter",
+ "ratelimit_meter 4.1.1",
  "rumqtt",
  "serde",
  "serde_json",
@@ -75,7 +75,7 @@ dependencies = [
  "log 0.4.8",
  "once_cell",
  "random-string",
- "ratelimit_meter",
+ "ratelimit_meter 5.0.0",
  "serde",
  "serde_json",
  "strum",
@@ -555,7 +555,17 @@ version = "4.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18c17a8f47430702a63684d20e70d0d18f5a04450d1c116ece6ca13602763cc4"
 dependencies = [
- "hashbrown",
+ "hashbrown 0.3.1",
+ "smallvec 0.6.13",
+]
+
+[[package]]
+name = "evmap"
+version = "6.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6fdb60074c9b82c91f8702fa5351b85d22b668dae7f73bf06b44a09bc372380f"
+dependencies = [
+ "hashbrown 0.5.0",
  "smallvec 0.6.13",
 ]
 
@@ -793,6 +803,12 @@ name = "hashbrown"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29fba9abe4742d586dfd0c06ae4f7e73a1c2d86b856933509b269d82cdf06e18"
+
+[[package]]
+name = "hashbrown"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1de41fb8dba9714efd92241565cdff73f78508c95697dd56787d3cba27e2353"
 
 [[package]]
 name = "headers"
@@ -1773,9 +1789,20 @@ version = "4.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0f80efee9a768f8f99200277a1ac288f872c94e9e6ca215a0c97c933db800d1"
 dependencies = [
- "evmap",
+ "evmap 4.2.3",
  "nonzero_ext",
  "parking_lot 0.6.4",
+]
+
+[[package]]
+name = "ratelimit_meter"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a37d4f95369ef809d01448bdf8d82ef974e3b21f3698d87015a575bb26f27724"
+dependencies = [
+ "evmap 6.0.1",
+ "nonzero_ext",
+ "parking_lot 0.9.0",
 ]
 
 [[package]]

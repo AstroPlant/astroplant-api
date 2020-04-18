@@ -1,8 +1,9 @@
 use crate::problem::{Problem, RateLimitError};
 
-use ratelimit_meter::{algorithms::NonConformanceExt, KeyedRateLimiter};
+use ratelimit_meter::{algorithms::NonConformance, KeyedRateLimiter};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use warp::{Filter, Rejection};
 
 /// Create a filter that gates a request behind a leaky bucket rate limiter.
@@ -12,7 +13,7 @@ use warp::{Filter, Rejection};
 pub fn leaky_bucket() -> impl Filter<Extract = (), Error = Rejection> + Clone {
     let limiter = Arc::new(Mutex::new(KeyedRateLimiter::<SocketAddr>::new(
         std::num::NonZeroU32::new(20u32).unwrap(),
-        std::time::Duration::from_secs(10),
+        Duration::from_secs(10),
     )));
 
     warp::addr::remote()
@@ -22,7 +23,7 @@ pub fn leaky_bucket() -> impl Filter<Extract = (), Error = Rejection> + Clone {
             let res = match limiter.check(addr) {
                 Ok(_) => Ok(()),
                 Err(neg) => Err(warp::reject::custom(Problem::RateLimit(RateLimitError {
-                    wait_time_millis: neg.wait_time().as_millis() as u64,
+                    wait_time_millis: neg.wait_time_from(Instant::now()).as_millis() as u64,
                 }))),
             };
             futures::future::ready(res)

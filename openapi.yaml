@@ -721,7 +721,7 @@ paths:
             type: string
       responses:
         '200':
-          description: The retrieved aggregate measuements
+          description: The retrieved aggregate measurements
           content:
             application/json:
               schema:

@@ -234,7 +234,7 @@ paths:
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
         '502':
-          $ref: "#/components/respones/ErrorBadGateway"
+          $ref: "#/components/responses/ErrorBadGateway"
   "/kit-rpc/{kitSerial}/uptime":
     get:
       summary: Query the kit for its uptime.
@@ -265,7 +265,7 @@ paths:
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
         '502':
-          $ref: "#/components/respones/ErrorBadGateway"
+          $ref: "#/components/responses/ErrorBadGateway"
   "/users":
     post:
       summary: Create a user.
@@ -786,7 +786,6 @@ components:
           type: boolean
     PatchKit:
       type: object
-      required: []
       properties:
         name:
           type: string

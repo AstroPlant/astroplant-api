@@ -1,5 +1,5 @@
 [package]
-name = "astroplant-rs-api"
+name = "astroplant-api"
 version = "1.0.0-alpha.1"
 authors = ["Thomas Churchman <thomas@kepow.org>"]
 edition = "2018"

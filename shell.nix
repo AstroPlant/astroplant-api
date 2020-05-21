@@ -3,13 +3,13 @@ let
   nixpkgs-mozilla = fetchFromGitHub {
     owner = "mozilla";
     repo = "nixpkgs-mozilla";
-    rev = "d46240e8755d91bc36c0c38621af72bf5c489e13";
-    sha256 = "0icws1cbdscic8s8lx292chvh3fkkbjp571j89lmmha7vl2n71jg";
+    rev = "e912ed483e980dfb4666ae0ed17845c4220e5e7c";
+    sha256 = "08fvzb8w80bkkabc1iyhzd15f4sm7ra10jn32kfch5klgl0gj3j3";
   };
 in
   with import "${nixpkgs-mozilla.out}/rust-overlay.nix" pkgs pkgs;
   let
-    rust-channel = (rustChannelOf { date="2020-02-16"; channel = "nightly"; });
+    rust-channel = (rustChannelOf { date="2020-04-16"; channel = "nightly"; });
     my-rust = rust-channel.rust.override { extensions = [ "rust-src" ]; };
     my-rust-src = rust-channel.rust-src;
   in
@@ -17,6 +17,7 @@ in
       buildInputs = [
         my-rust
         my-rust-src
+        rustfmt
         rustracer
         pkgconfig
         cmake
@@ -31,7 +32,7 @@ in
 
       shellHook = ''
         export RUST_SRC_PATH="${my-rust-src}/lib/rustlib/src/rust/src"
-        export RUST_LOG=warn,astroplant_rs_api=trace
+        export RUST_LOG=warn,astroplant_api=trace,astroplant_websocket=trace,astroplant_mqtt=debug
         export PATH="$HOME/.cargo/bin:$PATH"
       '';
     }

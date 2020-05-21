@@ -25,38 +25,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "astroplant-auth"
-version = "0.1.0"
-dependencies = [
- "base64 0.10.1",
- "chrono",
- "jsonwebtoken",
- "rand 0.7.3",
- "random-string",
- "rust-crypto",
- "serde",
-]
-
-[[package]]
-name = "astroplant-mqtt"
-version = "0.1.0"
-dependencies = [
- "avro-rs",
- "capnp",
- "capnp-rpc",
- "capnpc",
- "crossbeam-channel",
- "futures 0.3.4",
- "futures-timer",
- "log 0.4.8",
- "ratelimit_meter 4.1.1",
- "rumqtt",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "astroplant-rs-api"
+name = "astroplant-api"
 version = "1.0.0-alpha.1"
 dependencies = [
  "astroplant-auth",
@@ -86,6 +55,37 @@ dependencies = [
  "validator",
  "validator_derive",
  "warp",
+]
+
+[[package]]
+name = "astroplant-auth"
+version = "0.1.0"
+dependencies = [
+ "base64 0.10.1",
+ "chrono",
+ "jsonwebtoken",
+ "rand 0.7.3",
+ "random-string",
+ "rust-crypto",
+ "serde",
+]
+
+[[package]]
+name = "astroplant-mqtt"
+version = "0.1.0"
+dependencies = [
+ "avro-rs",
+ "capnp",
+ "capnp-rpc",
+ "capnpc",
+ "crossbeam-channel",
+ "futures 0.3.4",
+ "futures-timer",
+ "log 0.4.8",
+ "ratelimit_meter 4.1.1",
+ "rumqtt",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

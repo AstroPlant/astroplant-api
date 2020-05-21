@@ -1,7 +1,7 @@
 use crate::problem::{Problem, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND};
 
-use log::error;
 use futures::future::TryFutureExt;
+use log::error;
 use serde::{de::DeserializeOwned, Deserialize};
 use warp::{filters::BoxedFilter, Filter, Rejection};
 
@@ -24,12 +24,10 @@ where
     F: FnOnce() -> Result<T, diesel::result::Error> + Send + 'static,
     T: Send + 'static,
 {
-    threadpool(f)
-        .await
-        .map_err(|diesel_err| {
-            error!("Error in diesel query: {:?}", diesel_err);
-            warp::reject::custom(INTERNAL_SERVER_ERROR)
-        })
+    threadpool(f).await.map_err(|diesel_err| {
+        error!("Error in diesel query: {:?}", diesel_err);
+        warp::reject::custom(INTERNAL_SERVER_ERROR)
+    })
 }
 
 /// Flatten a nested result with equal error types to a single result.
@@ -56,17 +54,15 @@ where
             }))
         })
         .and(warp::body::bytes())
-        .and_then(|body_buffer: bytes::Bytes| {
-            async {
-                let body: Vec<u8> = body_buffer.into_iter().collect();
+        .and_then(|body_buffer: bytes::Bytes| async {
+            let body: Vec<u8> = body_buffer.into_iter().collect();
 
-                serde_json::from_slice(&body).map_err(|err| {
-                    debug!("Request JSON deserialize error: {}", err);
-                    warp::reject::custom(Problem::InvalidJson {
-                        category: (&err).into(),
-                    })
+            serde_json::from_slice(&body).map_err(|err| {
+                debug!("Request JSON deserialize error: {}", err);
+                warp::reject::custom(Problem::InvalidJson {
+                    category: (&err).into(),
                 })
-            }
+            })
         })
 }
 
@@ -177,11 +173,8 @@ pub async fn fut_permission_or_forbidden<'a>(
         })
     })
     .and_then(|v| async { some_or_not_found(v) })
-    .and_then(|(user, membership, kit)| {
-        async move {
-            permission_or_forbidden(&user, &membership, &kit, action)
-                .map(|_| (user, membership, kit))
-        }
+    .and_then(|(user, membership, kit)| async move {
+        permission_or_forbidden(&user, &membership, &kit, action).map(|_| (user, membership, kit))
     })
     .await
 }
@@ -230,6 +223,14 @@ where
 
 #[cfg(test)]
 mod test {
+    use super::Problem;
+    use serde::Deserialize;
+
+    #[derive(Debug, Deserialize)]
+    struct TestStruct {
+        value: String,
+    }
+
     #[test]
     fn flatten() {
         assert_eq!(
@@ -248,29 +249,84 @@ mod test {
 
     #[test]
     fn deserialize_json() {
-        use serde::Deserialize;
-
-        #[derive(Debug, Deserialize)]
-        struct TestStruct {
-            value: u64,
-        }
-
         futures::executor::block_on(async {
             let value: TestStruct = warp::test::request()
                 .header("Accept", "application/json")
-                .header("Content-Length", 12)
-                .body(r#"{"value":42}"#)
+                .body(r#"{"value":"It all adds up to normality."}"#)
                 .filter(&super::deserialize())
                 .await
                 .unwrap();
-            assert_eq!(value.value, 42);
+            assert_eq!(value.value, "It all adds up to normality.");
+        })
+    }
 
+    #[test]
+    fn reject_content_length_limit() {
+        futures::executor::block_on(async {
+            // Construct a large request.
+            let body = format!(
+                "{}{}{}",
+                r#"{"value":""#,
+                vec!['.'; 1024 * 64 - 12 + 1]
+                    .into_iter()
+                    .collect::<String>(),
+                r#""}"#
+            );
             // Should reject requests with too large Content-Length.
-            let req = warp::test::request()
+            let response = warp::test::request()
                 .header("Accept", "application/json")
-                .header("Content-Length", 99_999_999)
-                .body(r#"{"value":42}"#);
-            assert!(!req.matches(&super::deserialize::<TestStruct>()).await);
+                .body(body)
+                .filter(&super::deserialize::<TestStruct>())
+                .await;
+            assert!(match response {
+                Err(rejection) => {
+                    match rejection.find::<Problem>() {
+                        Some(Problem::PayloadTooLarge { .. }) => true,
+                        _ => false,
+                    }
+                }
+                _ => false,
+            });
+        })
+    }
+
+    #[test]
+    fn reject_syntactically_incorrect_json() {
+        futures::executor::block_on(async {
+            let response = warp::test::request()
+                .header("Accept", "application/json")
+                .body(r#"{"value":"It does not add up to normality.}"#)
+                .filter(&super::deserialize::<TestStruct>())
+                .await;
+            assert!(match response {
+                Err(rejection) => {
+                    match rejection.find::<Problem>() {
+                        Some(Problem::InvalidJson { .. }) => true,
+                        _ => false,
+                    }
+                }
+                _ => false,
+            });
+        })
+    }
+
+    #[test]
+    fn reject_semantically_incorrect_json() {
+        futures::executor::block_on(async {
+            let response = warp::test::request()
+                .header("Accept", "application/json")
+                .body(r#"{"value":42}"#)
+                .filter(&super::deserialize::<TestStruct>())
+                .await;
+            assert!(match response {
+                Err(rejection) => {
+                    match rejection.find::<Problem>() {
+                        Some(Problem::InvalidJson { .. }) => true,
+                        _ => false,
+                    }
+                }
+                _ => false,
+            });
         })
     }
 }

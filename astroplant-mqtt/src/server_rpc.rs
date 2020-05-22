@@ -5,7 +5,8 @@ use super::{astroplant_capnp, Error};
 use capnp::serialize_packed;
 use futures::channel::oneshot;
 use futures::future::{BoxFuture, FutureExt};
-use ratelimit_meter::{algorithms::NonConformanceExt, KeyedRateLimiter};
+use ratelimit_meter::{algorithms::NonConformance, KeyedRateLimiter};
+use std::time::{Duration, Instant};
 
 #[derive(Debug)]
 pub enum ServerRpcRequest {
@@ -120,7 +121,7 @@ pub struct ServerRpcHandler {
 impl ServerRpcHandler {
     pub fn new() -> Self {
         const NUM_REQUESTS: u32 = 15u32;
-        const PER: std::time::Duration = std::time::Duration::from_secs(60);
+        const PER: Duration = Duration::from_secs(60);
 
         let rate_limiter =
             KeyedRateLimiter::<String>::new(std::num::NonZeroU32::new(NUM_REQUESTS).unwrap(), PER);
@@ -136,7 +137,7 @@ impl ServerRpcHandler {
             Ok(_) => Ok(()),
             Err(neg) => {
                 let response = ServerRpcResponseBuilder::new(kit_serial.clone(), request_id)
-                    .set_error_rate_limit(neg.wait_time().as_millis() as u64)
+                    .set_error_rate_limit(neg.wait_time_from(Instant::now()).as_millis() as u64)
                     .create();
                 Err(Error::ServerRpcError(response))
             }

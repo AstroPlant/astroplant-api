@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Install capnproto
+      run: sudo apt-get install capnproto -y
     - uses: actions/checkout@v2
     - name: Build
       run: cargo build --all --release --verbose

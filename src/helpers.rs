@@ -223,7 +223,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::Problem;
+    use crate::problem::{JsonDeserializeErrorCategory, Problem};
     use serde::Deserialize;
 
     #[derive(Debug, Deserialize)]
@@ -295,13 +295,32 @@ mod test {
         futures::executor::block_on(async {
             let response = warp::test::request()
                 .header("Accept", "application/json")
+                .body(r#"{"value"."It does not add up to normality."}"#)
+                .filter(&super::deserialize::<TestStruct>())
+                .await;
+            assert!(match response {
+                Err(rejection) => {
+                    match rejection.find::<Problem>() {
+                        Some(Problem::InvalidJson {
+                            category: JsonDeserializeErrorCategory::Syntactic,
+                        }) => true,
+                        _ => false,
+                    }
+                }
+                _ => false,
+            });
+
+            let response = warp::test::request()
+                .header("Accept", "application/json")
                 .body(r#"{"value":"It does not add up to normality.}"#)
                 .filter(&super::deserialize::<TestStruct>())
                 .await;
             assert!(match response {
                 Err(rejection) => {
                     match rejection.find::<Problem>() {
-                        Some(Problem::InvalidJson { .. }) => true,
+                        Some(Problem::InvalidJson {
+                            category: JsonDeserializeErrorCategory::PrematureEnd,
+                        }) => true,
                         _ => false,
                     }
                 }
@@ -321,7 +340,9 @@ mod test {
             assert!(match response {
                 Err(rejection) => {
                     match rejection.find::<Problem>() {
-                        Some(Problem::InvalidJson { .. }) => true,
+                        Some(Problem::InvalidJson {
+                            category: JsonDeserializeErrorCategory::Semantic,
+                        }) => true,
                         _ => false,
                     }
                 }

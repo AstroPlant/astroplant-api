@@ -3,7 +3,7 @@ use crate::schema::users;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::{Connection, Identifiable, QueryResult, Queryable};
-use validator::Validate;
+use validator::{Validate, ValidationError};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable)]
 #[table_name = "users"]
@@ -47,6 +47,7 @@ impl User {
 #[derive(Insertable, Debug, Default, Validate)]
 #[table_name = "users"]
 pub struct NewUser {
+    #[validate(length(min = 1), custom = "validate_username")]
     #[validate(length(min = 1, max = 40))]
     pub username: String,
     #[validate(length(min = 1, max = 40))]
@@ -87,5 +88,82 @@ impl NewUser {
 
             Ok(maybe_inserted)
         })
+    }
+}
+
+fn validate_username(username: &str) -> Result<(), ValidationError> {
+    if !username.chars().all(|c| c.is_alphanumeric() || c == '-')
+        || username.chars().nth(0) == Some('-')
+        || username.chars().last() == Some('-')
+    {
+        Err(ValidationError::new("invalid_username"))
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::NewUser;
+    use validator::{Validate, ValidationErrors};
+
+    #[test]
+    fn reject_empty_username() {
+        let user = NewUser::new(
+            "".to_owned(),
+            "".to_owned(),
+            "example@example.com".to_owned(),
+        );
+        assert!(ValidationErrors::has_error(&user.validate(), "username"));
+    }
+
+    #[test]
+    fn reject_long_username() {
+        let user = NewUser::new(
+            vec!['a'; 41].into_iter().collect(),
+            "".to_owned(),
+            "example@example.com".to_owned(),
+        );
+        assert!(ValidationErrors::has_error(&user.validate(), "username"));
+    }
+
+    #[test]
+    fn reject_username_beginning_or_ending_with_hyphen() {
+        let user = NewUser::new(
+            "-example".to_owned(),
+            "".to_owned(),
+            "example@example.com".to_owned(),
+        );
+        assert!(ValidationErrors::has_error(&user.validate(), "username"));
+
+        let user = NewUser::new(
+            "example-".to_owned(),
+            "".to_owned(),
+            "example@example.com".to_owned(),
+        );
+        assert!(ValidationErrors::has_error(&user.validate(), "username"));
+    }
+
+    #[test]
+    fn reject_invalid_email_address() {
+        let user = NewUser::new(
+            "example".to_owned(),
+            "".to_owned(),
+            "example.com".to_owned(),
+        );
+        assert!(ValidationErrors::has_error(
+            &user.validate(),
+            "email_address"
+        ));
+    }
+
+    #[test]
+    fn accept_valid_username_and_email_address() {
+        let user = NewUser::new(
+            "123example-example".to_owned(),
+            "".to_owned(),
+            "example@example.com".to_owned(),
+        );
+        assert!(user.validate().is_ok());
     }
 }

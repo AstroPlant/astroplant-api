@@ -1,6 +1,13 @@
 use crate::models::{Kit, KitMembership, User};
 use serde::Serialize;
 
+pub trait Permission {
+    type Actor;
+    type Object;
+
+    fn permitted(self, actor: &Self::Actor, object: &Self::Object) -> bool;
+}
+
 #[derive(Serialize, Copy, Clone, Debug, EnumIter)]
 #[serde(rename_all = "camelCase")]
 pub enum KitAction {
@@ -15,30 +22,48 @@ pub enum KitAction {
     RpcUptime,
 }
 
-impl KitAction {
-    pub fn permission(
-        self,
-        _user: &Option<User>,
-        kit_membership: &Option<KitMembership>,
-        kit: &Kit,
-    ) -> bool {
+pub enum KitUser {
+    Anonymous,
+    User(User),
+    UserWithMembership(User, KitMembership),
+}
+
+impl Permission for KitAction {
+    type Actor = KitUser;
+    type Object = Kit;
+
+    fn permitted(self, user: &KitUser, kit: &Kit) -> bool {
         use KitAction::*;
+        use KitUser::*;
+        match user {
+            Anonymous | User(..) => match self {
+                View | SubscribeRealTimeMeasurements => kit.privacy_show_on_map,
+                _ => false,
+            },
+            UserWithMembership(_user, membership) => match self {
+                View | SubscribeRealTimeMeasurements => true,
+                EditDetails | EditConfiguration => membership.access_configure,
+                ResetPassword | EditMembers | SetSuperMember => membership.access_super,
+                RpcVersion | RpcUptime => membership.access_super,
+            },
+        }
+    }
+}
+
+#[derive(Serialize, Copy, Clone, Debug, EnumIter)]
+#[serde(rename_all = "camelCase")]
+pub enum UserAction {
+    View,
+}
+
+impl Permission for UserAction {
+    type Actor = Option<User>;
+    type Object = User;
+
+    fn permitted(self, _acting_user: &Option<User>, _object_user: &User) -> bool {
+        use UserAction::*;
         match self {
-            View | SubscribeRealTimeMeasurements => {
-                kit.privacy_public_dashboard || kit_membership.is_some()
-            }
-            EditDetails | EditConfiguration => kit_membership
-                .as_ref()
-                .map(|m| m.access_configure)
-                .unwrap_or(false),
-            ResetPassword | EditMembers | SetSuperMember => kit_membership
-                .as_ref()
-                .map(|m| m.access_super)
-                .unwrap_or(false),
-            RpcVersion | RpcUptime => kit_membership
-                .as_ref()
-                .map(|m| m.access_super)
-                .unwrap_or(false),
+            View => true,
         }
     }
 }

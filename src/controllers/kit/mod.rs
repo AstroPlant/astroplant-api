@@ -65,7 +65,7 @@ pub fn kit_by_serial(
         .and(pg.clone())
         .and_then(
             |kit_serial: String, user_id: Option<models::UserId>, conn: PgPooled| {
-                helpers::fut_permission_or_forbidden(
+                helpers::fut_kit_permission_or_forbidden(
                     conn,
                     user_id,
                     kit_serial,
@@ -86,7 +86,7 @@ pub fn reset_password(
         .and(pg.clone())
         .and_then(
             |kit_serial: String, user_id: Option<models::UserId>, conn: PgPooled| {
-                helpers::fut_permission_or_forbidden(
+                helpers::fut_kit_permission_or_forbidden(
                     conn,
                     user_id,
                     kit_serial,
@@ -208,7 +208,7 @@ fn patch_kit(
         .and(pg.clone())
         .and_then(
             |kit_serial: String, user_id: Option<models::UserId>, conn: PgPooled| {
-                helpers::fut_permission_or_forbidden(
+                helpers::fut_kit_permission_or_forbidden(
                     conn,
                     user_id,
                     kit_serial,

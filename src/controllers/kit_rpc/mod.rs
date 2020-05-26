@@ -26,7 +26,7 @@ pub fn version(
         .and(pg.clone())
         .and_then(
             |kit_serial: String, user_id: Option<models::UserId>, conn: PgPooled| {
-                helpers::fut_permission_or_forbidden(
+                helpers::fut_kit_permission_or_forbidden(
                     conn,
                     user_id,
                     kit_serial,
@@ -59,7 +59,7 @@ pub fn uptime(
         .and(pg.clone())
         .and_then(
             |kit_serial: String, user_id: Option<models::UserId>, conn: PgPooled| {
-                helpers::fut_permission_or_forbidden(
+                helpers::fut_kit_permission_or_forbidden(
                     conn,
                     user_id,
                     kit_serial,

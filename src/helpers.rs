@@ -5,7 +5,11 @@ use log::error;
 use serde::{de::DeserializeOwned, Deserialize};
 use warp::{filters::BoxedFilter, Filter, Rejection};
 
-use crate::{authentication, authorization, models};
+use crate::{
+    authentication,
+    authorization::{self, KitUser, Permission},
+    models,
+};
 
 /// Run a blocking function on a threadpool.
 pub async fn threadpool<F, T>(f: F) -> T
@@ -109,13 +113,15 @@ pub fn some_or_not_found<T>(r: Option<T>) -> Result<T, Rejection> {
  * Ensure the user has permission to perform the action on the kit.
  * Rejects the request otherwise.
  */
-pub fn permission_or_forbidden(
-    user: &Option<crate::models::User>,
-    kit_membership: &Option<crate::models::KitMembership>,
-    kit: &crate::models::Kit,
-    action: crate::authorization::KitAction,
-) -> Result<(), Rejection> {
-    if action.permission(user, kit_membership, kit) {
+pub fn permission_or_forbidden<P>(
+    actor: &P::Actor,
+    object: &P::Object,
+    permission: P,
+) -> Result<(), Rejection>
+where
+    P: Permission,
+{
+    if permission.permitted(actor, object) {
         Ok(())
     } else {
         Err(warp::reject::custom(FORBIDDEN))
@@ -131,7 +137,7 @@ pub fn permission_or_forbidden(
  * given serial, the request is rejected with NOT_FOUND. If the request is *not* rejected, this
  * returns the fetched user, membership and kit.
  */
-pub async fn fut_permission_or_forbidden<'a>(
+pub async fn fut_kit_permission_or_forbidden<'a>(
     conn: crate::PgPooled,
     user_id: Option<crate::models::UserId>,
     kit_serial: String,
@@ -174,7 +180,13 @@ pub async fn fut_permission_or_forbidden<'a>(
     })
     .and_then(|v| async { some_or_not_found(v) })
     .and_then(|(user, membership, kit)| async move {
-        permission_or_forbidden(&user, &membership, &kit, action).map(|_| (user, membership, kit))
+        // TODO clone should not be necessary.
+        let kit_user = match (user.clone(), membership.clone()) {
+            (None, _) => KitUser::Anonymous,
+            (Some(user), None) => KitUser::User(user),
+            (Some(user), Some(kit_membership)) => KitUser::UserWithMembership(user, kit_membership),
+        };
+        permission_or_forbidden(&kit_user, &kit, action).map(|_| (user, membership, kit))
     })
     .await
 }
@@ -204,7 +216,7 @@ pub fn authorization_user_kit_from_query(
         .and(pg)
         .and_then(
             move |kit_serial: String, user_id: Option<models::UserId>, conn: crate::PgPooled| {
-                fut_permission_or_forbidden(conn, user_id, kit_serial, action)
+                fut_kit_permission_or_forbidden(conn, user_id, kit_serial, action)
             },
         )
         .untuple_one()

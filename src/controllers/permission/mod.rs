@@ -2,6 +2,7 @@ use futures::future::FutureExt;
 use serde::Deserialize;
 use warp::{filters::BoxedFilter, Filter, Rejection};
 
+use crate::authorization::{KitUser, Permission};
 use crate::response::{Response, ResponseBuilder};
 use crate::PgPooled;
 use crate::{authentication, helpers, models, problem};
@@ -65,8 +66,16 @@ pub fn user_kit_permissions(
                         use crate::authorization::KitAction;
                         use strum::IntoEnumIterator;
 
+                        let kit_user = match (user, membership) {
+                            (None, _) => KitUser::Anonymous,
+                            (Some(user), None) => KitUser::User(user),
+                            (Some(user), Some(kit_membership)) => {
+                                KitUser::UserWithMembership(user, kit_membership)
+                            }
+                        };
+
                         let permissions: Vec<KitAction> = KitAction::iter()
-                            .filter(|action| action.permission(&user, &membership, &kit))
+                            .filter(|action| action.permitted(&kit_user, &kit))
                             .collect();
 
                         Ok(ResponseBuilder::ok().body(permissions))

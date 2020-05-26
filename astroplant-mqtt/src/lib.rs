@@ -170,7 +170,7 @@ impl Handler {
                     .server_rpc_handler
                     .handle_rpc_request(kit_serial, &msg.payload)
                     .map(|(request, responder)| {
-                        (MqttMessage::Api(MqttApiMessage::ServerRpcRequest(request), responder))
+                        MqttMessage::Api(MqttApiMessage::ServerRpcRequest(request), responder)
                     }),
                 _ => Err(Error::InvalidTopic),
             },

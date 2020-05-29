@@ -38,7 +38,7 @@ mod websocket;
 use response::{Response, ResponseBuilder};
 
 static VERSION: &str = env!("CARGO_PKG_VERSION");
-static DEFAULT_DATABASE_URL: &str = "postgres://astroplant:astroplant@database.ops/astroplant";
+static DEFAULT_DATABASE_URL: &str = "postgres://astroplant:astroplant@localhost/astroplant";
 static DEFAULT_MQTT_HOST: &str = "mqtt.ops";
 const DEFAULT_MQTT_PORT: u16 = 1883;
 static DEFAULT_MQTT_USERNAME: &str = "server";

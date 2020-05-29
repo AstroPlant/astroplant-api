@@ -5,6 +5,19 @@ info:
   title: AstroPlant API
 servers:
   - url: https://api.astroplant.sda-projects.nl
+tags:
+    - name: access
+      description: Authentication and authorization endpoints.
+    - name: definitions
+      description: Endpoints to get information about definitions such as quantity types.
+    - name: kits
+      description: Endpoints to get or change information about kits.
+    - name: kitRpc
+      description: Endpoints to invoke remote procedure calls on kits.
+    - name: users
+      description: Endpoints to get or change information about users.
+    - name: server
+      description: Endpoints for getting information about the API server.
 paths:
   "/version":
     get:
@@ -271,7 +284,7 @@ paths:
       summary: Create a user.
       operationId: createUser
       tags:
-        - user
+        - users
       requestBody:
         description: The user to create.
         required: true
@@ -295,8 +308,7 @@ paths:
       security:
         - bearerAuth: []
       tags:
-        - user
-        - me
+        - access
       responses:
         '200':
           description: Your user information.
@@ -315,7 +327,7 @@ paths:
       summary: "Authenticate yourself by username and password."
       operationId: authenticateByCredentials
       tags:
-        - authenticate
+        - access
       requestBody:
         description: The login credentials.
         required: true
@@ -341,7 +353,7 @@ paths:
       summary: "Obtain an access token from a refresh token."
       operationId: obtainAccessTokenFromRefreshToken
       tags:
-        - authenticate
+        - access
       requestBody:
         description: The refresh token.
         required: true
@@ -369,7 +381,7 @@ paths:
       security:
         - bearerAuth: []
       tags:
-        - me
+        - access
       responses:
         '200':
           description: Kit memberships.
@@ -390,7 +402,7 @@ paths:
       summary: List all peripheral device definitions.
       operationId: listPeripheralDefinitions
       tags:
-        - peripheralDefinition
+        - definitions
       parameters:
         - in: query
           name: after
@@ -421,7 +433,7 @@ paths:
       summary: List all quantity types.
       operationId: listQuantityTypes
       tags:
-        - quantityType
+        - definitions
       parameters:
         - in: query
           name: after

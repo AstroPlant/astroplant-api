@@ -192,6 +192,51 @@ pub async fn fut_kit_permission_or_forbidden<'a>(
 }
 
 /**
+ * Ensure the user has permission to perform the action on the target user.
+ * Rejects the request with FORBIDDEN otherwise.
+ *
+ * Fetches the required information from the database.
+ * If the actor user id is given but the user cannot be found or if the target user cannot be found with the
+ * given username, the request is rejected with NOT_FOUND. If the request is *not* rejected, this
+ * returns the fetched actor and target users.
+ */
+pub async fn fut_user_permission_or_forbidden<'a>(
+    conn: crate::PgPooled,
+    actor_user_id: Option<crate::models::UserId>,
+    object_username: String,
+    action: crate::authorization::UserAction,
+) -> Result<(Option<crate::models::User>, crate::models::User), Rejection> {
+    use diesel::Connection;
+
+    threadpool_diesel_ok(move || {
+        conn.transaction(|| {
+            let actor_user = if let Some(actor_user_id) = actor_user_id {
+                match crate::models::User::by_id(&conn, actor_user_id)? {
+                    Some(user) => Some(user),
+                    // User id set but user is not found.
+                    None => return Ok(None),
+                }
+            } else {
+                None
+            };
+
+            let object_user = match crate::models::User::by_username(&conn, &object_username)? {
+                Some(user) => user,
+                None => return Ok(None),
+            };
+
+            Ok(Some((actor_user, object_user)))
+        })
+    })
+    .and_then(|v| async { some_or_not_found(v) })
+    .and_then(|(target_user, object_user)| async move {
+        permission_or_forbidden(&target_user, &object_user, action)
+            .map(|_| (target_user, object_user))
+    })
+    .await
+}
+
+/**
  * Authenticate the user through the Authorization header and the kit from the kitSerial parameter
  * in the query. Check whether the user is authorized to perform the given action. Returns the
  * user, kit membership and kit fetched from the database.

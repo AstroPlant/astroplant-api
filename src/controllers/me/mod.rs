@@ -18,10 +18,6 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     .unify()
     .or(warp::path::end().and(warp::get()).and(me(pg.clone())))
     .unify()
-    .or(path!("memberships")
-        .and(warp::get())
-        .and(kit_memberships(pg.clone())))
-    .unify()
     .boxed()
 }
 
@@ -41,28 +37,4 @@ fn me(
                 }
             }
         })
-}
-
-/// Fetch kits belonging to the user.
-fn kit_memberships(
-    pg: BoxedFilter<(crate::PgPooled,)>,
-) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    authentication::by_token()
-        .and(pg)
-        .and_then(|user_id: models::UserId, conn: crate::PgPooled| {
-            helpers::threadpool_diesel_ok(move || {
-                models::KitMembership::memberships_with_kit_of_user_id(&conn, user_id)
-            })
-        })
-        .map(
-            |kit_memberships: Vec<(models::Kit, models::KitMembership)>| {
-                let v: Vec<views::KitMembership<i32, views::Kit>> = kit_memberships
-                    .into_iter()
-                    .map(|(kit, membership)| {
-                        views::KitMembership::from(membership).with_kit(views::Kit::from(kit))
-                    })
-                    .collect();
-                ResponseBuilder::ok().body(v)
-            },
-        )
 }

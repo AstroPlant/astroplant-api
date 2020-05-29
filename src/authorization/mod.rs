@@ -54,16 +54,22 @@ impl Permission for KitAction {
 #[serde(rename_all = "camelCase")]
 pub enum UserAction {
     View,
+    ListKitMemberships,
+    EditDetails
 }
 
 impl Permission for UserAction {
     type Actor = Option<User>;
     type Object = User;
 
-    fn permitted(self, _acting_user: &Option<User>, _object_user: &User) -> bool {
+    fn permitted(self, acting_user: &Option<User>, object_user: &User) -> bool {
         use UserAction::*;
-        match self {
-            View => true,
+        match acting_user {
+            Some(acting_user) => acting_user == object_user,
+            None => match self {
+                View | ListKitMemberships => true,
+                EditDetails => false,
+            },
         }
     }
 }

@@ -301,6 +301,64 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+  "/users/{username}":
+    get:
+      summary: Get the user's details.
+      operationId: showUserByUsername
+      security:
+        - bearerAuth: []
+      tags:
+        - users
+      parameters:
+        - name: username
+          in: path
+          required: true
+          description: The username of the user to get the details of.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+  "/users/{username}/kit-memberships":
+    get:
+      summary: Get a user's kit memberships.
+      operationId: showUserKitMemberships
+      security:
+        - bearerAuth: []
+      tags:
+        - users
+      parameters:
+        - name: username
+          in: path
+          required: true
+          description: The username of the user to get the memberships of.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Kit memberships.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KitMembership"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
   "/me":
     get:
       summary: Your user information.
@@ -370,29 +428,6 @@ paths:
                 type: string
         '400':
           $ref: "#/components/responses/InvalidParameters"
-        '429':
-          $ref: "#/components/responses/ErrorRateLimit"
-        '500':
-          $ref: "#/components/responses/ErrorInternalServer"
-  "/me/memberships":
-    get:
-      summary: Your kit memberships.
-      operationId: showMyKitMemberships
-      security:
-        - bearerAuth: []
-      tags:
-        - access
-      responses:
-        '200':
-          description: Kit memberships.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/KitMembership"
-        '401':
-          $ref: "#/components/responses/ErrorUnauthorized"
         '429':
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
@@ -1049,6 +1084,23 @@ components:
         emailAddress: d.adams@example.com
         useEmailAddressForGravatar: false
         gravatarAlternative: "3NbpHjTp4fYyxnPw4$6xcTp!J%hyhdJq"
+    User:
+      type: object
+      required:
+        - username
+        - displayName
+        - gravatar
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+        gravatar:
+          type: string
+      example:
+        username: douglas
+        displayName: Douglas Adams
+        gravatar: "3NbpHjTp4fYyxnPw4$6xcTp!J%hyhdJq"
     AuthRefreshToken:
       type: object
       required:

@@ -44,6 +44,36 @@ impl User {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Queryable, Identifiable, AsChangeset, Validate)]
+#[table_name = "users"]
+pub struct UpdateUser {
+    pub id: i32,
+    // None means don't update, Some(None) means set to null.
+    #[validate(length(min = 1, max = 40))]
+    pub display_name: Option<String>,
+    #[validate(length(max = 255))]
+    #[validate(email)]
+    pub email_address: Option<String>,
+    pub password_hash: Option<String>,
+    pub use_email_address_for_gravatar: Option<bool>,
+}
+
+impl UpdateUser {
+    pub fn unchanged_for_id(id: i32) -> Self {
+        UpdateUser {
+            id,
+            password_hash: None,
+            display_name: None,
+            email_address: None,
+            use_email_address_for_gravatar: None,
+        }
+    }
+
+    pub fn update(&self, conn: &PgConnection) -> QueryResult<User> {
+        self.save_changes(conn)
+    }
+}
+
 #[derive(Insertable, Debug, Default, Validate)]
 #[table_name = "users"]
 pub struct NewUser {

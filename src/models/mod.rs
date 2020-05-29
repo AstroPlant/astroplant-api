@@ -2,7 +2,7 @@ mod kit;
 pub use kit::{Kit, KitId, NewKit, UpdateKit};
 
 mod user;
-pub use user::{NewUser, User, UserId};
+pub use user::{NewUser, UpdateUser, User, UserId};
 
 mod kit_membership;
 pub use kit_membership::{KitMembership, NewKitMembership};

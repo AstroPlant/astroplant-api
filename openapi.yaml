@@ -1011,8 +1011,7 @@ components:
           type: integer
           format: int32
         user:
-          type: integer
-          format: int32
+          type: string
         kit:
           $ref: "#/components/schemas/Kit"
         accessConfigure:

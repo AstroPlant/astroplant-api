@@ -139,22 +139,22 @@ pub fn list_kit_memberships(
             },
         )
         .and(pg)
-        .and_then(move |user: models::User, conn: PgPooled| {
-            helpers::threadpool_diesel_ok(move || {
+        .and_then(move |user: models::User, conn: PgPooled| async {
+            let username = user.username.clone();
+            let kit_memberships = helpers::threadpool_diesel_ok(move || {
                 models::KitMembership::memberships_with_kit_of_user_id(&conn, user.get_id())
             })
+            .await?;
+            let v: Vec<views::KitMembership<String, views::Kit>> = kit_memberships
+                .into_iter()
+                .map(|(kit, membership)| {
+                    views::KitMembership::from(membership)
+                        .with_kit(views::Kit::from(kit))
+                        .with_user(username.clone())
+                })
+                .collect();
+            Ok::<_, Rejection>(ResponseBuilder::ok().body(v))
         })
-        .map(
-            |kit_memberships: Vec<(models::Kit, models::KitMembership)>| {
-                let v: Vec<views::KitMembership<i32, views::Kit>> = kit_memberships
-                    .into_iter()
-                    .map(|(kit, membership)| {
-                        views::KitMembership::from(membership).with_kit(views::Kit::from(kit))
-                    })
-                    .collect();
-                ResponseBuilder::ok().body(v)
-            },
-        )
 }
 
 pub fn create_user(

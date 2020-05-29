@@ -25,7 +25,7 @@ Set environment variables to configure the program.
 | Variable | Description | Default |
 |-|-|-|
 | `DATABASE_URL` | The database connection url. | `postgres://astroplant:astroplant@localhost/astroplant` |
-| `MQTT_HOST` | The hostname of the MQTT broker. | `mqtt.ops` |
+| `MQTT_HOST` | The hostname of the MQTT broker. | `localhost` |
 | `MQTT_PORT` | The port of the MQTT broker. | `1883` |
 | `MQTT_USERNAME` | The username for MQTT authentication. | `server` |
 | `MQTT_PASSWORD` | The password for MQTT authentication. | |

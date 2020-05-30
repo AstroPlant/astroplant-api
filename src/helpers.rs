@@ -268,6 +268,32 @@ pub fn authorization_user_kit_from_query(
         .boxed()
 }
 
+/**
+ * Authenticate the user through the Authorization header and the kit serial returned by the given filter.
+ * Check whether the user is authorized to perform the given action. Returns the user, kit membership
+ * and kit fetched from the database.
+ */
+pub fn authorization_user_kit_from_filter(
+    filter: BoxedFilter<(String,)>,
+    pg: BoxedFilter<(crate::PgPooled,)>,
+    action: authorization::KitAction,
+) -> BoxedFilter<(
+    Option<models::User>,
+    Option<models::KitMembership>,
+    models::Kit,
+)> {
+    filter
+        .and(authentication::option_by_token())
+        .and(pg)
+        .and_then(
+            move |kit_serial: String, user_id: Option<models::UserId>, conn: crate::PgPooled| {
+                fut_kit_permission_or_forbidden(conn, user_id, kit_serial, action)
+            },
+        )
+        .untuple_one()
+        .boxed()
+}
+
 pub fn guard<T, F>(val: T, f: F) -> Result<T, warp::Rejection>
 where
     F: Fn(&T) -> Option<warp::Rejection>,

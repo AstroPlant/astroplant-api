@@ -102,7 +102,7 @@ async fn main() {
         .unify()
         .or(path!("permissions" / ..).and(controllers::permission::router(pg.clone().boxed())))
         .unify()
-        .or(path!("measurements" / ..).and(controllers::measurement::router(pg.clone().boxed())))
+        .or(controllers::measurement::router(pg.clone().boxed()))
         .unify())
     .and(warp::header("Accept"))
     .map(|response: Response, _accept: String| {

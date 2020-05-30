@@ -8,17 +8,17 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     trace!("Setting up measurements router.");
 
-    aggregate_measurements(pg.clone()).boxed()
+    kit_aggregate_measurements(pg.clone()).boxed()
 }
 
-/// Handles the `GET /measurements/aggregate-measurements?kitSerial={kitSerial}` route.
-fn aggregate_measurements(
+/// Handles the `GET /kits/{kitSerial}/aggregate-measurements` route.
+fn kit_aggregate_measurements(
     pg: BoxedFilter<(crate::PgPooled,)>,
 ) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     warp::get()
-        .and(warp::path!("aggregate-measurements"))
         .and(
-            helpers::authorization_user_kit_from_query(
+            helpers::authorization_user_kit_from_filter(
+                warp::path!("kits" / String / "aggregate-measurements").boxed(),
                 pg.clone(),
                 crate::authorization::KitAction::View,
             )

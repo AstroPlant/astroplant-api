@@ -218,6 +218,36 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+  "/kits/{kitSerial}/aggregate-measurements":
+    get:
+      summary: Aggregate measurements made by a kit in the last 5 days.
+      operationId: listAggregateMeasurements
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: path
+          required: true
+          description: The serial of the kit to retrieve aggregate measurements for.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The retrieved aggregate measurements.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AggregateMeasurement"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
   "/kit-rpc/{kitSerial}/version":
     get:
       summary: Query the kit for the version it is running.
@@ -745,36 +775,6 @@ paths:
           description: The peripheral has been deleted.
         '400':
           $ref: "#/components/responses/InvalidJson"
-        '401':
-          $ref: "#/components/responses/ErrorUnauthorized"
-        '429':
-          $ref: "#/components/responses/ErrorRateLimit"
-        '500':
-          $ref: "#/components/responses/ErrorInternalServer"
-  "/measurements/aggregate-measurements":
-    get:
-      summary: Aggregate measurements made by a kit in the last 5 days.
-      operationId: listAggregateMeasurements
-      security:
-        - bearerAuth: []
-      tags:
-        - measurements
-      parameters:
-        - name: kitSerial
-          in: query
-          required: true
-          description: The serial of the kit to retrieve aggregate measurements.
-          schema:
-            type: string
-      responses:
-        '200':
-          description: The retrieved aggregate measurements
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AggregateMeasurement"
         '401':
           $ref: "#/components/responses/ErrorUnauthorized"
         '429':

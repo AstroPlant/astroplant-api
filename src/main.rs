@@ -10,14 +10,10 @@ extern crate validator_derive;
 #[macro_use]
 extern crate strum_macros;
 
-use diesel::pg::PgConnection;
-use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use once_cell::sync::OnceCell;
 use warp::{self, http::Method, path, Filter, Rejection, Reply};
 
-type PgPool = Pool<ConnectionManager<PgConnection>>;
-type PgPooled = PooledConnection<ConnectionManager<PgConnection>>;
-
+mod database;
 mod utils;
 
 mod authentication;
@@ -35,6 +31,7 @@ mod views;
 mod mqtt;
 mod websocket;
 
+use problem::{AppResult, DescriptiveProblem, Problem};
 use response::{Response, ResponseBuilder};
 
 static VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -46,85 +43,84 @@ static DEFAULT_MQTT_PASSWORD: &str = "";
 
 static TOKEN_SIGNER: OnceCell<astroplant_auth::token::TokenSigner> = OnceCell::new();
 
-fn pg_pool() -> PgPool {
-    let manager = ConnectionManager::<PgConnection>::new(
-        std::env::var("DATABASE_URL").unwrap_or(DEFAULT_DATABASE_URL.to_owned()),
-    );
-    Pool::builder()
-        .connection_timeout(std::time::Duration::from_secs(5))
-        .build(manager)
-        .expect("PostgreSQL connection pool could not be created.")
-}
-
 #[tokio::main]
 async fn main() {
     env_logger::init();
 
     init_token_signer();
 
-    let pg_pool = pg_pool();
+    let pg = database::PgPool::new(
+        std::env::var("DATABASE_URL").unwrap_or(DEFAULT_DATABASE_URL.to_owned()),
+        std::time::Duration::from_secs(5),
+    );
 
     // Start MQTT.
-    let (raw_measurement_receiver, kits_rpc) = mqtt::run(pg_pool.clone());
+    let (raw_measurement_receiver, kits_rpc) = mqtt::run(pg.clone());
 
     // Start WebSockets.
     let (ws_endpoint, publisher) = astroplant_websocket::run();
     tokio::runtime::Handle::current().spawn(websocket::run(publisher, raw_measurement_receiver));
 
     let rate_limit = rate_limit::leaky_bucket();
-    let pg = helpers::pg(pg_pool);
 
-    let rest_endpoints = (path!("version")
-        .map(|| ResponseBuilder::ok().body(VERSION))
+    let rest_endpoints = ((path!("version").map(|| Ok(ResponseBuilder::ok().body(VERSION))))
         .or(path!("time")
-            .map(|| ResponseBuilder::ok().body(chrono::Utc::now().to_rfc3339()))
+            .map(|| Ok(ResponseBuilder::ok().body(chrono::Utc::now().to_rfc3339())))
             .boxed())
         .unify()
-        .or(path!("kits" / ..).and(controllers::kit::router(pg.clone().boxed())))
+        .or(path!("kits" / ..).and(controllers::kit::router(pg.clone())))
         .unify()
         .or(path!("kit-configurations" / ..)
-            .and(controllers::kit_configuration::router(pg.clone().boxed())))
+            .and(controllers::kit_configuration::router(pg.clone())))
         .unify()
-        .or(path!("kit-rpc" / ..).and(controllers::kit_rpc::router(kits_rpc, pg.clone().boxed())))
+        .or(path!("kit-rpc" / ..).and(controllers::kit_rpc::router(kits_rpc, pg.clone())))
         .unify()
-        .or(path!("users" / ..).and(controllers::user::router(pg.clone().boxed())))
+        .or(path!("users" / ..).and(controllers::user::router(pg.clone())))
         .unify()
-        .or(path!("me" / ..).and(controllers::me::router(pg.clone().boxed())))
+        .or(path!("me" / ..).and(controllers::me::router(pg.clone())))
         .unify()
-        .or(
-            path!("peripheral-definitions" / ..).and(controllers::peripheral_definition::router(
-                pg.clone().boxed(),
-            )),
-        )
+        .or(path!("peripheral-definitions" / ..)
+            .and(controllers::peripheral_definition::router(pg.clone())))
         .unify()
-        .or(path!("quantity-types" / ..)
-            .and(controllers::quantity_type::router(pg.clone().boxed())))
+        .or(path!("quantity-types" / ..).and(controllers::quantity_type::router(pg.clone())))
         .unify()
-        .or(path!("permissions" / ..).and(controllers::permission::router(pg.clone().boxed())))
+        .or(path!("permissions" / ..).and(controllers::permission::router(pg.clone())))
         .unify()
-        .or(controllers::measurement::router(pg.clone().boxed()))
+        .or(controllers::measurement::router(pg.clone()))
         .unify())
     .and(warp::header("Accept"))
-    .map(|response: Response, _accept: String| {
+    .map(|response: AppResult<Response>, _accept: String| {
         // TODO: utilize Accept header, e.g. returning XML when requested.
+        let mut http_response_builder =
+            warp::http::response::Builder::new().header("Content-Type", "application/json");
+        match response {
+            Ok(response) => {
+                http_response_builder = http_response_builder.status(response.status_code());
 
-        let mut http_response_builder = warp::http::response::Builder::new()
-            .status(response.status_code())
-            .header("Content-Type", "application/json");
+                for (header, value) in response.headers() {
+                    http_response_builder =
+                        http_response_builder.header(header.as_bytes(), value.clone());
+                }
 
-        for (header, value) in response.headers() {
-            http_response_builder = http_response_builder.header(header.as_bytes(), value.clone());
-        }
+                match response.value() {
+                    Some(value) => http_response_builder
+                        .body(serde_json::to_string(value).unwrap())
+                        .unwrap(),
+                    None => http_response_builder.body("".to_owned()).unwrap(),
+                }
+            }
+            Err(problem) => {
+                let descriptive_problem = DescriptiveProblem::from(&problem);
 
-        match response.value() {
-            Some(value) => http_response_builder
-                .body(serde_json::to_string(value).unwrap())
-                .unwrap(),
-            None => http_response_builder.body("".to_owned()).unwrap(),
+                http_response_builder
+                    .status(problem.to_status_code())
+                    .body(serde_json::to_string(&descriptive_problem).unwrap())
+                    .unwrap()
+            }
         }
     })
     .recover(|rejection| async { handle_rejection(rejection) })
-    .with(warp::log("astroplant_rs_api::api"))
+    .with(warp::log("astroplant_api::api"))
     // TODO: this wrapper might be better placed per-endpoint, to have accurate allowed metods
     .with(
         warp::cors()
@@ -147,8 +143,6 @@ async fn main() {
 
 /// Convert rejections into replies.
 fn handle_rejection(rejection: Rejection) -> Result<impl Reply, Rejection> {
-    use problem::{DescriptiveProblem, Problem};
-
     let reply = if let Some(problem) = rejection.find::<Problem>() {
         // This rejection originated in this implementation.
 

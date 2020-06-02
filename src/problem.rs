@@ -12,6 +12,8 @@ pub const NOT_FOUND: Problem = Problem::Generic(GenericProblem::NotFound);
 pub const INTERNAL_SERVER_ERROR: Problem = Problem::Generic(GenericProblem::InternalServerError);
 pub const FORBIDDEN: Problem = Problem::Generic(GenericProblem::Forbidden);
 
+pub type AppResult<T> = Result<T, Problem>;
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum Problem {
@@ -78,6 +80,21 @@ impl Display for Problem {
 
 impl StdError for Problem {}
 impl warp::reject::Reject for Problem {}
+
+impl From<Problem> for warp::Rejection {
+    fn from(problem: Problem) -> warp::Rejection {
+        warp::reject::custom(problem)
+    }
+}
+
+impl From<diesel::result::Error> for Problem {
+    fn from(diesel_error: diesel::result::Error) -> Problem {
+        match diesel_error {
+            diesel::result::Error::NotFound => NOT_FOUND,
+            _ => INTERNAL_SERVER_ERROR,
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 // Note: this attribute is a bit hacky, as DescriptiveProblem also defines a title field. But it

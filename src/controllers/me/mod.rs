@@ -1,11 +1,14 @@
 mod auth;
 
+use futures::future::FutureExt;
 use warp::{filters::BoxedFilter, path, Filter, Rejection};
 
+use crate::database::PgPool;
+use crate::problem::AppResult;
 use crate::response::{Response, ResponseBuilder};
-use crate::{authentication, helpers, models, problem, views};
+use crate::{authentication, helpers, models, views};
 
-pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
+pub fn router(pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     trace!("Setting up me router.");
 
@@ -21,20 +24,14 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
     .boxed()
 }
 
-fn me(
-    pg: BoxedFilter<(crate::PgPooled,)>,
-) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
+fn me(pg: PgPool) -> impl Filter<Extract = (AppResult<Response>,), Error = Rejection> + Clone {
+    async fn implementation(pg: PgPool, user_id: models::UserId) -> AppResult<Response> {
+        let conn = pg.get().await?;
+        let user = helpers::threadpool_result(move || models::User::by_id(&conn, user_id)).await?;
+        let user = helpers::some_or_internal_error(user)?;
+        Ok(ResponseBuilder::ok().body(views::FullUser::from(user)))
+    }
+
     authentication::by_token()
-        .and(pg)
-        .and_then(|user_id: models::UserId, conn: crate::PgPooled| {
-            helpers::threadpool_diesel_ok(move || models::User::by_id(&conn, user_id))
-        })
-        .and_then(|user: Option<models::User>| {
-            async {
-                match user {
-                    Some(user) => Ok(ResponseBuilder::ok().body(views::FullUser::from(user))),
-                    None => Err(warp::reject::custom(problem::INTERNAL_SERVER_ERROR)),
-                }
-            }
-        })
+        .and_then(move |user_id: models::UserId| implementation(pg.clone(), user_id).never_error())
 }

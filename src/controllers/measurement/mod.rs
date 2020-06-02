@@ -1,10 +1,12 @@
+use futures::future::FutureExt;
 use warp::{filters::BoxedFilter, Filter, Rejection};
 
+use crate::database::PgPool;
+use crate::problem::{AppResult, Problem};
 use crate::response::{Response, ResponseBuilder};
-use crate::PgPooled;
 use crate::{helpers, models, views};
 
-pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
+pub fn router(pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
     trace!("Setting up measurements router.");
 
@@ -13,8 +15,24 @@ pub fn router(pg: BoxedFilter<(crate::PgPooled,)>) -> BoxedFilter<(Response,)> {
 
 /// Handles the `GET /kits/{kitSerial}/aggregate-measurements` route.
 fn kit_aggregate_measurements(
-    pg: BoxedFilter<(crate::PgPooled,)>,
-) -> impl Filter<Extract = (Response,), Error = Rejection> + Clone {
+    pg: PgPool,
+) -> impl Filter<Extract = (AppResult<Response>,), Error = Rejection> + Clone {
+    async fn implementation(pg: PgPool, kit: models::Kit) -> AppResult<Response> {
+        let conn = pg.get().await?;
+        let aggregate_measurements = helpers::threadpool(move || {
+            Ok::<Vec<_>, Problem>(
+                models::AggregateMeasurement::recent_measurements(&conn, kit.get_id())?
+                    .into_iter()
+                    .map(|aggregate_measurement| {
+                        views::AggregateMeasurement::from(aggregate_measurement)
+                    })
+                    .collect(),
+            )
+        })
+        .await?;
+        Ok(ResponseBuilder::ok().body(aggregate_measurements))
+    }
+
     warp::get()
         .and(
             helpers::authorization_user_kit_from_filter(
@@ -24,17 +42,5 @@ fn kit_aggregate_measurements(
             )
             .map(|_, _, kit| kit),
         )
-        .and(pg)
-        .and_then(|kit: models::Kit, conn: PgPooled| {
-            helpers::threadpool_diesel_ok(move || {
-                let aggregate_measurements: Vec<_> =
-                    models::AggregateMeasurement::recent_measurements(&conn, kit.get_id())?
-                        .into_iter()
-                        .map(|aggregate_measurement| {
-                            views::AggregateMeasurement::from(aggregate_measurement)
-                        })
-                        .collect();
-                Ok(ResponseBuilder::ok().body(aggregate_measurements))
-            })
-        })
+        .and_then(move |kit: models::Kit| implementation(pg.clone(), kit).never_error())
 }

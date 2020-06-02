@@ -1,10 +1,11 @@
-use super::{helpers, models, views, PgPool, PgPooled};
+use crate::database::PgPool;
+use crate::{helpers, models, views};
 
 use astroplant_mqtt::{MqttApiMessage, ServerRpcRequest};
 use futures::channel::{mpsc, oneshot};
 use futures::future::FutureExt;
 use futures::sink::SinkExt;
-use tokio::runtime::{Runtime, Handle};
+use tokio::runtime::{Handle, Runtime};
 
 #[derive(Debug)]
 enum Error {
@@ -32,14 +33,13 @@ impl Handler {
     }
 
     async fn get_active_configuration(
-        pg_pool: PgPool,
+        pg: PgPool,
         kit_serial: String,
         response: oneshot::Sender<Option<serde_json::Value>>,
     ) -> Result<(), Error> {
         trace!("handling getActiveConfiguration request for {}", kit_serial);
 
-        let conn: PgPooled =
-            helpers::threadpool(move || pg_pool.get().map_err(|_| Error::PgPool)).await?;
+        let conn = pg.get().await.map_err(|_| Error::PgPool)?;
         let configuration: Option<_> = helpers::threadpool(move || {
             println!("getting for kit: {}", kit_serial);
             let kit =
@@ -82,13 +82,12 @@ impl Handler {
     }
 
     async fn get_quantity_types(
-        pg_pool: PgPool,
+        pg: PgPool,
         response: oneshot::Sender<Vec<serde_json::Value>>,
     ) -> Result<(), Error> {
         trace!("handling getQuantityTypes request");
 
-        let conn: PgPooled =
-            helpers::threadpool(move || pg_pool.get().map_err(|_| Error::PgPool)).await?;
+        let conn = pg.get().await.map_err(|_| Error::PgPool)?;
         let quantity_types: Vec<_> = helpers::threadpool(move || {
             let quantity_types = models::QuantityType::all(&conn)
                 .map_err(|_| Error::Internal)?

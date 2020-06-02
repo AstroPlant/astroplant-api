@@ -1,15 +1,12 @@
-use crate::problem::{Problem, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND};
-
 use futures::future::TryFutureExt;
 use log::error;
 use serde::{de::DeserializeOwned, Deserialize};
 use warp::{filters::BoxedFilter, Filter, Rejection};
 
-use crate::{
-    authentication,
-    authorization::{self, KitUser, Permission},
-    models,
-};
+use crate::authorization::{self, KitUser, Permission};
+use crate::database::PgPool;
+use crate::problem::{AppResult, Problem, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND};
+use crate::{authentication, models};
 
 /// Run a blocking function on a threadpool.
 pub async fn threadpool<F, T>(f: F) -> T
@@ -20,17 +17,16 @@ where
     tokio::task::spawn_blocking(f).await.unwrap()
 }
 
-/// Runs a function on a threadpool, ignoring a potential Diesel error inside the threadpool.
-/// This error is turned into an internal server error (as Diesel errors are unexpected, and
-/// indicative of erroneous queries).
-pub async fn threadpool_diesel_ok<F, T>(f: F) -> Result<T, Rejection>
+/// Runs a function on a threadpool, converting potential errors through Problem into Rejection.
+pub async fn threadpool_result<F, T, E>(f: F) -> AppResult<T>
 where
-    F: FnOnce() -> Result<T, diesel::result::Error> + Send + 'static,
+    F: FnOnce() -> Result<T, E> + Send + 'static,
     T: Send + 'static,
+    E: Into<Problem> + Send + 'static + std::fmt::Debug,
 {
-    threadpool(f).await.map_err(|diesel_err| {
-        error!("Error in diesel query: {:?}", diesel_err);
-        warp::reject::custom(INTERNAL_SERVER_ERROR)
+    threadpool(f).await.map_err(|err| {
+        error!("Error in threadpool: {:?}", err);
+        err.into()
     })
 }
 
@@ -63,50 +59,26 @@ where
 
             serde_json::from_slice(&body).map_err(|err| {
                 debug!("Request JSON deserialize error: {}", err);
-                warp::reject::custom(Problem::InvalidJson {
+                Rejection::from(Problem::InvalidJson {
                     category: (&err).into(),
                 })
             })
         })
 }
 
-/// Create a filter to get a PostgreSQL connection from a PostgreSQL connection pool.
-pub fn pg(
-    pg_pool: crate::PgPool,
-) -> impl Filter<Extract = (crate::PgPooled,), Error = Rejection> + Clone {
-    warp::any()
-        .map(move || pg_pool.clone())
-        .and_then(|pg_pool: crate::PgPool| {
-            // TODO: check whether PgPool::get actually needs to be run in a threadpool
-            threadpool(move || match pg_pool.get() {
-                Ok(pg_pooled) => Ok(pg_pooled),
-                Err(_) => Err(warp::reject::custom(INTERNAL_SERVER_ERROR)),
-            })
-        })
+#[allow(dead_code)]
+pub fn ok_or_internal_error<T, E>(r: Result<T, E>) -> AppResult<T> {
+    r.map_err(|_| INTERNAL_SERVER_ERROR)
 }
 
 #[allow(dead_code)]
-pub fn ok_or_internal_error<T, E>(r: Result<T, E>) -> Result<T, Rejection> {
-    match r {
-        Ok(value) => Ok(value),
-        Err(_) => Err(warp::reject::custom(INTERNAL_SERVER_ERROR)),
-    }
+pub fn some_or_internal_error<T>(r: Option<T>) -> AppResult<T> {
+    r.ok_or_else(|| INTERNAL_SERVER_ERROR)
 }
 
 #[allow(dead_code)]
-pub fn some_or_internal_error<T>(r: Option<T>) -> Result<T, Rejection> {
-    match r {
-        Some(value) => Ok(value),
-        None => Err(warp::reject::custom(INTERNAL_SERVER_ERROR)),
-    }
-}
-
-#[allow(dead_code)]
-pub fn some_or_not_found<T>(r: Option<T>) -> Result<T, Rejection> {
-    match r {
-        Some(value) => Ok(value),
-        None => Err(warp::reject::custom(NOT_FOUND)),
-    }
+pub fn some_or_not_found<T>(r: Option<T>) -> Result<T, Problem> {
+    r.ok_or_else(|| NOT_FOUND)
 }
 
 /**
@@ -117,14 +89,14 @@ pub fn permission_or_forbidden<P>(
     actor: &P::Actor,
     object: &P::Object,
     permission: P,
-) -> Result<(), Rejection>
+) -> AppResult<()>
 where
     P: Permission,
 {
     if permission.permitted(actor, object) {
         Ok(())
     } else {
-        Err(warp::reject::custom(FORBIDDEN))
+        Err(FORBIDDEN)
     }
 }
 
@@ -138,21 +110,19 @@ where
  * returns the fetched user, membership and kit.
  */
 pub async fn fut_kit_permission_or_forbidden<'a>(
-    conn: crate::PgPooled,
+    pg: PgPool,
     user_id: Option<crate::models::UserId>,
     kit_serial: String,
     action: crate::authorization::KitAction,
-) -> Result<
-    (
-        Option<crate::models::User>,
-        Option<crate::models::KitMembership>,
-        crate::models::Kit,
-    ),
-    Rejection,
-> {
+) -> AppResult<(
+    Option<crate::models::User>,
+    Option<crate::models::KitMembership>,
+    crate::models::Kit,
+)> {
     use diesel::Connection;
 
-    threadpool_diesel_ok(move || {
+    let conn = pg.get().await?;
+    threadpool(move || {
         conn.transaction(|| {
             let user = if let Some(user_id) = user_id {
                 match crate::models::User::by_id(&conn, user_id)? {
@@ -200,15 +170,16 @@ pub async fn fut_kit_permission_or_forbidden<'a>(
  * given username, the request is rejected with NOT_FOUND. If the request is *not* rejected, this
  * returns the fetched actor and target users.
  */
-pub async fn fut_user_permission_or_forbidden<'a>(
-    conn: crate::PgPooled,
+pub async fn fut_user_permission_or_forbidden(
+    pg: PgPool,
     actor_user_id: Option<crate::models::UserId>,
     object_username: String,
     action: crate::authorization::UserAction,
-) -> Result<(Option<crate::models::User>, crate::models::User), Rejection> {
+) -> AppResult<(Option<crate::models::User>, crate::models::User)> {
     use diesel::Connection;
 
-    threadpool_diesel_ok(move || {
+    let conn = pg.get().await?;
+    threadpool(move || {
         conn.transaction(|| {
             let actor_user = if let Some(actor_user_id) = actor_user_id {
                 match crate::models::User::by_id(&conn, actor_user_id)? {
@@ -242,7 +213,7 @@ pub async fn fut_user_permission_or_forbidden<'a>(
  * user, kit membership and kit fetched from the database.
  */
 pub fn authorization_user_kit_from_query(
-    pg: BoxedFilter<(crate::PgPooled,)>,
+    pg: PgPool,
     action: authorization::KitAction,
 ) -> BoxedFilter<(
     Option<models::User>,
@@ -258,12 +229,10 @@ pub fn authorization_user_kit_from_query(
     warp::query::query::<KitSerial>()
         .map(|query: KitSerial| query.kit_serial)
         .and(authentication::option_by_token())
-        .and(pg)
-        .and_then(
-            move |kit_serial: String, user_id: Option<models::UserId>, conn: crate::PgPooled| {
-                fut_kit_permission_or_forbidden(conn, user_id, kit_serial, action)
-            },
-        )
+        .and_then(move |kit_serial: String, user_id: Option<models::UserId>| {
+            fut_kit_permission_or_forbidden(pg.clone(), user_id, kit_serial, action)
+                .err_into::<Rejection>()
+        })
         .untuple_one()
         .boxed()
 }
@@ -275,7 +244,7 @@ pub fn authorization_user_kit_from_query(
  */
 pub fn authorization_user_kit_from_filter(
     filter: BoxedFilter<(String,)>,
-    pg: BoxedFilter<(crate::PgPooled,)>,
+    pg: PgPool,
     action: authorization::KitAction,
 ) -> BoxedFilter<(
     Option<models::User>,
@@ -284,22 +253,20 @@ pub fn authorization_user_kit_from_filter(
 )> {
     filter
         .and(authentication::option_by_token())
-        .and(pg)
-        .and_then(
-            move |kit_serial: String, user_id: Option<models::UserId>, conn: crate::PgPooled| {
-                fut_kit_permission_or_forbidden(conn, user_id, kit_serial, action)
-            },
-        )
+        .and_then(move |kit_serial: String, user_id: Option<models::UserId>| {
+            fut_kit_permission_or_forbidden(pg.clone(), user_id, kit_serial, action)
+                .err_into::<Rejection>()
+        })
         .untuple_one()
         .boxed()
 }
 
-pub fn guard<T, F>(val: T, f: F) -> Result<T, warp::Rejection>
+pub fn guard<T, E, F>(val: T, f: F) -> Result<T, E>
 where
-    F: Fn(&T) -> Option<warp::Rejection>,
+    F: Fn(&T) -> Option<E>,
 {
     match f(&val) {
-        Some(rejection) => Err(rejection),
+        Some(error) => Err(error),
         None => Ok(val),
     }
 }

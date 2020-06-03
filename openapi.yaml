@@ -248,6 +248,73 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+  "/kits/{kitSerial}/configurations":
+    get:
+      summary: The configurations of the specified kit.
+      operationId: listConfigurations
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: path
+          required: true
+          description: The serial of the kit to retrieve the configurations of.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The retrieved configurations.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KitConfigurationWithPeripherals"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+    post:
+      summary: Create a new configuration.
+      operationId: createConfiguration
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: path
+          required: true
+          description: The serial of the kit to create a configuration for.
+          schema:
+            type: string
+      requestBody:
+        description: The configuration to create.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewKitConfiguration"
+      responses:
+        '201':
+          description: The created kit configuration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KitConfiguration"
+                type: object
+        '400':
+          $ref: "#/components/responses/InvalidJson"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
   "/kit-rpc/{kitSerial}/version":
     get:
       summary: Query the kit for the version it is running.
@@ -544,73 +611,6 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
-  "/kit-configurations":
-    get:
-      summary: The configurations of the specified kit.
-      operationId: listConfigurations
-      security:
-        - bearerAuth: []
-      tags:
-        - kits
-      parameters:
-        - name: kitSerial
-          in: query
-          required: true
-          description: The serial of the kit to retrieve the configurations of.
-          schema:
-            type: string
-      responses:
-        '200':
-          description: The retrieved configurations.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/KitConfigurationWithPeripherals"
-        '401':
-          $ref: "#/components/responses/ErrorUnauthorized"
-        '429':
-          $ref: "#/components/responses/ErrorRateLimit"
-        '500':
-          $ref: "#/components/responses/ErrorInternalServer"
-    post:
-      summary: Create a new configuration.
-      operationId: createConfiguration
-      security:
-        - bearerAuth: []
-      tags:
-        - kits
-      parameters:
-        - name: kitSerial
-          in: query
-          required: true
-          description: The serial of the kit to create a configuration for.
-          schema:
-            type: string
-      requestBody:
-        description: The configuration to create.
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NewKitConfiguration"
-      responses:
-        '201':
-          description: The created kit configuration.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/KitConfiguration"
-                type: object
-        '400':
-          $ref: "#/components/responses/InvalidJson"
-        '401':
-          $ref: "#/components/responses/ErrorUnauthorized"
-        '429':
-          $ref: "#/components/responses/ErrorRateLimit"
-        '500':
-          $ref: "#/components/responses/ErrorInternalServer"
   "/kit-configurations/{configurationId}":
     patch:
       summary: Update the configuration.
@@ -620,12 +620,6 @@ paths:
       tags:
         - kits
       parameters:
-        - name: kitSerial
-          in: query
-          required: true
-          description: The serial of the kit to patch the configuration for.
-          schema:
-            type: string
         - name: configurationId
           in: path
           required: true
@@ -664,12 +658,6 @@ paths:
       tags:
         - kits
       parameters:
-        - name: kitSerial
-          in: query
-          required: true
-          description: The serial of the kit to add a peripheral to the configuration to.
-          schema:
-            type: string
         - name: configurationId
           in: path
           required: true
@@ -699,7 +687,7 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
-  "/kit-configurations/{configurationId}/peripherals/{peripheralId}":
+  "/peripherals/{peripheralId}":
     patch:
       summary: Update a peripheral.
       operationId: patchPeripheral
@@ -708,18 +696,6 @@ paths:
       tags:
         - kits
       parameters:
-        - name: kitSerial
-          in: query
-          required: true
-          description: The serial of the kit to update the peripheral of.
-          schema:
-            type: string
-        - name: configurationId
-          in: path
-          required: true
-          description: The id of the configuration to update the peripheral of.
-          schema:
-            type: number
         - name: peripheralId
           in: path
           required: true
@@ -752,18 +728,6 @@ paths:
       tags:
         - kits
       parameters:
-        - name: kitSerial
-          in: query
-          required: true
-          description: The serial of the kit to delete a peripheral from.
-          schema:
-            type: string
-        - name: configurationId
-          in: path
-          required: true
-          description: The id of the configuration to delete a peripheral from.
-          schema:
-            type: number
         - name: peripheralId
           in: path
           required: true

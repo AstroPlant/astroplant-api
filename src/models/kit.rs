@@ -25,8 +25,8 @@ pub struct Kit {
 }
 
 impl Kit {
-    pub fn by_id(conn: &PgConnection, id: i32) -> QueryResult<Kit> {
-        kits::table.find(id).first(conn)
+    pub fn by_id(conn: &PgConnection, id: KitId) -> QueryResult<Option<Kit>> {
+        kits::table.find(id.0).first(conn).optional()
     }
 
     pub fn by_serial(conn: &PgConnection, serial: String) -> QueryResult<Option<Kit>> {

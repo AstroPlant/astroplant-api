@@ -1,36 +1,20 @@
 use futures::future::FutureExt;
 use serde::Deserialize;
 use validator::Validate;
-use warp::{filters::BoxedFilter, path, Filter, Rejection};
+use warp::{filters::BoxedFilter, Filter, Rejection};
 
-use crate::database::{PgPool, PgPooled};
+use crate::database::PgPool;
 use crate::problem::{self, AppResult};
 use crate::response::{Response, ResponseBuilder};
-use crate::{helpers, models, views};
+use crate::{authentication, authorization, helpers, models, views};
 
 pub fn router(pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    trace!("Setting up configurations/peripheral router.");
+    trace!("Setting up peripherals router.");
 
     add_peripheral_to_configuration(pg.clone())
         .or(patch_or_delete_peripheral(pg.clone()))
         .unify()
-        .boxed()
-}
-
-fn peripheral_base_filter(
-    pg: PgPool,
-    action: crate::authorization::KitAction,
-) -> BoxedFilter<(
-    AppResult<(
-        Option<models::User>,
-        Option<models::KitMembership>,
-        models::Kit,
-        models::KitConfiguration,
-    )>,
-)> {
-    super::authorize_and_get_kit_configuration(pg, action)
-        .and(path!("peripherals" / ..))
         .boxed()
 }
 
@@ -63,8 +47,7 @@ fn check_configuration(
     Ok(())
 }
 
-/// Handles the `POST /kit-configurations/{kitConfigurationId}/peripherals?kitSerial={kitSerial}`
-/// route.
+/// Handles the `POST /kit-configurations/{kitConfigurationId}/peripherals` route.
 fn add_peripheral_to_configuration(
     pg: PgPool,
 ) -> impl Filter<Extract = (AppResult<Response>,), Error = Rejection> + Clone {
@@ -81,10 +64,20 @@ fn add_peripheral_to_configuration(
 
     async fn implementation(
         pg: PgPool,
-        kit: models::Kit,
-        configuration: models::KitConfiguration,
+        user_id: Option<models::UserId>,
+        kit_configuration_id: models::KitConfigurationId,
         peripheral: Peripheral,
     ) -> AppResult<Response> {
+        let (kit, configuration) =
+            super::get_models_from_kit_configuration_id(pg.clone(), kit_configuration_id).await?;
+        super::authorize(
+            pg.clone(),
+            user_id,
+            &kit,
+            authorization::KitAction::EditConfiguration,
+        )
+        .await?;
+
         if !configuration.never_used {
             return Err(problem::InvalidParameterReason::AlreadyActivated
                 .singleton("configurationId")
@@ -128,38 +121,24 @@ fn add_peripheral_to_configuration(
         Ok(ResponseBuilder::ok().body(views::Peripheral::from(created_peripheral)))
     }
 
-    peripheral_base_filter(
-        pg.clone(),
-        crate::authorization::KitAction::EditConfiguration,
-    )
-    .and(warp::post())
-    .and(warp::path::end())
-    .and(crate::helpers::deserialize())
-    .and_then(
-        move |auth: AppResult<(
-            Option<models::User>,
-            Option<models::KitMembership>,
-            models::Kit,
-            models::KitConfiguration,
-        )>,
-              peripheral: Peripheral| {
-            let pg = pg.clone();
-            async move {
-                match auth {
-                    Ok((_, _, kit, configuration)) => {
-                        implementation(pg, kit, configuration, peripheral)
-                            .never_error()
-                            .await
-                    }
-                    Err(err) => Ok(Err(err)),
-                }
-            }
-        },
-    )
+    warp::post()
+        .and(warp::path!("kit-configurations" / i32 / "peripherals"))
+        .and(authentication::option_by_token())
+        .and(crate::helpers::deserialize())
+        .and_then(
+            move |kit_configuration_id: i32, user_id, peripheral: Peripheral| {
+                implementation(
+                    pg.clone(),
+                    user_id,
+                    models::KitConfigurationId(kit_configuration_id),
+                    peripheral,
+                )
+                .never_error()
+            },
+        )
 }
 
-/// Handles the `PATCH` and `DELETE /kit-configurations/{kitConfigurationId}/peripherals/{peripheralId}?kitSerial={kitSerial}`
-/// route.
+/// Handles the `PATCH` and `DELETE /peripherals/{peripheralId}` routes.
 fn patch_or_delete_peripheral(
     pg: PgPool,
 ) -> impl Filter<Extract = (AppResult<Response>,), Error = Rejection> + Clone {
@@ -173,76 +152,53 @@ fn patch_or_delete_peripheral(
         configuration: Option<serde_json::Value>,
     }
 
-    let base = peripheral_base_filter(
-        pg.clone(),
-        crate::authorization::KitAction::EditConfiguration,
-    )
-    .and(
-        path!(i32)
-            .map(models::PeripheralId)
-            .and(pg.clone().filter())
-            .and_then(|peripheral_id: models::PeripheralId, conn: PgPooled| {
-                helpers::threadpool(move || {
-                    match models::Peripheral::by_id(&conn, peripheral_id)
-                        .map_err(|_| warp::reject::custom(problem::INTERNAL_SERVER_ERROR))?
-                    {
-                        Some(peripheral) => Ok(Ok(peripheral)),
-                        None => Ok(Err(warp::reject::custom(problem::NOT_FOUND))),
-                    }
-                })
-                .map(helpers::flatten_result)
-            }),
-    )
-    .and(warp::path::end())
-    .and_then(
-        |auth: AppResult<(
-            Option<models::User>,
-            Option<models::KitMembership>,
-            models::Kit,
-            models::KitConfiguration,
-        )>,
-         peripheral: models::Peripheral| {
-            async {
-                match auth {
-                    Ok((_, _, _, configuration)) => {
-                        helpers::guard((configuration, peripheral), |(configuration, _)| {
-                            if configuration.never_used {
-                                None
-                            } else {
-                                Some(warp::reject::custom(
-                                    problem::InvalidParameterReason::AlreadyActivated
-                                        .singleton("configurationId")
-                                        .into_problem(),
-                                ))
-                            }
-                        })
-                    }
-                    Err(err) => Err(warp::reject::custom(err)),
-                }
-            }
-        },
-    )
-    .untuple_one();
+    /// Check user authorization and make sure the configuration has never been activated.
+    async fn base(
+        pg: PgPool,
+        user_id: Option<models::UserId>,
+        peripheral_id: models::PeripheralId,
+    ) -> AppResult<(models::Kit, models::KitConfiguration, models::Peripheral)> {
+        let (kit, kit_configuration, peripheral) =
+            super::get_models_from_peripheral_id(pg.clone(), peripheral_id).await?;
+        super::authorize(
+            pg.clone(),
+            user_id,
+            &kit,
+            authorization::KitAction::EditConfiguration,
+        )
+        .await?;
+
+        if !kit_configuration.never_used {
+            return Err(problem::InvalidParameterReason::AlreadyActivated
+                .singleton("configurationId")
+                .into_problem());
+        }
+
+        Ok((kit, kit_configuration, peripheral))
+    }
 
     async fn patch_implementation(
         pg: PgPool,
-        peripheral: models::Peripheral,
+        user_id: Option<models::UserId>,
+        peripheral_id: models::PeripheralId,
         peripheral_patch: PeripheralPatch,
     ) -> AppResult<Response> {
+        let (_, _, peripheral) = base(pg.clone(), user_id, peripheral_id).await?;
+
+        let patched_peripheral = models::UpdatePeripheral {
+            id: peripheral.id,
+            name: peripheral_patch.name,
+            configuration: peripheral_patch.configuration,
+        };
+
+        if let Err(validation_errors) = patched_peripheral.validate() {
+            let invalid_parameters = problem::InvalidParameters::from(validation_errors);
+            return Err(invalid_parameters.into_problem());
+        }
+
         let conn = pg.get().await?;
         let updated_peripheral = helpers::threadpool(move || {
             conn.transaction(|| {
-                let patched_peripheral = models::UpdatePeripheral {
-                    id: peripheral.id,
-                    name: peripheral_patch.name,
-                    configuration: peripheral_patch.configuration,
-                };
-
-                if let Err(validation_errors) = patched_peripheral.validate() {
-                    let invalid_parameters = problem::InvalidParameters::from(validation_errors);
-                    return Err(invalid_parameters.into_problem());
-                }
-
                 let definition = match models::PeripheralDefinition::by_id(
                     &conn,
                     peripheral.peripheral_definition_id,
@@ -268,8 +224,11 @@ fn patch_or_delete_peripheral(
 
     async fn delete_implementation(
         pg: PgPool,
-        peripheral: models::Peripheral,
+        user_id: Option<models::UserId>,
+        peripheral_id: models::PeripheralId,
     ) -> AppResult<Response> {
+        let (_, _, peripheral) = base(pg.clone(), user_id, peripheral_id).await?;
+
         let conn = pg.get().await?;
         helpers::threadpool(move || {
             peripheral.delete(&conn)?;
@@ -279,21 +238,29 @@ fn patch_or_delete_peripheral(
     }
 
     let pg2 = pg.clone();
-    (base
-        .clone()
-        .and(warp::patch())
+    (warp::patch()
+        .and(warp::path!("peripherals" / i32))
+        .and(authentication::option_by_token())
         .and(crate::helpers::deserialize())
         .and_then(
-            move |_configuration: models::KitConfiguration,
-                  peripheral: models::Peripheral,
+            move |peripheral_id: i32,
+                  user_id: Option<models::UserId>,
                   peripheral_patch: PeripheralPatch| {
-                patch_implementation(pg.clone(), peripheral, peripheral_patch).never_error()
+                patch_implementation(
+                    pg.clone(),
+                    user_id,
+                    models::PeripheralId(peripheral_id),
+                    peripheral_patch,
+                )
+                .never_error()
             },
         ))
-    .or(base.and(warp::delete()).and_then(
-        move |_configuration: models::KitConfiguration, peripheral: models::Peripheral| {
-            delete_implementation(pg2.clone(), peripheral).never_error()
-        },
-    ))
+    .or(warp::delete()
+        .and(warp::path!("peripherals" / i32))
+        .and(authentication::option_by_token())
+        .and_then(move |peripheral_id: i32, user_id: Option<models::UserId>| {
+            delete_implementation(pg2.clone(), user_id, models::PeripheralId(peripheral_id))
+                .never_error()
+        }))
     .unify()
 }

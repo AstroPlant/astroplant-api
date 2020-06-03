@@ -106,6 +106,18 @@ impl Peripheral {
     pub fn get_id(&self) -> PeripheralId {
         PeripheralId(self.id)
     }
+
+    pub fn get_kit_id(&self) -> KitId {
+        KitId(self.kit_id)
+    }
+
+    pub fn get_kit_configuration_id(&self) -> KitConfigurationId {
+        KitConfigurationId(self.kit_configuration_id)
+    }
+
+    pub fn get_peripheral_definition_id(&self) -> PeripheralDefinitionId {
+        PeripheralDefinitionId(self.peripheral_definition_id)
+    }
 }
 
 impl UpdatePeripheral {

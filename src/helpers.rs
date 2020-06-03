@@ -1,6 +1,6 @@
 use futures::future::TryFutureExt;
 use log::error;
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::de::DeserializeOwned;
 use warp::{filters::BoxedFilter, Filter, Rejection};
 
 use crate::authorization::{self, KitUser, Permission};
@@ -208,36 +208,6 @@ pub async fn fut_user_permission_or_forbidden(
 }
 
 /**
- * Authenticate the user through the Authorization header and the kit from the kitSerial parameter
- * in the query. Check whether the user is authorized to perform the given action. Returns the
- * user, kit membership and kit fetched from the database.
- */
-pub fn authorization_user_kit_from_query(
-    pg: PgPool,
-    action: authorization::KitAction,
-) -> BoxedFilter<(
-    Option<models::User>,
-    Option<models::KitMembership>,
-    models::Kit,
-)> {
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct KitSerial {
-        kit_serial: String,
-    }
-
-    warp::query::query::<KitSerial>()
-        .map(|query: KitSerial| query.kit_serial)
-        .and(authentication::option_by_token())
-        .and_then(move |kit_serial: String, user_id: Option<models::UserId>| {
-            fut_kit_permission_or_forbidden(pg.clone(), user_id, kit_serial, action)
-                .err_into::<Rejection>()
-        })
-        .untuple_one()
-        .boxed()
-}
-
-/**
  * Authenticate the user through the Authorization header and the kit serial returned by the given filter.
  * Check whether the user is authorized to perform the given action. Returns the user, kit membership
  * and kit fetched from the database.
@@ -261,6 +231,7 @@ pub fn authorization_user_kit_from_filter(
         .boxed()
 }
 
+#[allow(dead_code)]
 pub fn guard<T, E, F>(val: T, f: F) -> Result<T, E>
 where
     F: Fn(&T) -> Option<E>,

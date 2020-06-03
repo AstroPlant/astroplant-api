@@ -100,6 +100,10 @@ impl KitConfiguration {
     pub fn get_id(&self) -> KitConfigurationId {
         KitConfigurationId(self.id)
     }
+
+    pub fn get_kit_id(&self) -> KitId {
+        KitId(self.kit_id)
+    }
 }
 
 impl UpdateKitConfiguration {

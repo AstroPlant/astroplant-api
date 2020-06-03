@@ -28,6 +28,7 @@ impl PgPool {
     }
 
     /// Create a filter to get a PostgreSQL connection from a PostgreSQL connection pool.
+    #[allow(dead_code)]
     pub fn filter(self) -> impl Filter<Extract = (PgPooled,), Error = Rejection> + Clone {
         warp::any().and_then(move || self.clone().get().err_into::<Rejection>())
     }

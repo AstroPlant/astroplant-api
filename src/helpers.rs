@@ -1,12 +1,11 @@
 use futures::future::TryFutureExt;
 use log::error;
 use serde::de::DeserializeOwned;
-use warp::{filters::BoxedFilter, Filter, Rejection};
+use warp::{Filter, Rejection};
 
-use crate::authorization::{self, KitUser, Permission};
+use crate::authorization::{KitUser, Permission};
 use crate::database::PgPool;
 use crate::problem::{AppResult, Problem, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND};
-use crate::{authentication, models};
 
 /// Run a blocking function on a threadpool.
 pub async fn threadpool<F, T>(f: F) -> T
@@ -205,30 +204,6 @@ pub async fn fut_user_permission_or_forbidden(
             .map(|_| (target_user, object_user))
     })
     .await
-}
-
-/**
- * Authenticate the user through the Authorization header and the kit serial returned by the given filter.
- * Check whether the user is authorized to perform the given action. Returns the user, kit membership
- * and kit fetched from the database.
- */
-pub fn authorization_user_kit_from_filter(
-    filter: BoxedFilter<(String,)>,
-    pg: PgPool,
-    action: authorization::KitAction,
-) -> BoxedFilter<(
-    Option<models::User>,
-    Option<models::KitMembership>,
-    models::Kit,
-)> {
-    filter
-        .and(authentication::option_by_token())
-        .and_then(move |kit_serial: String, user_id: Option<models::UserId>| {
-            fut_kit_permission_or_forbidden(pg.clone(), user_id, kit_serial, action)
-                .err_into::<Rejection>()
-        })
-        .untuple_one()
-        .boxed()
 }
 
 #[allow(dead_code)]

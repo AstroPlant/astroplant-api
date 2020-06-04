@@ -233,6 +233,12 @@ paths:
           description: The serial of the kit to retrieve aggregate measurements for.
           schema:
             type: string
+        - name: cursor
+          in: query
+          required: false
+          description: A cursor for paging. Although this cursor can be constructed by the client (it is url-encoded JSON-encoded [datetime, id] of the last measurement of the current page), this is discouraged. Instead, the Link header in the response body should be used to retrieve the server-generated URI to the next page.
+          schema:
+            type: string
       responses:
         '200':
           description: The retrieved aggregate measurements.
@@ -242,6 +248,9 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AggregateMeasurement"
+          headers:
+            Link:
+              $ref: "#/components/headers/Link"
         '401':
           $ref: "#/components/responses/ErrorUnauthorized"
         '429':
@@ -1320,6 +1329,11 @@ components:
       required: false
       schema:
         type: string
+    Link:
+      description: Contains related links, for example to link to a next page if a next page exists. See [RFC 8288](https://tools.ietf.org/html/rfc8288). The URIs in these links are intended to be followed directly by the client using GET requests with the same authentication headers as the original request. The client does not need to understand the form of the URIs.
+      schema:
+        type: string
+        example: </kits/k-wbn3-rr46-twf8/aggregate-measurements?cursor=%5B%222020-06-03T20%3A14%3A56.688Z%22%2C%2266be0e90-6b62-46a6-b681-0947df0bafcc%22%5D>; rel="next"
   responses:
     InvalidJson:
       description: The JSON you provided was invalid.

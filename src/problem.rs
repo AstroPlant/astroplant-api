@@ -11,6 +11,7 @@ use std::fmt::{self, Display};
 pub const NOT_FOUND: Problem = Problem::Generic(GenericProblem::NotFound);
 pub const INTERNAL_SERVER_ERROR: Problem = Problem::Generic(GenericProblem::InternalServerError);
 pub const FORBIDDEN: Problem = Problem::Generic(GenericProblem::Forbidden);
+pub const BAD_REQUEST: Problem = Problem::Generic(GenericProblem::BadRequest);
 
 pub type AppResult<T> = Result<T, Problem>;
 
@@ -59,6 +60,7 @@ impl Problem {
             Generic(InternalServerError) => warp::http::StatusCode::INTERNAL_SERVER_ERROR,
             Generic(Forbidden) => warp::http::StatusCode::FORBIDDEN,
             Generic(MethodNotAllowed) => warp::http::StatusCode::METHOD_NOT_ALLOWED,
+            Generic(BadRequest) => warp::http::StatusCode::BAD_REQUEST,
             RateLimit(_) => warp::http::StatusCode::TOO_MANY_REQUESTS,
             AuthorizationHeader { .. } => warp::http::StatusCode::UNAUTHORIZED,
             PayloadTooLarge { .. } => warp::http::StatusCode::PAYLOAD_TOO_LARGE,
@@ -117,6 +119,9 @@ pub enum GenericProblem {
 
     #[serde(rename = "Method Not Allowed")]
     MethodNotAllowed,
+
+    #[serde(rename = "Bad Request")]
+    BadRequest,
 }
 
 #[derive(Debug, Serialize)]

@@ -1,3 +1,4 @@
+use crate::cursors;
 use crate::schema::aggregate_measurements;
 
 use chrono::{DateTime, Utc};
@@ -51,14 +52,29 @@ impl AggregateMeasurement {
             .optional()
     }
 
-    pub fn recent_measurements(conn: &PgConnection, kit_id: KitId) -> QueryResult<Vec<Self>> {
-        aggregate_measurements::table
+    pub fn page(
+        conn: &PgConnection,
+        kit_id: KitId,
+        cursor: Option<cursors::AggregateMeasurements>,
+    ) -> QueryResult<Vec<Self>> {
+        let mut query = aggregate_measurements::table
             .filter(aggregate_measurements::columns::kit_id.eq(kit_id.0))
-            .filter(
+            .into_boxed();
+        if let Some(cursors::AggregateMeasurements(datetime, id)) = cursor {
+            query = query.filter(
                 aggregate_measurements::columns::datetime_start
-                    .gt(chrono::Utc::now() - chrono::Duration::days(5)),
+                    .lt(datetime)
+                    .or(aggregate_measurements::columns::datetime_start
+                        .eq(datetime)
+                        .and(aggregate_measurements::columns::id.lt(id))),
             )
-            .order(aggregate_measurements::dsl::datetime_start)
+        }
+        query
+            .order((
+                aggregate_measurements::dsl::datetime_start.desc(),
+                aggregate_measurements::dsl::id.desc(),
+            ))
+            .limit(cursors::AggregateMeasurements::PER_PAGE as i64)
             .load(conn)
     }
 

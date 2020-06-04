@@ -13,6 +13,7 @@ extern crate strum_macros;
 use once_cell::sync::OnceCell;
 use warp::{self, http::Method, path, Filter, Rejection, Reply};
 
+mod cursors;
 mod database;
 mod utils;
 
@@ -132,7 +133,9 @@ async fn main() {
                 Method::DELETE,
                 Method::OPTIONS,
             ])
-            .allow_headers(vec!["Authorization", "Content-Type"]),
+            .allow_headers(vec!["Content-Type", "Authorization"])
+            .expose_headers(vec!["Link"])
+            .build(),
     );
 
     let all = rate_limit.and(ws_endpoint.or(rest_endpoints));

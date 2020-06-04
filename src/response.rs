@@ -28,6 +28,7 @@ impl Response {
 pub struct ResponseBuilder {
     status_code: StatusCode,
     headers: HashMap<String, String>,
+    links: Vec<String>,
 }
 
 impl ResponseBuilder {
@@ -36,6 +37,14 @@ impl ResponseBuilder {
         ResponseBuilder {
             status_code,
             headers: HashMap::new(),
+            links: Vec::new(),
+        }
+    }
+
+    fn process(&mut self) {
+        if !self.links.is_empty() {
+            let links = self.links.join(", ");
+            self.headers.insert("link".to_owned(), links);
         }
     }
 
@@ -58,6 +67,11 @@ impl ResponseBuilder {
         self
     }
 
+    pub fn link(mut self, uri: &str, rel: &str) -> Self {
+        self.links.push(format!("<{}>; rel=\"{}\"", uri, rel));
+        self
+    }
+
     /// Add a Location URI header. Only makes sense with the Created or a Redirection status.
     #[allow(dead_code)]
     pub fn content_uri(mut self, uri: String) -> Self {
@@ -74,7 +88,8 @@ impl ResponseBuilder {
 
     /// Build an empty response.
     #[allow(dead_code)]
-    pub fn empty(self) -> Response {
+    pub fn empty(mut self) -> Response {
+        self.process();
         Response {
             value: None,
             status_code: self.status_code,
@@ -84,10 +99,11 @@ impl ResponseBuilder {
 
     /// Build the response with the given value.
     #[allow(dead_code)]
-    pub fn body<T>(self, value: T) -> Response
+    pub fn body<T>(mut self, value: T) -> Response
     where
         T: ErasedSerialize + Send + 'static,
     {
+        self.process();
         Response {
             value: Some(Box::new(value) as Box<dyn ErasedSerialize + Send>),
             status_code: self.status_code,

@@ -233,10 +233,28 @@ paths:
           description: The serial of the kit to retrieve aggregate measurements for.
           schema:
             type: string
+        - name: configuration
+          in: query
+          required: false
+          description: An ID of a kit configuration to filter on. If not given, does not filter on kit configurations.
+          schema:
+            type: number
+        - name: peripheral
+          in: query
+          required: false
+          description: An ID of a peripheral to filter on. If not given, does not filter on peripherals.
+          schema:
+            type: number
+        - name: quantityType
+          in: query
+          required: false
+          description: An ID of a quantity type to filter on. If not given, does not filter on quantity types.
+          schema:
+            type: number
         - name: cursor
           in: query
           required: false
-          description: A cursor for paging. Although this cursor can be constructed by the client (it is url-encoded JSON-encoded [datetime, id] of the last measurement of the current page), this is discouraged. Instead, the Link header in the response body should be used to retrieve the server-generated URI to the next page.
+          description: A cursor for paging. Although this cursor can be constructed by the client (it is the url-encoding of the JSON-serialization of `[datetimeStart, id]` of the last measurement of the current page), this is discouraged. Instead, the Link header in the response body should be used to retrieve the server-generated URI to the next page.
           schema:
             type: string
       responses:

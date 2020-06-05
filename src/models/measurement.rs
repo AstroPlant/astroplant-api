@@ -55,11 +55,30 @@ impl AggregateMeasurement {
     pub fn page(
         conn: &PgConnection,
         kit_id: KitId,
+        configuration_id: Option<i32>,
+        peripheral_id: Option<i32>,
+        quantity_type_id: Option<i32>,
         cursor: Option<cursors::AggregateMeasurements>,
     ) -> QueryResult<Vec<Self>> {
         let mut query = aggregate_measurements::table
             .filter(aggregate_measurements::columns::kit_id.eq(kit_id.0))
             .into_boxed();
+
+        if let Some(configuration_id) = configuration_id {
+            query = query.filter(
+                aggregate_measurements::columns::kit_configuration_id.eq(configuration_id),
+            );
+        }
+        if let Some(peripheral_id) = peripheral_id {
+            query =
+                query.filter(aggregate_measurements::columns::peripheral_id.eq(peripheral_id));
+        }
+        if let Some(quantity_type_id) = quantity_type_id {
+            query = query.filter(
+                aggregate_measurements::columns::quantity_type_id.eq(quantity_type_id),
+            );
+        }
+
         if let Some(cursors::AggregateMeasurements(datetime, id)) = cursor {
             query = query.filter(
                 aggregate_measurements::columns::datetime_start

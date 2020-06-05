@@ -159,6 +159,8 @@ fn handle_rejection(rejection: Rejection) -> Result<impl Reply, Rejection> {
 
         let problem = if rejection.is_not_found() {
             problem::NOT_FOUND
+        } else if rejection.find::<warp::reject::InvalidQuery>().is_some() {
+            problem::BAD_REQUEST
         } else {
             problem::INTERNAL_SERVER_ERROR
         };

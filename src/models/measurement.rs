@@ -20,7 +20,7 @@ use super::{
 #[table_name = "aggregate_measurements"]
 pub struct AggregateMeasurementId(#[column_name = "id"] pub Uuid);
 
-#[derive(Clone, Debug, PartialEq, Queryable, Identifiable, Associations, AsChangeset, Validate)]
+#[derive(Clone, Debug, PartialEq, Queryable, Identifiable, Associations, Validate)]
 #[belongs_to(parent = "Kit", foreign_key = "kit_id")]
 #[belongs_to(parent = "KitId", foreign_key = "kit_id")]
 #[belongs_to(parent = "KitConfiguration", foreign_key = "kit_configuration_id")]
@@ -35,10 +35,9 @@ pub struct AggregateMeasurement {
     pub kit_id: i32,
     pub kit_configuration_id: i32,
     pub quantity_type_id: i32,
-    pub aggregate_type: String,
-    pub value: f64,
     pub datetime_start: DateTime<Utc>,
     pub datetime_end: DateTime<Utc>,
+    pub values: serde_json::Value,
 }
 
 impl AggregateMeasurement {
@@ -65,18 +64,15 @@ impl AggregateMeasurement {
             .into_boxed();
 
         if let Some(configuration_id) = configuration_id {
-            query = query.filter(
-                aggregate_measurements::columns::kit_configuration_id.eq(configuration_id),
-            );
+            query = query
+                .filter(aggregate_measurements::columns::kit_configuration_id.eq(configuration_id));
         }
         if let Some(peripheral_id) = peripheral_id {
-            query =
-                query.filter(aggregate_measurements::columns::peripheral_id.eq(peripheral_id));
+            query = query.filter(aggregate_measurements::columns::peripheral_id.eq(peripheral_id));
         }
         if let Some(quantity_type_id) = quantity_type_id {
-            query = query.filter(
-                aggregate_measurements::columns::quantity_type_id.eq(quantity_type_id),
-            );
+            query = query
+                .filter(aggregate_measurements::columns::quantity_type_id.eq(quantity_type_id));
         }
 
         if let Some(cursors::AggregateMeasurements(datetime, id)) = cursor {

@@ -1311,10 +1311,9 @@ components:
         - kitId
         - kitConfigurationId
         - quantityTypeId
-        - aggregateType
-        - value
         - datetimeStart
         - datetimeEnd
+        - values
       properties:
         id:
           type: string
@@ -1331,16 +1330,16 @@ components:
         quantityTypeId:
           type: number
           format: int32
-        aggregateType:
-          type: string
-        value:
-          type: number
         datetimeStart:
           type: string
           format: date-time
         datetimeEnd:
           type: string
           format: date-time
+        values:
+          type: object
+          additionalProperties:
+            type: number
   headers:
     CursorPaging:
       description: A link to the next page.

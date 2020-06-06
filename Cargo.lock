@@ -80,6 +80,7 @@ dependencies = [
  "rumqtt",
  "serde",
  "serde_json",
+ "uuid 0.8.1",
 ]
 
 [[package]]

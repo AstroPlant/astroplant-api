@@ -34,6 +34,7 @@ fn kit_aggregate_measurements(
         query: Query,
     ) -> AppResult<Response> {
         use crate::cursors;
+        use std::convert::TryFrom;
 
         let mut out_query = query.clone();
         let cursor = (&query).cursor.as_ref().map(|s| s.parse()).transpose()?;
@@ -65,15 +66,20 @@ fn kit_aggregate_measurements(
             cursors::AggregateMeasurements::next_from_page(&aggregate_measurements)
         {
             out_query.cursor = Some(next_cursor.into());
-            let next_page_uri =
-                format!("{}?{}", base_uri, serde_urlencoded::to_string(&out_query).unwrap());
+            let next_page_uri = format!(
+                "{}?{}",
+                base_uri,
+                serde_urlencoded::to_string(&out_query).unwrap()
+            );
             response = response.link(&next_page_uri, "next");
         }
 
-        let body: Vec<_> = aggregate_measurements
+        let body = aggregate_measurements
             .into_iter()
-            .map(|aggregate_measurement| views::AggregateMeasurement::from(aggregate_measurement))
-            .collect();
+            .map(|aggregate_measurement| {
+                views::AggregateMeasurement::try_from(aggregate_measurement)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(response.body(body))
     }

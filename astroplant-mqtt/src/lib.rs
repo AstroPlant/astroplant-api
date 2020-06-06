@@ -4,6 +4,7 @@ use capnp::serialize_packed;
 use futures::task::SpawnExt;
 use futures::FutureExt;
 use rumqtt::{MqttClient, MqttOptions, Notification, QoS, ReconnectOptions, SecurityOptions};
+use std::collections::HashMap;
 use std::future::Future;
 
 mod server_rpc;
@@ -20,6 +21,7 @@ pub mod astroplant_capnp {
 
 #[derive(Debug)]
 pub struct RawMeasurement {
+    pub id: uuid::Uuid,
     pub kit_serial: String,
     pub datetime: u64,
     pub peripheral: i32,
@@ -29,13 +31,13 @@ pub struct RawMeasurement {
 
 #[derive(Debug)]
 pub struct AggregateMeasurement {
+    pub id: uuid::Uuid,
     pub kit_serial: String,
     pub datetime_start: u64,
     pub datetime_end: u64,
     pub peripheral: i32,
     pub quantity_type: i32,
-    pub aggregate_type: String,
-    pub value: f64,
+    pub values: HashMap<String, f64>,
 }
 
 #[derive(Debug)]
@@ -59,6 +61,7 @@ fn establish_subscriptions(mqtt_client: &mut MqttClient) {
 #[derive(Debug)]
 pub enum Error {
     InvalidTopic,
+    MalformedMessage,
     Capnp(capnp::Error),
     // The response is the error to send over MQTT. This is hacky.
     ServerRpcError(server_rpc::ServerRpcResponse),
@@ -73,6 +76,8 @@ fn parse_raw_measurement(kit_serial: String, mut payload: &[u8]) -> Result<MqttA
         .map_err(Error::Capnp)?;
 
     let measurement = RawMeasurement {
+        id: uuid::Uuid::from_slice(raw_measurement.get_id().map_err(Error::Capnp)?)
+            .map_err(|_| Error::MalformedMessage)?,
         kit_serial: kit_serial,
         datetime: raw_measurement.get_datetime(),
         peripheral: raw_measurement.get_peripheral(),
@@ -95,16 +100,22 @@ fn parse_aggregate_measurement(
         .map_err(Error::Capnp)?;
 
     let measurement = AggregateMeasurement {
+        id: uuid::Uuid::from_slice(aggregate_measurement.get_id().map_err(Error::Capnp)?)
+            .map_err(|_| Error::MalformedMessage)?,
         kit_serial: kit_serial,
         datetime_start: aggregate_measurement.get_datetime_start(),
         datetime_end: aggregate_measurement.get_datetime_end(),
         peripheral: aggregate_measurement.get_peripheral(),
         quantity_type: aggregate_measurement.get_quantity_type(),
-        aggregate_type: aggregate_measurement
-            .get_aggregate_type()
+        values: aggregate_measurement
+            .get_values()
             .map_err(Error::Capnp)?
-            .to_owned(),
-        value: aggregate_measurement.get_value(),
+            .into_iter()
+            .map(|v| {
+                let aggregate_type = v.get_type().map_err(Error::Capnp)?;
+                Ok((aggregate_type.to_owned(), v.get_value()))
+            })
+            .collect::<Result<_, Error>>()?,
     };
 
     Ok(MqttApiMessage::AggregateMeasurement(measurement))

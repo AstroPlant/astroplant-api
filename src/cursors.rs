@@ -23,7 +23,7 @@ impl From<AggregateMeasurements> for String {
 }
 
 impl AggregateMeasurements {
-    pub const PER_PAGE: usize = 200;
+    pub const PER_PAGE: usize = 50;
 
     pub fn next_from_page(page: &[models::AggregateMeasurement]) -> Option<Self> {
         if page.len() >= Self::PER_PAGE {

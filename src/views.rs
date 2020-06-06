@@ -1,6 +1,10 @@
 use crate::models;
+use crate::problem::{Problem, INTERNAL_SERVER_ERROR};
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::convert::TryFrom;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -391,37 +395,36 @@ pub struct AggregateMeasurement {
     pub kit_id: i32,
     pub kit_configuration_id: i32,
     pub quantity_type_id: i32,
-    pub aggregate_type: String,
-    pub value: f64,
     pub datetime_start: DateTime<Utc>,
     pub datetime_end: DateTime<Utc>,
+    pub values: HashMap<String, f64>,
 }
 
-impl From<models::AggregateMeasurement> for AggregateMeasurement {
-    fn from(
+impl TryFrom<models::AggregateMeasurement> for AggregateMeasurement {
+    type Error = Problem;
+
+    fn try_from(
         models::AggregateMeasurement {
             id,
             peripheral_id,
             kit_id,
             kit_configuration_id,
             quantity_type_id,
-            aggregate_type,
-            value,
             datetime_start,
             datetime_end,
+            values,
             ..
         }: models::AggregateMeasurement,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, Self::Error> {
+        Ok(Self {
             id,
             peripheral_id,
             kit_id,
             kit_configuration_id,
             quantity_type_id,
-            aggregate_type,
-            value,
             datetime_start,
             datetime_end,
-        }
+            values: serde_json::from_value(values).map_err(|_| INTERNAL_SERVER_ERROR)?,
+        })
     }
 }

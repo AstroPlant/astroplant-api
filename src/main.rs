@@ -33,7 +33,7 @@ mod mqtt;
 mod websocket;
 
 use problem::{AppResult, DescriptiveProblem, Problem};
-use response::{Response, ResponseBuilder};
+use response::{Response, ResponseBuilder, ResponseValue};
 
 static VERSION: &str = env!("CARGO_PKG_VERSION");
 static DEFAULT_DATABASE_URL: &str = "postgres://astroplant:astroplant@localhost/astroplant";
@@ -91,8 +91,7 @@ async fn main() {
     .and(warp::header("Accept"))
     .map(|response: AppResult<Response>, _accept: String| {
         // TODO: utilize Accept header, e.g. returning XML when requested.
-        let mut http_response_builder =
-            warp::http::response::Builder::new().header("Content-Type", "application/json");
+        let mut http_response_builder = warp::http::response::Builder::new();
         match response {
             Ok(response) => {
                 http_response_builder = http_response_builder.status(response.status_code());
@@ -103,10 +102,16 @@ async fn main() {
                 }
 
                 match response.value() {
-                    Some(value) => http_response_builder
-                        .body(serde_json::to_string(value).unwrap())
+                    Some(ResponseValue::Serializable(value)) => http_response_builder
+                        .header("Content-Type", "application/json")
+                        .body(serde_json::to_vec(&value).unwrap())
                         .unwrap(),
-                    None => http_response_builder.body("".to_owned()).unwrap(),
+                    Some(ResponseValue::Data { media_type, data }) => http_response_builder
+                        .header("Content-Type", media_type)
+                        .body(data)
+                        // FIXME potentially dangerous unwrap
+                        .unwrap(),
+                    None => http_response_builder.body(vec![]).unwrap(),
                 }
             }
             Err(problem) => {
@@ -114,7 +119,7 @@ async fn main() {
 
                 http_response_builder
                     .status(problem.to_status_code())
-                    .body(serde_json::to_string(&descriptive_problem).unwrap())
+                    .body(serde_json::to_vec(&descriptive_problem).unwrap())
                     .unwrap()
             }
         }

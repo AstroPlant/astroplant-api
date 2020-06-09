@@ -2,16 +2,21 @@ use erased_serde::Serialize as ErasedSerialize;
 use std::collections::HashMap;
 use warp::http::StatusCode;
 
+pub enum ResponseValue {
+    Serializable(Box<dyn ErasedSerialize + Send>),
+    Data { media_type: String, data: Vec<u8> },
+}
+
 pub struct Response {
-    value: Option<Box<dyn ErasedSerialize + Send>>,
+    value: Option<ResponseValue>,
     status_code: StatusCode,
     headers: HashMap<String, String>,
 }
 
 impl Response {
     /// The response value.
-    pub fn value(&self) -> &Option<Box<dyn ErasedSerialize + Send>> {
-        &self.value
+    pub fn value(self) -> Option<ResponseValue> {
+        self.value
     }
 
     /// The response status code.
@@ -97,7 +102,7 @@ impl ResponseBuilder {
         }
     }
 
-    /// Build the response with the given value.
+    /// Build the response with the given serializable value.
     #[allow(dead_code)]
     pub fn body<T>(mut self, value: T) -> Response
     where
@@ -105,7 +110,20 @@ impl ResponseBuilder {
     {
         self.process();
         Response {
-            value: Some(Box::new(value) as Box<dyn ErasedSerialize + Send>),
+            value: Some(ResponseValue::Serializable(
+                Box::new(value) as Box<dyn ErasedSerialize + Send>
+            )),
+            status_code: self.status_code,
+            headers: self.headers,
+        }
+    }
+
+    /// Build the response with the given raw data.
+    #[allow(dead_code)]
+    pub fn data(mut self, media_type: String, data: Vec<u8>) -> Response {
+        self.process();
+        Response {
+            value: Some(ResponseValue::Data { media_type, data }),
             status_code: self.status_code,
             headers: self.headers,
         }

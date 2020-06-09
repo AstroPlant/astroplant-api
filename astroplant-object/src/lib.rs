@@ -36,10 +36,14 @@ pub struct ObjectStore {
 
 impl ObjectStore {
     pub fn s3(region_name: String, region_endpoint: String) -> Self {
-        let s3 = rusoto_s3::S3Client::new(S3Region::Custom {
-            name: region_name,
-            endpoint: region_endpoint,
-        });
+        let s3 = rusoto_s3::S3Client::new_with(
+            rusoto_core::request::HttpClient::new().unwrap(),
+            rusoto_credential::EnvironmentProvider::default(),
+            S3Region::Custom {
+                name: region_name,
+                endpoint: region_endpoint,
+            },
+        );
 
         Self {
             store: Stores::S3 {
@@ -79,7 +83,7 @@ impl ObjectStore {
                 let path = root.join(Path::new(&key));
                 tokio::fs::create_dir_all(path.parent().ok_or(Error::LocalOther)?)
                     .await
-                    .map_err(Error::LocalIo);
+                    .map_err(Error::LocalIo)?;
                 tokio::fs::write(path, &data).await.map_err(Error::LocalIo)
             }
         }

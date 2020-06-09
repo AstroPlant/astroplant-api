@@ -45,7 +45,7 @@ pub enum Problem {
         invalid_parameters: InvalidParameters,
     },
 
-    #[serde(rename = "/probs/kit-rpc-problem")]
+    #[serde(rename = "/probs/kit-rpc")]
     #[serde(rename_all = "camelCase")]
     KitRpc(KitRpcProblem),
 }
@@ -66,7 +66,7 @@ impl Problem {
             PayloadTooLarge { .. } => warp::http::StatusCode::PAYLOAD_TOO_LARGE,
             InvalidJson { .. } => warp::http::StatusCode::BAD_REQUEST,
             InvalidParameters { .. } => warp::http::StatusCode::BAD_REQUEST,
-            KitRpc(_) => warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+            KitRpc(_) => warp::http::StatusCode::BAD_GATEWAY,
         }
     }
 }

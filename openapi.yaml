@@ -371,7 +371,7 @@ paths:
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
         '502':
-          $ref: "#/components/responses/ErrorBadGateway"
+          $ref: "#/components/responses/ErrorKitRpc"
   "/kit-rpc/{kitSerial}/uptime":
     get:
       summary: Query the kit for its uptime.
@@ -402,7 +402,7 @@ paths:
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
         '502':
-          $ref: "#/components/responses/ErrorBadGateway"
+          $ref: "#/components/responses/ErrorKitRpc"
   "/kit-rpc/{kitSerial}/peripheral-command":
     post:
       summary: Send a command to a peripheral device on the kit.
@@ -430,7 +430,7 @@ paths:
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
         '502':
-          $ref: "#/components/responses/ErrorBadGateway"
+          $ref: "#/components/responses/ErrorKitRpc"
   "/users":
     post:
       summary: Create a user.
@@ -825,38 +825,26 @@ components:
         title: Bad Request
         status: 400
     ProblemInternalServer:
-      type: object
-      properties:
-        errorCode:
-          description: "The error code for internal server errors: 1"
-          type: integer
-          format: uint16
-        errorName:
-          description: "The error name for internal server errors: internalServer"
-          type: string
-      example:
-        errorCode: 1
-        errorName: internalServerError
+      allOf:
+        - $ref: "#/components/schemas/ProblemDetails"
+        - example:
+            type: "about:blank"
+            title: "Internal Server Error"
+            status: 500
     ProblemRateLimit:
-      type: object
-      properties:
-        errorCode:
-          description: "The error code for rate limit errors: 2"
-          type: integer
-          format: uint16
-        errorName:
-          description: "The error name for rate limit errors: rateLimit"
-          type: string
-        errorValue:
-          type: object
+      allOf:
+        - $ref: "#/components/schemas/ProblemDetails"
+        - type: object
+          required:
+            - waitTimeMillis
           properties:
             waitTimeMillis:
-              type: integer
-      example:
-        errorCode: 2
-        errorName: rateLimit
-        errorValue:
-          waitTimeMillis: 226
+              type: number
+          example:
+            type: "/probs/rate-limit"
+            waitTimeMillis: 250
+            title: "Your request has been rate limited."
+            status: 429
     ProblemInvalidParameters:
       allOf:
         - $ref: "#/components/schemas/ProblemDetails"
@@ -865,73 +853,7 @@ components:
             invalidParameters:
               type: object
               additionalProperties:
-                type: array
-                items:
-                  anyOf:
-                    - type: string
-                      enum:
-                        - mustBeEmailAddress
-                        - mustBeUrl
-                        - alreadyExists
-                        - other
-                    - type: object
-                      required:
-                        - mustBeInRange
-                      properties:
-                        mustBeInRange:
-                          type: object
-                          required:
-                            - min
-                            - max
-                          properties:
-                            min:
-                              type: number
-                              format: float
-                            max:
-                              type: number
-                              format: float
-                    - type: object
-                      required:
-                        - mustHaveLengthBetween
-                      properties:
-                        mustHaveLengthBetween:
-                          type: object
-                          anyOf:
-                            - required:
-                                - min
-                            - required:
-                                - max
-                          properties:
-                            min:
-                              type: integer
-                            max:
-                              type: integer
-                    - type: object
-                      required:
-                        - mustHaveLengthExactly
-                      properties:
-                        mustHaveLengthExactly:
-                          type: object
-                          required:
-                            - length
-                          properties:
-                            length:
-                              type: integer
-                    - type: object
-                      required:
-                        - invalidToken
-                      properties:
-                        invalidToken:
-                          type: object
-                          required:
-                            - category
-                          properties:
-                            category:
-                              type: string
-                              enum:
-                                - missing
-                                - malformed
-                                - expired
+                $ref: "#/components/schemas/InvalidParameter"
       example:
         type: "/probs/invalid-parameters"
         title: Your request parameters did not validate.
@@ -944,6 +866,81 @@ components:
             - mustHaveLengthBetween:
               min: 0
               max: 255
+    InvalidParameter:
+      type: array
+      items:
+        anyOf:
+          - type: string
+            enum:
+              - mustBeEmailAddress
+              - mustBeUrl
+              - alreadyExists
+              - other
+          - type: object
+            required:
+              - mustBeInRange
+            properties:
+              mustBeInRange:
+                type: object
+                required:
+                  - min
+                  - max
+                properties:
+                  min:
+                    type: number
+                    format: float
+                  max:
+                    type: number
+                    format: float
+          - type: object
+            required:
+              - mustHaveLengthBetween
+            properties:
+              mustHaveLengthBetween:
+                type: object
+                anyOf:
+                  - required:
+                      - min
+                  - required:
+                      - max
+                properties:
+                  min:
+                    type: integer
+                  max:
+                    type: integer
+          - type: object
+            required:
+              - mustHaveLengthExactly
+            properties:
+              mustHaveLengthExactly:
+                type: object
+                required:
+                  - length
+                properties:
+                  length:
+                    type: integer
+          - type: object
+            required:
+              - invalidToken
+            properties:
+              invalidToken:
+                type: object
+                required:
+                  - category
+                properties:
+                  category:
+                    type: string
+                    enum:
+                      - missing
+                      - malformed
+                      - expired
+    ProblemKitRpc:
+      allOf:
+        - $ref: "#/components/schemas/ProblemDetails"
+        - example:
+            type: "/probs/kit-rpc"
+            title: "There was an issue with the kit RPC response"
+            status: 502
     Kit:
       type: object
       required:
@@ -1406,9 +1403,9 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ProblemInternalServer"
-    ErrorBadGateway:
-      description: An error occurred while proxying the RPC request.
+    ErrorKitRpc:
+      description: "An error occurred proxying the RPC request: either the connection could not be made, or the kit reported an error."
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ProblemDetails"
+            $ref: "#/components/schemas/ProblemKitRpc"

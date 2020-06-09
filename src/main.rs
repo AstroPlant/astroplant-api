@@ -124,7 +124,6 @@ async fn main() {
             }
         }
     })
-    .recover(|rejection| async { handle_rejection(rejection) })
     .with(warp::log("astroplant_api::api"))
     // TODO: this wrapper might be better placed per-endpoint, to have accurate allowed metods
     .with(
@@ -143,7 +142,9 @@ async fn main() {
             .build(),
     );
 
-    let all = rate_limit.and(ws_endpoint.or(rest_endpoints));
+    let all = rate_limit
+        .and(ws_endpoint.or(rest_endpoints))
+        .recover(|rejection| async { handle_rejection(rejection) });
 
     warp::serve(all).run(([0, 0, 0, 0], 8080)).await;
 }

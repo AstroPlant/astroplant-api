@@ -20,12 +20,26 @@ pub enum KitRpcResponseError {
     InvalidResponse,
 }
 
+pub struct PeripheralCommandResponse {
+    pub media_type: String,
+    pub data: Vec<u8>,
+    pub metadata: serde_json::Value,
+}
+
+pub enum PeripheralCommandLockRequest {
+    Status,
+    Acquire,
+    Release,
+}
+
 pub type KitRpcResponse<T> = Result<T, KitRpcResponseError>;
 pub type KitResponseReceiver<T> = oneshot::Receiver<KitRpcResponse<T>>;
 
 enum KitRpcResponseCallback {
     Version(oneshot::Sender<KitRpcResponse<String>>),
     Uptime(oneshot::Sender<KitRpcResponse<std::time::Duration>>),
+    PeripheralCommand(oneshot::Sender<KitRpcResponse<PeripheralCommandResponse>>),
+    PeripheralCommandLock(oneshot::Sender<KitRpcResponse<bool>>),
 }
 
 impl KitRpcResponseCallback {
@@ -78,6 +92,53 @@ impl KitRpcResponseCallback {
                         .map_err(|_| ())
                 }
             }
+            PeripheralCommand(callback) => {
+                fn process(
+                    peripheral_command: astroplant_capnp::kit_rpc_response::peripheral_command::Reader,
+                ) -> Result<PeripheralCommandResponse, KitRpcResponseError> {
+                    Ok(PeripheralCommandResponse {
+                        media_type: peripheral_command
+                            .get_media_type()
+                            .map_err(|_| KitRpcResponseError::MalformedResponse)?
+                            .to_string(),
+                        data: peripheral_command
+                            .get_data()
+                            .map_err(|_| KitRpcResponseError::MalformedResponse)?
+                            .to_vec(),
+                        metadata: serde_json::from_str(
+                            peripheral_command
+                                .get_metadata()
+                                .map_err(|_| KitRpcResponseError::MalformedResponse)?,
+                        )
+                        .map_err(|_| KitRpcResponseError::MalformedResponse)?,
+                    })
+                }
+
+                if let Ok(Which::PeripheralCommand(Ok(peripheral_command))) = which_response {
+                    callback.send(process(peripheral_command)).map_err(|_| ())
+                } else if let Ok(Which::Error(_)) = which_response {
+                    callback
+                        .send(Err(KitRpcResponseError::RpcError))
+                        .map_err(|_| ())
+                } else {
+                    callback
+                        .send(Err(KitRpcResponseError::InvalidResponse))
+                        .map_err(|_| ())
+                }
+            }
+            PeripheralCommandLock(callback) => {
+                if let Ok(Which::PeripheralCommandLock(locked)) = which_response {
+                    callback.send(Ok(locked)).map_err(|_| ())
+                } else if let Ok(Which::Error(_)) = which_response {
+                    callback
+                        .send(Err(KitRpcResponseError::RpcError))
+                        .map_err(|_| ())
+                } else {
+                    callback
+                        .send(Err(KitRpcResponseError::InvalidResponse))
+                        .map_err(|_| ())
+                }
+            }
         }
     }
 
@@ -89,6 +150,12 @@ impl KitRpcResponseCallback {
                 let _ = callback.send(Err(KitRpcResponseError::TimedOut));
             }
             Uptime(callback) => {
+                let _ = callback.send(Err(KitRpcResponseError::TimedOut));
+            }
+            PeripheralCommand(callback) => {
+                let _ = callback.send(Err(KitRpcResponseError::TimedOut));
+            }
+            PeripheralCommandLock(callback) => {
                 let _ = callback.send(Err(KitRpcResponseError::TimedOut));
             }
         };
@@ -174,6 +241,34 @@ impl KitRpcRequestBuilder {
         self
     }
 
+    pub fn peripheral_command(mut self, peripheral: String, command: serde_json::Value) -> Self {
+        let request_builder = self
+            .message_builder
+            .get_root::<astroplant_capnp::kit_rpc_request::Builder>()
+            .expect("could not get root");
+        let mut command_builder = request_builder.init_peripheral_command();
+        command_builder.set_peripheral(&peripheral);
+        command_builder.set_command(&serde_json::to_string(&command).unwrap());
+        self
+    }
+
+    pub fn peripheral_command_lock(mut self, peripheral: String, request: PeripheralCommandLockRequest) -> Self {
+        use PeripheralCommandLockRequest::*;
+
+        let request_builder = self
+            .message_builder
+            .get_root::<astroplant_capnp::kit_rpc_request::Builder>()
+            .expect("could not get root");
+        let mut lock_builder = request_builder.init_peripheral_command_lock();
+        lock_builder.set_peripheral(&peripheral);
+        match request {
+            Status => lock_builder.set_status(()),
+            Acquire => lock_builder.set_acquire(()),
+            Release => lock_builder.set_release(()),
+        }
+        self
+    }
+
     pub fn create(self) -> KitRpcRequest {
         let mut bytes = Vec::new();
         serialize_packed::write_message(&mut bytes, &self.message_builder).unwrap();
@@ -226,6 +321,42 @@ impl KitRpc {
 
         let request = KitRpcRequestBuilder::new(self.kit_serial.clone(), id)
             .uptime()
+            .create();
+        Self::send(request, &mut handle.mqtt_client);
+
+        receiver
+    }
+
+    pub fn peripheral_command(
+        &self,
+        peripheral: String,
+        command: serde_json::Value,
+    ) -> KitResponseReceiver<PeripheralCommandResponse> {
+        let (sender, receiver) = oneshot::channel();
+
+        let mut handle = self.handle.lock().unwrap();
+        let id = handle.insert_callback(KitRpcResponseCallback::PeripheralCommand(sender));
+
+        let request = KitRpcRequestBuilder::new(self.kit_serial.clone(), id)
+            .peripheral_command(peripheral, command)
+            .create();
+        Self::send(request, &mut handle.mqtt_client);
+
+        receiver
+    }
+
+    pub fn peripheral_command_lock(
+        &self,
+        peripheral: String,
+        request: PeripheralCommandLockRequest,
+    ) -> KitResponseReceiver<bool> {
+        let (sender, receiver) = oneshot::channel();
+
+        let mut handle = self.handle.lock().unwrap();
+        let id = handle.insert_callback(KitRpcResponseCallback::PeripheralCommandLock(sender));
+
+        let request = KitRpcRequestBuilder::new(self.kit_serial.clone(), id)
+            .peripheral_command_lock(peripheral, request)
             .create();
         Self::send(request, &mut handle.mqtt_client);
 

@@ -20,6 +20,8 @@ pub enum KitAction {
     SetSuperMember,
     RpcVersion,
     RpcUptime,
+    RpcPeripheralCommand,
+    RpcPeripheralCommandLock,
 }
 
 pub enum KitUser {
@@ -44,7 +46,9 @@ impl Permission for KitAction {
                 View | SubscribeRealTimeMeasurements => true,
                 EditDetails | EditConfiguration => membership.access_configure,
                 ResetPassword | EditMembers | SetSuperMember => membership.access_super,
-                RpcVersion | RpcUptime => membership.access_super,
+                RpcVersion | RpcUptime | RpcPeripheralCommand | RpcPeripheralCommandLock => {
+                    membership.access_super
+                }
             },
         }
     }
@@ -55,7 +59,7 @@ impl Permission for KitAction {
 pub enum UserAction {
     View,
     ListKitMemberships,
-    EditDetails
+    EditDetails,
 }
 
 impl Permission for UserAction {

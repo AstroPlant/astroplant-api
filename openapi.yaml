@@ -403,6 +403,34 @@ paths:
           $ref: "#/components/responses/ErrorInternalServer"
         '502':
           $ref: "#/components/responses/ErrorBadGateway"
+  "/kit-rpc/{kitSerial}/peripheral-command":
+    post:
+      summary: Send a command to a peripheral device on the kit.
+      operationId: peripheralCommand
+      security:
+        - bearerAuth: []
+      tags:
+        - kitRpc
+      parameters:
+        - name: kitSerial
+          in: path
+          required: true
+          description: The serial of the kit to send a command to.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The response of the peripheral device. This can be arbitrary content, such as images. The response's media type is given by the content-type header.
+          content:
+            '*': {}
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+        '502':
+          $ref: "#/components/responses/ErrorBadGateway"
   "/users":
     post:
       summary: Create a user.

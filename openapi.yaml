@@ -1311,11 +1311,11 @@ components:
       properties:
         description:
           type: string
-        rulesSupervisorModuleName:
+        controllerSymbolLocation:
           type: string
-        rulesSupervisorClassName:
+        controllerSymbol:
           type: string
-        rules:
+        controlRules:
           type: object
         active:
           type: boolean

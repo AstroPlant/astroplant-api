@@ -16,8 +16,8 @@ pub struct PeripheralDefinition {
     pub description: Option<String>,
     pub brand: Option<String>,
     pub model: Option<String>,
-    pub module_name: String,
-    pub class_name: String,
+    pub symbol_location: String,
+    pub symbol: String,
     pub configuration_schema: serde_json::Value,
     pub command_schema: Option<serde_json::Value>,
 }

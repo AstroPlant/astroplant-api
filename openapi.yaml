@@ -1138,8 +1138,8 @@ components:
       required:
         - id
         - name
-        - moduleName
-        - className
+        - symbolLocation
+        - symbol
         - configurationSchema
         - commandSchema
       properties:
@@ -1154,9 +1154,9 @@ components:
           type: string
         model:
           type: string
-        moduleName:
+        symbolLocation:
           type: string
-        className:
+        symbol:
           type: string
         configurationSchema:
           type: object
@@ -1277,9 +1277,9 @@ components:
       required:
         - id
         - kitId
-        - rulesSupervisorModuleName
-        - rulesSupervisorClassName
-        - rules
+        - controllerSymbolLocation
+        - controllerSymbol
+        - controlRules
         - active
         - neverUsed
       properties:
@@ -1291,11 +1291,11 @@ components:
           format: int32
         description:
           type: string
-        rulesSupervisorModuleName:
+        controllerSymbolLocation:
           type: string
-        rulesSupervisorClassName:
+        controllerSymbol:
           type: string
-        rules:
+        controlRules:
           type: object
         active:
           type: boolean

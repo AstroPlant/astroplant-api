@@ -19,9 +19,9 @@ pub struct KitConfiguration {
     pub id: i32,
     pub kit_id: i32,
     pub description: Option<String>,
-    pub rules_supervisor_module_name: String,
-    pub rules_supervisor_class_name: String,
-    pub rules: serde_json::Value,
+    pub controller_symbol_location: String,
+    pub controller_symbol: String,
+    pub control_rules: serde_json::Value,
     pub active: bool,
     pub never_used: bool,
 }
@@ -32,9 +32,9 @@ pub struct UpdateKitConfiguration {
     pub id: i32,
     // None means don't update, Some(None) means set to null.
     pub description: Option<Option<String>>,
-    pub rules_supervisor_module_name: Option<String>,
-    pub rules_supervisor_class_name: Option<String>,
-    pub rules: Option<serde_json::Value>,
+    pub controller_symbol_location: Option<String>,
+    pub controller_symbol: Option<String>,
+    pub control_rules: Option<serde_json::Value>,
     pub active: Option<bool>,
     pub never_used: Option<bool>,
 }
@@ -117,9 +117,9 @@ impl UpdateKitConfiguration {
 pub struct NewKitConfiguration {
     pub kit_id: i32,
     pub description: Option<String>,
-    pub rules_supervisor_module_name: String,
-    pub rules_supervisor_class_name: String,
-    pub rules: serde_json::Value,
+    pub controller_symbol_location: String,
+    pub controller_symbol: String,
+    pub control_rules: serde_json::Value,
 }
 
 impl NewKitConfiguration {
@@ -127,9 +127,9 @@ impl NewKitConfiguration {
         Self {
             kit_id: kit_id.0,
             description: description,
-            rules_supervisor_module_name: "astroplant_kit.supervisor".to_owned(),
-            rules_supervisor_class_name: "AstroplantSupervisorV1".to_owned(),
-            rules: json!({}),
+            controller_symbol_location: "astroplant_kit.controller".to_owned(),
+            controller_symbol: "AstroplantControllerV1".to_owned(),
+            control_rules: json!({}),
         }
     }
 

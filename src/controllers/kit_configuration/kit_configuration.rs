@@ -129,9 +129,9 @@ fn patch_configuration(
     struct KitConfigurationPatch {
         #[serde(default, deserialize_with = "deserialize_some")]
         description: Option<Option<String>>,
-        rules_supervisor_module_name: Option<String>,
-        rules_supervisor_class_name: Option<String>,
-        rules: Option<serde_json::Value>,
+        controller_symbol_location: Option<String>,
+        controller_symbol: Option<String>,
+        control_rules: Option<serde_json::Value>,
         active: Option<bool>,
     }
 
@@ -152,13 +152,9 @@ fn patch_configuration(
         .await?;
 
         if !kit_configuration.never_used {
-            if kit_configuration_patch
-                .rules_supervisor_module_name
-                .is_some()
-                || kit_configuration_patch
-                    .rules_supervisor_class_name
-                    .is_some()
-                || kit_configuration_patch.rules.is_some()
+            if kit_configuration_patch.controller_symbol_location.is_some()
+                || kit_configuration_patch.controller_symbol.is_some()
+                || kit_configuration_patch.control_rules.is_some()
             {
                 // Cannot change rules or rules supervisor if configuration has already been activated.
                 return Err(problem::InvalidParameterReason::AlreadyActivated
@@ -170,9 +166,9 @@ fn patch_configuration(
         let patch = models::UpdateKitConfiguration {
             id: kit_configuration.id,
             description: kit_configuration_patch.description,
-            rules_supervisor_module_name: kit_configuration_patch.rules_supervisor_module_name,
-            rules_supervisor_class_name: kit_configuration_patch.rules_supervisor_class_name,
-            rules: kit_configuration_patch.rules,
+            controller_symbol_location: kit_configuration_patch.controller_symbol_location,
+            controller_symbol: kit_configuration_patch.controller_symbol,
+            control_rules: kit_configuration_patch.control_rules,
             active: kit_configuration_patch.active,
             never_used: match kit_configuration_patch.active {
                 Some(true) => Some(false),

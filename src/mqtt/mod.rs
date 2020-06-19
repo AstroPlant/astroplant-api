@@ -41,7 +41,6 @@ impl Handler {
 
         let conn = pg.get().await.map_err(|_| Error::PgPool)?;
         let configuration: Option<_> = helpers::threadpool(move || {
-            println!("getting for kit: {}", kit_serial);
             let kit =
                 match models::Kit::by_serial(&conn, kit_serial).map_err(|_| Error::Internal)? {
                     Some(kit) => kit,

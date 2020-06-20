@@ -116,7 +116,7 @@ fn create_configuration(
         })
 }
 
-/// Handles the `PATCH /kit-configurations/{kitConfigurationId}?kitSerial={kitSerial}` route.
+/// Handles the `PATCH /kit-configurations/{kitConfigurationId}` route.
 ///
 /// If the configuration is set active, all other configurations of the kit are deactivated.
 fn patch_configuration(

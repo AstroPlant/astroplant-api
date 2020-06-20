@@ -26,3 +26,6 @@ pub use peripheral_definition_expected_quantity_type::PeripheralDefinitionExpect
 
 mod measurement;
 pub use measurement::{AggregateMeasurement, AggregateMeasurementId};
+
+mod media;
+pub use media::{Media, MediaId, NewMedia};

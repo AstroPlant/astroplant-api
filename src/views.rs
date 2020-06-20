@@ -428,3 +428,48 @@ impl TryFrom<models::AggregateMeasurement> for AggregateMeasurement {
         })
     }
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Media {
+    pub id: uuid::Uuid,
+    pub peripheral_id: i32,
+    pub kit_id: i32,
+    pub kit_configuration_id: i32,
+    pub datetime: DateTime<Utc>,
+    pub name: String,
+    pub r#type: String,
+    pub metadata: serde_json::Value,
+    pub size: i64,
+}
+
+impl TryFrom<models::Media> for Media {
+    type Error = Problem;
+
+    fn try_from(
+        models::Media {
+            id,
+            peripheral_id,
+            kit_id,
+            kit_configuration_id,
+            datetime,
+            name,
+            r#type,
+            metadata,
+            size,
+            ..
+        }: models::Media,
+    ) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id,
+            peripheral_id,
+            kit_id,
+            kit_configuration_id,
+            datetime,
+            name,
+            r#type,
+            metadata,
+            size,
+        })
+    }
+}

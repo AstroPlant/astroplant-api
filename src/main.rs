@@ -94,6 +94,8 @@ async fn main() {
         .or(path!("permissions" / ..).and(controllers::permission::router(pg.clone())))
         .unify()
         .or(controllers::measurement::router(pg.clone()))
+        .unify()
+        .or(controllers::media::router(pg.clone(), object_store.clone()))
         .unify())
     .and(warp::header("Accept"))
     .map(|response: AppResult<Response>, _accept: String| {

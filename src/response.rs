@@ -1,10 +1,22 @@
+use bytes::Bytes;
 use erased_serde::Serialize as ErasedSerialize;
+use futures::stream::Stream;
 use std::collections::HashMap;
+use std::pin::Pin;
 use warp::http::StatusCode;
 
 pub enum ResponseValue {
     Serializable(Box<dyn ErasedSerialize + Send>),
-    Data { media_type: String, data: Vec<u8> },
+    Data {
+        media_type: String,
+        data: Vec<u8>,
+    },
+    Stream {
+        media_type: String,
+        stream: Pin<
+            Box<dyn Stream<Item = std::result::Result<Bytes, std::io::Error>> + Send + 'static>,
+        >,
+    },
 }
 
 pub struct Response {
@@ -124,6 +136,23 @@ impl ResponseBuilder {
         self.process();
         Response {
             value: Some(ResponseValue::Data { media_type, data }),
+            status_code: self.status_code,
+            headers: self.headers,
+        }
+    }
+
+    /// Build the response with the given raw data stream.
+    #[allow(dead_code)]
+    pub fn stream(
+        mut self,
+        media_type: String,
+        stream: Pin<
+            Box<dyn Stream<Item = std::result::Result<Bytes, std::io::Error>> + Send + 'static>,
+        >,
+    ) -> Response {
+        self.process();
+        Response {
+            value: Some(ResponseValue::Stream { media_type, stream }),
             status_code: self.status_code,
             headers: self.headers,
         }

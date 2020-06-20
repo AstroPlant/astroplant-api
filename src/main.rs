@@ -111,14 +111,46 @@ async fn main() {
                 match response.value() {
                     Some(ResponseValue::Serializable(value)) => http_response_builder
                         .header("Content-Type", "application/json")
-                        .body(serde_json::to_vec(&value).unwrap())
+                        .body(warp::hyper::Body::from(serde_json::to_vec(&value).unwrap()))
                         .unwrap(),
                     Some(ResponseValue::Data { media_type, data }) => http_response_builder
                         .header("Content-Type", media_type)
-                        .body(data)
+                        .body(warp::hyper::Body::from(data))
                         // FIXME potentially dangerous unwrap
                         .unwrap(),
-                    None => http_response_builder.body(vec![]).unwrap(),
+                    Some(ResponseValue::Stream {
+                        media_type,
+                        mut stream,
+                    }) => {
+                        use futures::stream::StreamExt;
+
+                        let (mut sender, body) = warp::hyper::Body::channel();
+
+                        tokio::spawn(async move {
+                            while let Some(r) = stream.next().await {
+                                match r {
+                                    Ok(data) => {
+                                        if let Err(_) = sender.send_data(data).await {
+                                            break;
+                                        }
+                                    }
+                                    Err(_) => {
+                                        sender.abort();
+                                        break;
+                                    }
+                                }
+                            }
+                        });
+
+                        http_response_builder
+                            .header("Content-Type", media_type)
+                            .body(body)
+                            // FIXME potentially dangerous unwrap
+                            .unwrap()
+                    }
+                    None => http_response_builder
+                        .body(warp::hyper::Body::empty())
+                        .unwrap(),
                 }
             }
             Err(problem) => {
@@ -126,7 +158,9 @@ async fn main() {
 
                 http_response_builder
                     .status(problem.to_status_code())
-                    .body(serde_json::to_vec(&descriptive_problem).unwrap())
+                    .body(warp::hyper::Body::from(
+                        serde_json::to_vec(&descriptive_problem).unwrap(),
+                    ))
                     .unwrap()
             }
         }

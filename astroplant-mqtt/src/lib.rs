@@ -41,9 +41,22 @@ pub struct AggregateMeasurement {
 }
 
 #[derive(Debug)]
+pub struct Media {
+    pub id: uuid::Uuid,
+    pub kit_serial: String,
+    pub datetime: u64,
+    pub peripheral: i32,
+    pub name: String,
+    pub r#type: String,
+    pub data: Vec<u8>,
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Debug)]
 pub enum MqttApiMessage {
     RawMeasurement(RawMeasurement),
     AggregateMeasurement(AggregateMeasurement),
+    Media(Media),
     ServerRpcRequest(ServerRpcRequest),
 }
 
@@ -121,6 +134,30 @@ fn parse_aggregate_measurement(
     Ok(MqttApiMessage::AggregateMeasurement(measurement))
 }
 
+fn parse_media(kit_serial: String, mut payload: &[u8]) -> Result<MqttApiMessage, Error> {
+    let message_reader =
+        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())
+            .map_err(Error::Capnp)?;
+    let media = message_reader
+        .get_root::<astroplant_capnp::media::Reader>()
+        .map_err(Error::Capnp)?;
+
+    let media = Media {
+        id: uuid::Uuid::from_slice(media.get_id().map_err(Error::Capnp)?)
+            .map_err(|_| Error::MalformedMessage)?,
+        kit_serial: kit_serial,
+        datetime: media.get_datetime(),
+        peripheral: media.get_peripheral(),
+        name: media.get_name().map_err(Error::Capnp)?.to_owned(),
+        r#type: media.get_type().map_err(Error::Capnp)?.to_owned(),
+        data: media.get_data().map_err(Error::Capnp)?.to_owned(),
+        metadata: serde_json::from_str(media.get_metadata().map_err(Error::Capnp)?)
+            .map_err(|_| Error::MalformedMessage)?,
+    };
+
+    Ok(MqttApiMessage::Media(media))
+}
+
 fn proxy<'a>(
     rpc_bytes: ServerRpcResponder<'a>,
     mut mqtt_client: MqttClient,
@@ -176,6 +213,10 @@ impl Handler {
                 )),
                 _ => Err(Error::InvalidTopic),
             },
+            Some("media") => Ok(MqttMessage::Api(
+                parse_media(kit_serial, &msg.payload)?,
+                None,
+            )),
             Some("server-rpc") => match topic_parts.next() {
                 Some("request") => self
                     .server_rpc_handler

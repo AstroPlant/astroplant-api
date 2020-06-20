@@ -41,6 +41,8 @@ static DEFAULT_MQTT_HOST: &str = "localhost";
 const DEFAULT_MQTT_PORT: u16 = 1883;
 static DEFAULT_MQTT_USERNAME: &str = "server";
 static DEFAULT_MQTT_PASSWORD: &str = "";
+static DEFAULT_S3_REGION: &str = "us-east-1";
+static DEFAULT_S3_ENDPOINT: &str = "http://localhost";
 
 static TOKEN_SIGNER: OnceCell<astroplant_auth::token::TokenSigner> = OnceCell::new();
 
@@ -55,8 +57,13 @@ async fn main() {
         std::time::Duration::from_secs(5),
     );
 
+    let object_store = astroplant_object::ObjectStore::s3(
+        std::env::var("AWS_S3_REGION").unwrap_or(DEFAULT_S3_REGION.to_owned()),
+        std::env::var("AWS_S3_ENDPOINT").unwrap_or(DEFAULT_S3_ENDPOINT.to_owned()),
+    );
+
     // Start MQTT.
-    let (raw_measurement_receiver, kits_rpc) = mqtt::run(pg.clone());
+    let (raw_measurement_receiver, kits_rpc) = mqtt::run(pg.clone(), object_store.clone());
 
     // Start WebSockets.
     let (ws_endpoint, publisher) = astroplant_websocket::run();

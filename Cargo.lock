@@ -110,6 +110,7 @@ dependencies = [
  "futures 0.3.4",
  "log 0.4.8",
  "rusoto_core",
+ "rusoto_credential",
  "rusoto_s3",
  "tokio 0.2.18",
  "uuid 0.8.1",

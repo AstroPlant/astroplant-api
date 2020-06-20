@@ -1,10 +1,11 @@
 use crate::database::PgPool;
-use crate::{helpers, models, views};
+use crate::{helpers, models, problem, views};
 
 use astroplant_mqtt::{MqttApiMessage, ServerRpcRequest};
 use futures::channel::{mpsc, oneshot};
 use futures::future::FutureExt;
 use futures::sink::SinkExt;
+use std::convert::TryFrom;
 use tokio::runtime::{Handle, Runtime};
 
 #[derive(Debug)]
@@ -15,6 +16,7 @@ enum Error {
 
 struct Handler {
     pg_pool: PgPool,
+    object_store: astroplant_object::ObjectStore,
     runtime_handle: Handle,
     raw_measurement_sender: mpsc::Sender<astroplant_mqtt::RawMeasurement>,
 }
@@ -22,11 +24,13 @@ struct Handler {
 impl Handler {
     pub fn new(
         pg_pool: PgPool,
+        object_store: astroplant_object::ObjectStore,
         runtime_handle: Handle,
         raw_measurement_sender: mpsc::Sender<astroplant_mqtt::RawMeasurement>,
     ) -> Self {
         Self {
             pg_pool,
+            object_store,
             runtime_handle,
             raw_measurement_sender,
         }
@@ -131,6 +135,79 @@ impl Handler {
         let _ = sender.send(val).await;
     }
 
+    async fn upload_media(
+        pg_pool: PgPool,
+        object_store: astroplant_object::ObjectStore,
+        media: astroplant_mqtt::Media,
+    ) {
+        let implementation = move || async move {
+            let astroplant_mqtt::Media {
+                id,
+                kit_serial,
+                datetime,
+                peripheral,
+                name,
+                r#type,
+                data,
+                metadata,
+            } = media;
+
+            // TODO: handle errors.
+            let object_name = id.to_hyphenated().to_string();
+            let size = i64::try_from(data.len()).map_err(|_| problem::INTERNAL_SERVER_ERROR)?;
+
+            let naive = chrono::NaiveDateTime::from_timestamp(
+                i64::try_from(datetime / 1000).map_err(|_| problem::INTERNAL_SERVER_ERROR)?,
+                0,
+            );
+            let datetime: chrono::DateTime<chrono::Utc> =
+                chrono::DateTime::from_utc(naive, chrono::Utc);
+
+            trace!(
+                "Uploading media for kit {}: file {}, name '{}', type '{}', {} byte(s)",
+                kit_serial,
+                object_name,
+                name,
+                r#type,
+                size,
+            );
+
+            let conn = pg_pool.clone().get().await?;
+            let peripheral = helpers::threadpool(move || {
+                models::Peripheral::by_id(&conn, models::PeripheralId(peripheral))
+            })
+            .await?
+            .ok_or_else(|| problem::NOT_FOUND)?;
+
+            let _ = object_store
+                .put(&kit_serial, &object_name, data, r#type.clone())
+                .await;
+            let conn = pg_pool.get().await?;
+            if let Err(_) = helpers::threadpool(move || {
+                let new = models::NewMedia::new(
+                    id,
+                    peripheral.get_id(),
+                    peripheral.get_kit_id(),
+                    peripheral.get_kit_configuration_id(),
+                    datetime,
+                    name,
+                    r#type,
+                    metadata,
+                    size,
+                );
+                new.create(&conn)
+            })
+            .await
+            {
+                // TODO: Remove object
+            }
+
+            Ok::<(), problem::Problem>(())
+        };
+
+        let _ = implementation().await;
+    }
+
     pub fn run(
         &mut self,
         message_receiver: crossbeam::channel::Receiver<astroplant_mqtt::MqttApiMessage>,
@@ -143,6 +220,14 @@ impl Handler {
                     self.runtime_handle
                         .spawn(Self::send(self.raw_measurement_sender.clone(), measurement));
                 }
+                MqttApiMessage::Media(media) => {
+                    println!("Received media: {:?}", media.name);
+                    self.runtime_handle.spawn(Self::upload_media(
+                        self.pg_pool.clone(),
+                        self.object_store.clone(),
+                        media,
+                    ));
+                }
                 _ => {}
             }
         }
@@ -151,6 +236,7 @@ impl Handler {
 
 pub fn run(
     pg_pool: PgPool,
+    object_store: astroplant_object::ObjectStore,
 ) -> (
     mpsc::Receiver<astroplant_mqtt::RawMeasurement>,
     astroplant_mqtt::KitsRpc,
@@ -174,7 +260,12 @@ pub fn run(
 
         std::thread::spawn(move || runtime.block_on(thread_pool_handle_receiver));
 
-        let mut handler = Handler::new(pg_pool, runtime_handle, raw_measurement_sender);
+        let mut handler = Handler::new(
+            pg_pool,
+            object_store,
+            runtime_handle,
+            raw_measurement_sender,
+        );
         handler.run(message_receiver);
 
         thread_pool_handle_sender.send(()).unwrap();

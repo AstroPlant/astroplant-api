@@ -275,6 +275,57 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+  "/kits/{kitSerial}/media":
+    get:
+      summary: Media produced by a kit.
+      operationId: listMedia
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: path
+          required: true
+          description: The serial of the kit to retrieve aggregate measurements for.
+          schema:
+            type: string
+        - name: configuration
+          in: query
+          required: false
+          description: An ID of a kit configuration to filter on. If not given, does not filter on kit configurations.
+          schema:
+            type: number
+        - name: peripheral
+          in: query
+          required: false
+          description: An ID of a peripheral to filter on. If not given, does not filter on peripherals.
+          schema:
+            type: number
+        - name: cursor
+          in: query
+          required: false
+          description: A cursor for paging. Although this cursor can be constructed by the client (it is the url-encoding of the JSON-serialization of `[datetime, id]` of the last media of the current page), this is discouraged. Instead, the Link header in the response body should be used to retrieve the server-generated URI to the next page.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The retrieved media.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Media"
+          headers:
+            Link:
+              $ref: "#/components/headers/Link"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
   "/kits/{kitSerial}/configurations":
     get:
       summary: The configurations of the specified kit.
@@ -794,6 +845,33 @@ paths:
           description: The peripheral has been deleted.
         '400':
           $ref: "#/components/responses/InvalidJson"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+  "/media/{mediaId}/content":
+    get:
+      summary: Download media content.
+      operationId: getMediaContent
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: mediaId
+          in: path
+          required: true
+          description: The id of the media to download.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The media content.
+          content:
+            "*": {}
         '401':
           $ref: "#/components/responses/ErrorUnauthorized"
         '429':
@@ -1365,6 +1443,42 @@ components:
           type: object
           additionalProperties:
             type: number
+    Media:
+      type: object
+      required:
+        - id
+        - peripheralId
+        - kitId
+        - kitConfigurationId
+        - datetime
+        - name
+        - type
+        - metadata
+        - size
+      properties:
+        id:
+          type: string
+          format: uuid
+        peripheralId:
+          type: number
+          format: int32
+        kitId:
+          type: number
+          format: int32
+        kitConfigurationId:
+          type: number
+          format: int32
+        datetime:
+          type: string
+          format: date-time
+        name:
+          type: string
+        type:
+          type: string
+        metadata: {}
+        size:
+          type: number
+          format: int64
   headers:
     CursorPaging:
       description: A link to the next page.

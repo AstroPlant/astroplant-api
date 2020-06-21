@@ -394,7 +394,7 @@ paths:
             application/json:
               schema:
                 type: integer
-                format: uint64
+                format: int64
         '401':
           $ref: "#/components/responses/ErrorUnauthorized"
         '429':

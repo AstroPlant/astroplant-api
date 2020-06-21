@@ -84,6 +84,16 @@ impl ResponseBuilder {
         self
     }
 
+    /// Set the content disposition to attachment with the given file name.
+    #[allow(dead_code)]
+    pub fn attachment_filename(mut self, filename: &str) -> Self {
+        self.headers.insert(
+            "Content-Disposition".to_owned(),
+            format!("attachment; filename={}", filename),
+        );
+        self
+    }
+
     pub fn link(mut self, uri: &str, rel: &str) -> Self {
         self.links.push(format!("<{}>; rel=\"{}\"", uri, rel));
         self

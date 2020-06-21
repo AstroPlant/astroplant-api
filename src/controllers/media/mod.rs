@@ -16,7 +16,7 @@ pub fn router(
     trace!("Setting up media router.");
 
     kit_media(pg.clone())
-        .or(get_media(pg.clone(), object_store))
+        .or(download_media(pg.clone(), object_store))
         .unify()
         .boxed()
 }
@@ -94,8 +94,8 @@ fn kit_media(
         })
 }
 
-/// Handles the `GET` /media/{mediaId}` route.
-fn get_media(
+/// Handles the `GET` /media/{mediaId}/content` route.
+fn download_media(
     pg: PgPool,
     object_store: astroplant_object::ObjectStore,
 ) -> impl Filter<Extract = (AppResult<Response>,), Error = Rejection> + Clone {
@@ -129,11 +129,13 @@ fn get_media(
             .await
             .unwrap();
 
-        Ok(ResponseBuilder::ok().stream(media.r#type, stream))
+        Ok(ResponseBuilder::ok()
+            .attachment_filename(&media.name)
+            .stream(media.r#type, stream))
     }
 
     warp::get()
-        .and(warp::path!("media" / Uuid))
+        .and(warp::path!("media" / Uuid / "content"))
         .and(authentication::option_by_token())
         .and_then(move |media_id: Uuid, user_id: Option<models::UserId>| {
             implementation(

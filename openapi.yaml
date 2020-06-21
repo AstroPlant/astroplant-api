@@ -220,7 +220,7 @@ paths:
           $ref: "#/components/responses/ErrorInternalServer"
   "/kits/{kitSerial}/aggregate-measurements":
     get:
-      summary: Aggregate measurements made by a kit in the last 5 days.
+      summary: Aggregate measurements made by a kit.
       operationId: listAggregateMeasurements
       security:
         - bearerAuth: []

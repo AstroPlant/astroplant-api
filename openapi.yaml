@@ -939,7 +939,7 @@ components:
         invalidParameters:
           username:
             - mustBeUnique
-          email:
+          emailAddress:
             - mustBeEmailAddress
             - mustHaveLengthBetween:
               min: 0
@@ -1132,7 +1132,7 @@ components:
       example:
         username: douglas
         password: hunter2
-        email: d.adams@example.com
+        emailAddress: d.adams@example.com
     AuthUser:
       type: object
       required:

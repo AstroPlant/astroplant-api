@@ -942,8 +942,8 @@ components:
           emailAddress:
             - mustBeEmailAddress
             - mustHaveLengthBetween:
-              min: 0
-              max: 255
+                min: 0
+                max: 255
     InvalidParameter:
       type: array
       items:

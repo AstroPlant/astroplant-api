@@ -7,6 +7,7 @@ COPY Cargo.lock .
 COPY Cargo.toml .
 COPY astroplant-auth ./astroplant-auth
 COPY astroplant-mqtt ./astroplant-mqtt
+COPY astroplant-object ./astroplant-object
 COPY astroplant-websocket ./astroplant-websocket
 COPY random-string ./random-string
 COPY src ./src
@@ -23,6 +24,12 @@ ENV MQTT_HOST=mqtt.ops
 ENV MQTT_PORT=1883
 ENV MQTT_USERNAME=
 ENV MQTT_PASSWORD=
+ENV AWS_S3_REGION=
+ENV AWS_S3_ENDPOINT=
+ENV AWS_ACCESS_KEY_ID=
+ENV AWS_SECRET_ACCESS_KEY=
+ENV AWS_SESSION_TOKEN=
+ENV AWS_CREDENTIAL_EXPIRATION=
 ENV RUST_BACKTRACE=1
 ENV RUST_LOG=warn,astroplant_api=debug
 ENV TOKEN_SIGNER_KEY=/token_signer.key

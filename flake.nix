@@ -5,6 +5,15 @@
     flake-utils.lib.eachDefaultSystem (system:
       let pkgs = nixpkgs.legacyPackages.${system};
       in {
+        packages.astroplant-api = pkgs.rustPlatform.buildRustPackage rec {
+          pname = "astroplant-api";
+          version = "1.0.0-alpha";
+          src = ./.;
+          cargoSha256 = "sha256-keRUIlicOsmudky2HiOyMyFoEtrseRHhrt2rhAozguc=";
+          nativeBuildInputs = with pkgs; [ pkgconfig capnproto ];
+          buildInputs = with pkgs; [ openssl postgresql ];
+        };
+        defaultPackage = self.packages.${system}.astroplant-api;
         devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
             cargo

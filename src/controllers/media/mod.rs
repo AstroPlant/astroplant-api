@@ -13,7 +13,7 @@ pub fn router(
     object_store: astroplant_object::ObjectStore,
 ) -> BoxedFilter<(AppResult<Response>,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    trace!("Setting up media router.");
+    tracing::trace!("Setting up media router.");
 
     kit_media(pg.clone())
         .or(download_media(pg.clone(), object_store))

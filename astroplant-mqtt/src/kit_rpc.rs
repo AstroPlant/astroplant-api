@@ -1,5 +1,3 @@
-use log::{debug, trace, warn};
-
 use super::{astroplant_capnp, Error};
 
 use capnp::serialize_packed;
@@ -181,7 +179,7 @@ impl Handle {
         let id = self.get_next_id();
         self.callbacks.insert(id, callback);
         self.timeouts.push_back((id, std::time::Instant::now()));
-        trace!("created kit RPC callback with id: {}", id);
+        tracing::trace!("created kit RPC callback with id: {}", id);
         id
     }
 
@@ -394,7 +392,7 @@ impl KitsRpc {
 async fn cleanup(handle: Arc<Mutex<Handle>>) {
     loop {
         futures_timer::Delay::new(std::time::Duration::from_secs(30)).await;
-        trace!("Performing kit RPC response handle cleanup");
+        tracing::trace!("Performing kit RPC response handle cleanup");
         let mut handle = handle.lock().unwrap();
         handle.cleanup();
     }
@@ -408,7 +406,7 @@ async fn handle_response(handle: Arc<Mutex<Handle>>, kit_serial: String, payload
     ) {
         Ok(r) => r,
         Err(_err) => {
-            debug!("Malformed RPC response from kit {}", kit_serial);
+            tracing::debug!("Malformed RPC response from kit {}", kit_serial);
             return;
         }
     };
@@ -418,7 +416,7 @@ async fn handle_response(handle: Arc<Mutex<Handle>>, kit_serial: String, payload
     {
         Ok(r) => r,
         Err(_err) => {
-            debug!("Malformed RPC response from kit {}", kit_serial);
+            tracing::debug!("Malformed RPC response from kit {}", kit_serial);
             return;
         }
     };
@@ -426,7 +424,7 @@ async fn handle_response(handle: Arc<Mutex<Handle>>, kit_serial: String, payload
     let id = rpc_response.get_id();
     let mut handle = handle.lock().unwrap();
 
-    trace!("received kit RPC response for id: {}", id);
+    tracing::trace!("received kit RPC response for id: {}", id);
 
     if let Some(callback) = handle.callbacks.remove(&id) {
         callback
@@ -455,14 +453,14 @@ pub fn kit_rpc_runner(
         let thread_pool = thread_pool.clone();
         std::thread::spawn(move || {
             for (kit_serial, payload) in receiver {
-                trace!(
+                tracing::trace!(
                     "received a message on the kit RPC response channel from {}",
                     kit_serial
                 );
                 if let Err(err) =
                     thread_pool.spawn(handle_response(handle.clone(), kit_serial, payload))
                 {
-                    warn!(
+                    tracing::warn!(
                         "Could not spawn kit RPC response handler onto threadpool: {:?}",
                         err
                     );

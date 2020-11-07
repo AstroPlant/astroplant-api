@@ -10,7 +10,7 @@ use crate::{authentication, helpers, models};
 
 pub fn router(kits_rpc: KitsRpc, pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    trace!("Setting up kit rpc router.");
+    tracing::trace!("Setting up kit rpc router.");
 
     version(kits_rpc.clone(), pg.clone())
         .or(uptime(kits_rpc.clone(), pg.clone()))

@@ -5,8 +5,8 @@ authors = ["Thomas Churchman <thomas@kepow.org>"]
 edition = "2018"
 
 [dependencies]
-log = "0.4"
-env_logger = "0.7.1"
+tracing = "0.1.21"
+tracing-subscriber = "0.2"
 uuid = { version = "0.8", features = ["serde"] }
 astroplant-auth = { path = "./astroplant-auth" }
 astroplant-mqtt = { path = "./astroplant-mqtt" }

@@ -1,5 +1,4 @@
 use futures::future::TryFutureExt;
-use log::error;
 use serde::de::DeserializeOwned;
 use warp::{Filter, Rejection};
 
@@ -24,7 +23,7 @@ where
     E: Into<Problem> + Send + 'static + std::fmt::Debug,
 {
     threadpool(f).await.map_err(|err| {
-        error!("Error in threadpool: {:?}", err);
+        tracing::error!("Error in threadpool: {:?}", err);
         err.into()
     })
 }
@@ -57,7 +56,7 @@ where
             let body: Vec<u8> = body_buffer.into_iter().collect();
 
             serde_json::from_slice(&body).map_err(|err| {
-                debug!("Request JSON deserialize error: {}", err);
+                tracing::debug!("Request JSON deserialize error: {}", err);
                 Rejection::from(Problem::InvalidJson {
                     category: (&err).into(),
                 })

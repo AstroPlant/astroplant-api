@@ -1,7 +1,4 @@
 #[macro_use]
-extern crate log;
-
-#[macro_use]
 extern crate diesel;
 
 #[macro_use]
@@ -45,7 +42,8 @@ static TOKEN_SIGNER: OnceCell<astroplant_auth::token::TokenSigner> = OnceCell::n
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    // env_logger::init();
+    tracing_subscriber::fmt::init();
 
     init_token_signer();
 
@@ -232,10 +230,10 @@ fn handle_rejection(rejection: Rejection) -> Result<impl Reply, Rejection> {
 fn init_token_signer() {
     let key_file_path =
         std::env::var("TOKEN_SIGNER_KEY").unwrap_or("./token_signer.key".to_owned());
-    debug!("Using token signer key file {}", key_file_path);
+    tracing::debug!("Using token signer key file {}", key_file_path);
 
     let token_signer_key: Vec<u8> = std::fs::read(&key_file_path).unwrap();
-    trace!(
+    tracing::trace!(
         "Using token signer key of {} bits",
         token_signer_key.len() * 8
     );

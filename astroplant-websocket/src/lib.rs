@@ -12,7 +12,6 @@ use jsonrpc_core::{futures as futuresOne, Params, Value};
 use jsonrpc_pubsub::typed::{Sink, Subscriber};
 use jsonrpc_pubsub::{PubSubHandler, Session, SubscriptionId};
 use jsonrpc_server_utils::tokio;
-use log::{debug, trace};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
@@ -63,7 +62,7 @@ impl WebSocketHandler {
                             .notify(Ok(value.clone()))
                             .map(|_| ())
                             .map_err(move |_| {
-                                debug!(
+                                tracing::debug!(
                                     "subscriber {:?}: failed sending raw measurement. Transport has gone away.",
                                     id
                                 )
@@ -108,7 +107,7 @@ impl WebSocketHandler {
             s.remove(&id);
             !s.is_empty()
         });
-        trace!("Raw measurement subscriber removed: {:?}", id);
+        tracing::trace!("Raw measurement subscriber removed: {:?}", id);
     }
 }
 
@@ -175,11 +174,11 @@ pub fn run() -> (BoxedFilter<(impl warp::Reply,)>, WebSocketPublisher) {
             *num_sockets += 1;
             let io_handler = io_handler.clone();
 
-            trace!("Websocket {} connecting", socket_id);
+            tracing::trace!("Websocket {} connecting", socket_id);
             ws.on_upgrade(move |web_socket| async move {
-                debug!("Websocket {} upgraded", socket_id);
+                tracing::debug!("Websocket {} upgraded", socket_id);
                 web_socket_session::handle_session(socket_id, web_socket, io_handler).await;
-                debug!("WebSocket {} stopped", socket_id);
+                tracing::debug!("WebSocket {} stopped", socket_id);
             })
         })
         .boxed();

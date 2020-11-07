@@ -8,7 +8,7 @@ use crate::response::{Response, ResponseBuilder};
 use crate::{helpers, models, views};
 
 pub fn router(pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
-    trace!("Setting up quantity types router.");
+    tracing::trace!("Setting up quantity types router.");
 
     warp::path::end()
         .and(warp::get())

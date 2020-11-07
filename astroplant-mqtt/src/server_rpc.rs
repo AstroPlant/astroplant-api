@@ -1,5 +1,3 @@
-use log::{debug, trace};
-
 use super::{astroplant_capnp, Error};
 
 use capnp::serialize_packed;
@@ -129,7 +127,7 @@ impl ServerRpcHandler {
     }
 
     fn check_rate_limit(&mut self, kit_serial: String, request_id: u64) -> Result<(), Error> {
-        debug!(
+        tracing::debug!(
             "request id {} of kit {} was rate limited",
             request_id, kit_serial
         );
@@ -166,7 +164,7 @@ impl ServerRpcHandler {
             Error::ServerRpcError(response)
         })? {
             astroplant_capnp::server_rpc_request::Which::Version(_) => {
-                trace!("received server RPC version request");
+                tracing::trace!("received server RPC version request");
 
                 let (sender, receiver) = oneshot::channel();
                 let request = ServerRpcRequest::Version { response: sender };
@@ -183,7 +181,7 @@ impl ServerRpcHandler {
                 Ok((request, Some(receiver.boxed())))
             }
             astroplant_capnp::server_rpc_request::Which::GetActiveConfiguration(_) => {
-                trace!("received server RPC active configuration request");
+                tracing::trace!("received server RPC active configuration request");
 
                 let (sender, receiver) = oneshot::channel();
                 let request = ServerRpcRequest::GetActiveConfiguration {
@@ -203,7 +201,7 @@ impl ServerRpcHandler {
                 Ok((request, Some(receiver.boxed())))
             }
             astroplant_capnp::server_rpc_request::Which::GetQuantityTypes(_) => {
-                trace!("received server RPC quantity types");
+                tracing::trace!("received server RPC quantity types");
 
                 let (sender, receiver) = oneshot::channel();
                 let request = ServerRpcRequest::GetQuantityTypes { response: sender };

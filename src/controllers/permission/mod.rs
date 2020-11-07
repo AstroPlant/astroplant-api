@@ -10,7 +10,7 @@ use crate::{authentication, helpers, models};
 
 pub fn router(pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    trace!("Setting up permissions router.");
+    tracing::trace!("Setting up permissions router.");
 
     warp::path::end()
         .and(user_kit_permissions(pg.clone()))

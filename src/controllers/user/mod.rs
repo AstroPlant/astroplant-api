@@ -10,7 +10,7 @@ use crate::{authentication, helpers, models, views};
 
 pub fn router(pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    trace!("Setting up users router.");
+    tracing::trace!("Setting up users router.");
 
     //TODO implement deleting users.
     (user_by_username(pg.clone()))
@@ -189,7 +189,7 @@ pub fn create_user(
 
     async fn implementation(pg: PgPool, user: User) -> AppResult<Response> {
         let username = user.username.clone();
-        trace!("Got request to create user with username: {}", username);
+        tracing::trace!("Got request to create user with username: {}", username);
 
         let conn = pg.get().await?;
         helpers::threadpool(move || {
@@ -220,11 +220,11 @@ pub fn create_user(
 
                     let created_user = new_user.create(&conn)?;
                     if created_user.is_some() {
-                        info!("Created user {:?}", username);
+                        tracing::info!("Created user {:?}", username);
 
                         Ok(ResponseBuilder::created().empty())
                     } else {
-                        warn!("Unexpected database error: username and email address don't exist, yet user could not be created: {:?}", username);
+                        tracing::warn!("Unexpected database error: username and email address don't exist, yet user could not be created: {:?}", username);
                         Err(problem::INTERNAL_SERVER_ERROR)
                     }
                 })

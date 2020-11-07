@@ -10,7 +10,7 @@ use crate::{authentication, authorization, helpers, models, views};
 
 pub fn router(pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    trace!("Setting up peripherals router.");
+    tracing::trace!("Setting up peripherals router.");
 
     add_peripheral_to_configuration(pg.clone())
         .or(patch_or_delete_peripheral(pg.clone()))
@@ -27,7 +27,7 @@ fn check_configuration(
         match scope.compile_and_return(peripheral_definition.configuration_schema.clone(), false) {
             Ok(schema) => schema,
             Err(_) => {
-                error!(
+                tracing::error!(
                     "peripheral definition with id {} has an invalid configuration schema",
                     peripheral_definition.id
                 );

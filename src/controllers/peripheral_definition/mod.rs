@@ -9,7 +9,7 @@ use crate::{helpers, models, views};
 
 pub fn router(pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    trace!("Setting up peripheral definitions router.");
+    tracing::trace!("Setting up peripheral definitions router.");
 
     warp::path::end()
         .and(warp::get())

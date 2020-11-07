@@ -51,7 +51,7 @@ pub fn authenticate_by_credentials(
                     let access_token = token_signer
                         .access_token_from_refresh_token(&refresh_token)
                         .unwrap();
-                    debug!("Authenticated user: {}.", user.username);
+                    tracing::debug!("Authenticated user: {}.", user.username);
 
                     let response = ResponseBuilder::ok().body(AuthenticationTokens {
                         refresh_token,
@@ -101,7 +101,7 @@ pub fn access_token_from_refresh_token(
         Ok(
             match token_signer.access_token_from_refresh_token(&refresh_token) {
                 Ok(access_token) => {
-                    trace!("Token refreshed.");
+                    tracing::trace!("Token refreshed.");
                     Ok(ResponseBuilder::ok().body(access_token))
                 }
                 Err(token::Error::Expired) => {

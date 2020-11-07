@@ -5,7 +5,7 @@ authors = ["Thomas Churchman <thomas@kepow.org>"]
 edition = "2018"
 
 [dependencies]
-log = "0.4"
+tracing = "0.1"
 warp = "0.2"
 jsonrpc-pubsub = "14.0.6"
 jsonrpc-core = "14.0.5"

@@ -2,7 +2,6 @@ use futures::compat::{Future01CompatExt, Stream01CompatExt};
 use futures::{select, Sink, SinkExt, StreamExt};
 use jsonrpc_core::futures as futuresOne;
 use jsonrpc_core::MetaIoHandler;
-use log::{debug, trace};
 use std::sync::Arc;
 use warp::ws::{Message, WebSocket};
 
@@ -50,30 +49,30 @@ pub async fn handle_session(
         select! {
             from_rpc_msg = rpc_receiver.next() => {
                 if let Some(Ok(from_rpc_msg)) = from_rpc_msg {
-                    trace!("WebSocket {} handling RPC message: {}", socket_id, from_rpc_msg);
+                    tracing::trace!("WebSocket {} handling RPC message: {}", socket_id, from_rpc_msg);
                     if handle_rpc_msg(&mut socket_sink, &from_rpc_msg).await.is_err() {
-                        debug!("WebSocket {} encountered error while handling RPC-to-socket message", socket_id);
+                        tracing::debug!("WebSocket {} encountered error while handling RPC-to-socket message", socket_id);
                         break;
                     }
                 } else {
-                    debug!("WebSocket {} RPC terminated or there was an error sending the RPC message to WebSocket", socket_id);
+                    tracing::debug!("WebSocket {} RPC terminated or there was an error sending the RPC message to WebSocket", socket_id);
                     break;
                 }
             },
             socket_msg = socket_stream.next() => {
                 if let Some(Ok(from_socket_msg)) = socket_msg {
                     if let Ok(msg) = from_socket_msg.to_str() {
-                        trace!("WebSocket {} handling socket message: {}", socket_id, msg);
+                        tracing::trace!("WebSocket {} handling socket message: {}", socket_id, msg);
                         if handle_web_socket_msg(&mut socket_sink, &io_handler, context.clone(), &msg).await.is_err() {
-                            debug!("WebSocket {} encountered error while handling WebSocket-to-RPC message", socket_id);
+                            tracing::debug!("WebSocket {} encountered error while handling WebSocket-to-RPC message", socket_id);
                             break;
                         }
                     }
                 } else if let Some(Err(err)) = socket_msg {
-                    debug!("WebSocket {} encountered error on transport: {:?}", socket_id, err);
+                    tracing::debug!("WebSocket {} encountered error on transport: {:?}", socket_id, err);
                     break;
                 } else {
-                    debug!("WebSocket {} transport has terminated", socket_id);
+                    tracing::debug!("WebSocket {} transport has terminated", socket_id);
                     break;
                 }
             }

@@ -1,5 +1,3 @@
-use log::{debug, trace, warn};
-
 use capnp::serialize_packed;
 use futures::task::SpawnExt;
 use futures::FutureExt;
@@ -67,7 +65,7 @@ enum MqttMessage {
 
 fn establish_subscriptions(mqtt_client: &mut MqttClient) {
     if let Err(err) = mqtt_client.subscribe("kit/#", QoS::AtLeastOnce) {
-        warn!("error occurred while subscribing {:?}", err);
+        tracing::warn!("error occurred while subscribing {:?}", err);
     }
 }
 
@@ -170,7 +168,7 @@ fn proxy<'a>(
                 false,
                 bytes,
             ) {
-                debug!("error occurred when sending an RPC response: {:?}", err);
+                tracing::debug!("error occurred when sending an RPC response: {:?}", err);
             }
         }
 
@@ -190,7 +188,7 @@ impl Handler {
     }
 
     fn handle_mqtt_publish(&mut self, msg: rumqtt::Publish) -> Result<MqttMessage, Error> {
-        trace!("received an MQTT message on topic {}", msg.topic_name);
+        tracing::trace!("received an MQTT message on topic {}", msg.topic_name);
         let mut topic_parts = msg.topic_name.split("/");
         if topic_parts.next() != Some("kit") {
             return Err(Error::InvalidTopic);
@@ -249,7 +247,7 @@ impl Handler {
 
         // Receive incoming notifications.
         for notification in notifications {
-            trace!("Received MQTT notification: {:?}", notification);
+            tracing::trace!("Received MQTT notification: {:?}", notification);
             match notification {
                 Notification::Reconnection => {
                     establish_subscriptions(&mut mqtt_client);
@@ -285,7 +283,7 @@ impl Handler {
                             );
                         }
                         Err(err) => {
-                            debug!("Error parsing MQTT message: {:?}", err);
+                            tracing::debug!("Error parsing MQTT message: {:?}", err);
                         }
                     }
                 }

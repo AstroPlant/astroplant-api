@@ -9,7 +9,7 @@ use crate::{authentication, helpers, models, views};
 
 pub fn router(pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    trace!("Setting up kits router.");
+    tracing::trace!("Setting up kits router.");
 
     (warp::get().and(kit_by_serial(pg.clone())))
         .or(warp::post().and(reset_password(pg.clone())))
@@ -163,7 +163,7 @@ pub fn create_kit(
             conn.transaction(|| {
                 let created_kit: models::Kit = new_kit.create(&conn)?;
                 let kit_serial = created_kit.serial;
-                debug!("Created kit \"{}\"", kit_serial);
+                tracing::debug!("Created kit \"{}\"", kit_serial);
                 let kit_id = models::KitId(created_kit.id);
 
                 models::NewKitMembership::new(user_id, kit_id, true, true).create(&conn)?;

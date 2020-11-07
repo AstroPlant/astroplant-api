@@ -47,7 +47,7 @@ pub fn option_by_token() -> impl Filter<Extract = (Option<UserId>,), Error = Rej
                             }
                         };
 
-                    trace!("User authenticated with state {:?}", authentication_state);
+                    tracing::trace!("User authenticated with state {:?}", authentication_state);
                     Ok(Some(UserId(authentication_state.user_id)))
                 } else {
                     Ok(None)

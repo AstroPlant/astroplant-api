@@ -41,7 +41,7 @@ impl Handler {
         kit_serial: String,
         response: oneshot::Sender<Option<serde_json::Value>>,
     ) -> Result<(), Error> {
-        trace!("handling getActiveConfiguration request for {}", kit_serial);
+        tracing::trace!("handling getActiveConfiguration request for {}", kit_serial);
 
         let conn = pg.get().await.map_err(|_| Error::PgPool)?;
         let configuration: Option<_> = helpers::threadpool(move || {
@@ -88,7 +88,7 @@ impl Handler {
         pg: PgPool,
         response: oneshot::Sender<Vec<serde_json::Value>>,
     ) -> Result<(), Error> {
-        trace!("handling getQuantityTypes request");
+        tracing::trace!("handling getQuantityTypes request");
 
         let conn = pg.get().await.map_err(|_| Error::PgPool)?;
         let quantity_types: Vec<_> = helpers::threadpool(move || {
@@ -163,7 +163,7 @@ impl Handler {
             let datetime: chrono::DateTime<chrono::Utc> =
                 chrono::DateTime::from_utc(naive, chrono::Utc);
 
-            trace!(
+            tracing::trace!(
                 "Uploading media for kit {}: file {}, name '{}', type '{}', {} byte(s)",
                 kit_serial,
                 object_name,

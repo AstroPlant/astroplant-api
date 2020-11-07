@@ -5,9 +5,6 @@ extern crate log;
 extern crate diesel;
 
 #[macro_use]
-extern crate validator_derive;
-
-#[macro_use]
 extern crate strum_macros;
 
 use once_cell::sync::OnceCell;

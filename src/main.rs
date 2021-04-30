@@ -36,7 +36,7 @@ const DEFAULT_MQTT_PORT: u16 = 1883;
 static DEFAULT_MQTT_USERNAME: &str = "server";
 static DEFAULT_MQTT_PASSWORD: &str = "";
 static DEFAULT_S3_REGION: &str = "us-east-1";
-static DEFAULT_S3_ENDPOINT: &str = "http://localhost";
+static DEFAULT_S3_ENDPOINT: &str = "http://localhost:9000";
 
 static TOKEN_SIGNER: OnceCell<astroplant_auth::token::TokenSigner> = OnceCell::new();
 

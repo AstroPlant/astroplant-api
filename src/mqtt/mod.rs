@@ -199,13 +199,15 @@ impl Handler {
             })
             .await
             {
-                // TODO: Remove object
+                // TODO: Failed to insert into database, remove object
             }
 
             Ok::<(), problem::Problem>(())
         };
 
-        let _ = implementation().await;
+        if let Err(_) = implementation().await {
+            tracing::warn!("encountered a problem when uploading media");
+        }
     }
 
     pub fn run(
@@ -231,6 +233,8 @@ impl Handler {
                 _ => {}
             }
         }
+
+        tracing::debug!("MQTT handler stopped");
     }
 }
 

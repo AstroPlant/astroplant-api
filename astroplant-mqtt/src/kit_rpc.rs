@@ -179,7 +179,7 @@ impl Handle {
         let id = self.get_next_id();
         self.callbacks.insert(id, callback);
         self.timeouts.push_back((id, std::time::Instant::now()));
-        tracing::trace!("created kit RPC callback with id: {}", id);
+        tracing::debug!("created kit RPC callback with id: {}", id);
         id
     }
 
@@ -424,7 +424,7 @@ async fn handle_response(handle: Arc<Mutex<Handle>>, kit_serial: String, payload
     let id = rpc_response.get_id();
     let mut handle = handle.lock().unwrap();
 
-    tracing::trace!("received kit RPC response for id: {}", id);
+    tracing::debug!("received kit RPC response for id: {}", id);
 
     if let Some(callback) = handle.callbacks.remove(&id) {
         callback

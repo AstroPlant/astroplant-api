@@ -262,6 +262,7 @@ impl Handler {
                             }
                             if mqtt_api_sender.send(msg).is_err() {
                                 // Receiver not keeping up. Disconnect.
+                                tracing::error!("MQTT sender not keeping up. Disconnecting.");
                                 break;
                             }
                         }
@@ -271,6 +272,9 @@ impl Handler {
                                 .is_err()
                             {
                                 // Kit RPC handler not keeping up. Disconnect.
+                                tracing::error!(
+                                    "MQTT kit RPC message handler not keeping up. Disconnecting."
+                                );
                                 break;
                             }
                         }
@@ -290,6 +294,7 @@ impl Handler {
                 _ => {}
             }
         }
+        tracing::debug!("mqtt notification listener stopped");
     }
 }
 

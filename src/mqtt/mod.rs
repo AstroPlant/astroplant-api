@@ -216,12 +216,12 @@ impl Handler {
             match message {
                 MqttApiMessage::ServerRpcRequest(request) => self.server_rpc_request(request),
                 MqttApiMessage::RawMeasurement(measurement) => {
-                    println!("Received measurement: {:?}", measurement);
+                    tracing::trace!("Received measurement: {:?}", measurement);
                     self.runtime_handle
                         .spawn(Self::send(self.raw_measurement_sender.clone(), measurement));
                 }
                 MqttApiMessage::Media(media) => {
-                    println!("Received media: {:?}", media.name);
+                    tracing::trace!("Received media: {:?}", media.name);
                     self.runtime_handle.spawn(Self::upload_media(
                         self.pg_pool.clone(),
                         self.object_store.clone(),

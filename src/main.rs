@@ -42,7 +42,6 @@ static TOKEN_SIGNER: OnceCell<astroplant_auth::token::TokenSigner> = OnceCell::n
 
 #[tokio::main]
 async fn main() {
-    // env_logger::init();
     tracing_subscriber::fmt::init();
 
     init_token_signer();

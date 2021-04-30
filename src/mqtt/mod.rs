@@ -6,7 +6,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::future::FutureExt;
 use futures::sink::SinkExt;
 use std::convert::TryFrom;
-use tokio::runtime::{Handle, Runtime};
+use tokio::runtime;
 
 #[derive(Debug)]
 enum Error {
@@ -17,7 +17,7 @@ enum Error {
 struct Handler {
     pg_pool: PgPool,
     object_store: astroplant_object::ObjectStore,
-    runtime_handle: Handle,
+    runtime_handle: runtime::Handle,
     raw_measurement_sender: mpsc::Sender<astroplant_mqtt::RawMeasurement>,
 }
 
@@ -25,7 +25,7 @@ impl Handler {
     pub fn new(
         pg_pool: PgPool,
         object_store: astroplant_object::ObjectStore,
-        runtime_handle: Handle,
+        runtime_handle: runtime::Handle,
         raw_measurement_sender: mpsc::Sender<astroplant_mqtt::RawMeasurement>,
     ) -> Self {
         Self {
@@ -234,6 +234,7 @@ impl Handler {
     }
 }
 
+/// Must be called from within a Tokio runtime.
 pub fn run(
     pg_pool: PgPool,
     object_store: astroplant_object::ObjectStore,
@@ -253,13 +254,8 @@ pub fn run(
         std::env::var("MQTT_PASSWORD").unwrap_or(crate::DEFAULT_MQTT_PASSWORD.to_owned()),
     );
 
+    let runtime_handle = runtime::Handle::current();
     std::thread::spawn(move || {
-        let (thread_pool_handle_sender, thread_pool_handle_receiver) = oneshot::channel::<()>();
-        let runtime = Runtime::new().unwrap();
-        let runtime_handle = runtime.handle().clone();
-
-        std::thread::spawn(move || runtime.block_on(thread_pool_handle_receiver));
-
         let mut handler = Handler::new(
             pg_pool,
             object_store,
@@ -267,8 +263,6 @@ pub fn run(
             raw_measurement_sender,
         );
         handler.run(message_receiver);
-
-        thread_pool_handle_sender.send(()).unwrap();
     });
 
     (raw_measurement_receiver, kits_rpc)

@@ -1,4 +1,4 @@
-FROM rust:1.43 as builder
+FROM rust:1.51 as builder
 
 RUN apt-get update && apt-get install capnproto -y
 WORKDIR /usr/src/astroplant-api

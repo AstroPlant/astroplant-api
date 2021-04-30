@@ -7,8 +7,10 @@
   };
   outputs = { self, nixpkgs, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
-      let pkgs = nixpkgs.legacyPackages.${system};
-      in {
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in
+      {
         packages.astroplant-api = pkgs.rustPlatform.buildRustPackage rec {
           pname = "astroplant-api";
           version = "1.0.0-alpha";
@@ -29,8 +31,11 @@
             postgresql
             (diesel-cli.override {
               postgresqlSupport = true;
-              sqliteSupport = false;
-              mysqlSupport = false;
+              # Temporarily not false, as for some reason diesel_cli tries to build with support anyway
+              # sqliteSupport = false;
+              # mysqlSupport = false;
+              sqliteSupport = true;
+              mysqlSupport = true;
             })
           ];
         };

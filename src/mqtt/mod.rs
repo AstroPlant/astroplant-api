@@ -255,7 +255,7 @@ pub fn run(
 
     std::thread::spawn(move || {
         let (thread_pool_handle_sender, thread_pool_handle_receiver) = oneshot::channel::<()>();
-        let mut runtime = Runtime::new().unwrap();
+        let runtime = Runtime::new().unwrap();
         let runtime_handle = runtime.handle().clone();
 
         std::thread::spawn(move || runtime.block_on(thread_pool_handle_receiver));

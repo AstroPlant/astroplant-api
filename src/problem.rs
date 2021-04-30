@@ -83,12 +83,6 @@ impl Display for Problem {
 impl StdError for Problem {}
 impl warp::reject::Reject for Problem {}
 
-impl From<Problem> for warp::Rejection {
-    fn from(problem: Problem) -> warp::Rejection {
-        warp::reject::custom(problem)
-    }
-}
-
 impl From<diesel::result::Error> for Problem {
     fn from(diesel_error: diesel::result::Error) -> Problem {
         match diesel_error {

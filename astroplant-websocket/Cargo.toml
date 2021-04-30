@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 tracing = "0.1"
-warp = "0.2"
+warp = "0.3"
 jsonrpc-pubsub = "14.0.6"
 jsonrpc-core = "14.0.5"
 jsonrpc-server-utils = "14.0.5"

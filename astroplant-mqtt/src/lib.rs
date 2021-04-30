@@ -61,6 +61,9 @@ pub enum MqttApiMessage {
 enum MqttMessage {
     Api(MqttApiMessage, Option<ServerRpcResponder<'static>>),
     KitRpcResponse(String, Vec<u8>),
+    /// A message sent on a topic we ignore (i.e., the topics we send on ourselves,
+    /// `kit/#/server-rpc/response` and `kit/#/kit-rpc/request`).
+    IgnoredTopic,
 }
 
 fn establish_subscriptions(mqtt_client: &mut MqttClient) {
@@ -222,9 +225,11 @@ impl Handler {
                     .map(|(request, responder)| {
                         MqttMessage::Api(MqttApiMessage::ServerRpcRequest(request), responder)
                     }),
+                Some("response") => Ok(MqttMessage::IgnoredTopic),
                 _ => Err(Error::InvalidTopic(msg.topic_name)),
             },
             Some("kit-rpc") => match topic_parts.next() {
+                Some("request") => Ok(MqttMessage::IgnoredTopic),
                 Some("response") => Ok(MqttMessage::KitRpcResponse(
                     kit_serial,
                     msg.payload.to_vec(),
@@ -254,6 +259,7 @@ impl Handler {
                 }
                 Notification::Publish(publish) => {
                     match self.handle_mqtt_publish(publish) {
+                        Ok(MqttMessage::IgnoredTopic) => {}
                         Ok(MqttMessage::Api(msg, responder)) => {
                             if let Some(responder) = responder {
                                 thread_pool

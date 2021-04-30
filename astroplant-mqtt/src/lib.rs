@@ -71,7 +71,7 @@ fn establish_subscriptions(mqtt_client: &mut MqttClient) {
 
 #[derive(Debug)]
 pub enum Error {
-    InvalidTopic,
+    InvalidTopic(String),
     MalformedMessage,
     Capnp(capnp::Error),
     // The response is the error to send over MQTT. This is hacky.
@@ -191,12 +191,12 @@ impl Handler {
         tracing::trace!("received an MQTT message on topic {}", msg.topic_name);
         let mut topic_parts = msg.topic_name.split("/");
         if topic_parts.next() != Some("kit") {
-            return Err(Error::InvalidTopic);
+            return Err(Error::InvalidTopic(msg.topic_name));
         }
 
         let kit_serial: String = match topic_parts.next() {
             Some(serial) => serial.to_owned(),
-            None => return Err(Error::InvalidTopic),
+            None => return Err(Error::InvalidTopic(msg.topic_name)),
         };
 
         match topic_parts.next() {
@@ -209,7 +209,7 @@ impl Handler {
                     parse_aggregate_measurement(kit_serial, &msg.payload)?,
                     None,
                 )),
-                _ => Err(Error::InvalidTopic),
+                _ => Err(Error::InvalidTopic(msg.topic_name)),
             },
             Some("media") => Ok(MqttMessage::Api(
                 parse_media(kit_serial, &msg.payload)?,
@@ -222,16 +222,16 @@ impl Handler {
                     .map(|(request, responder)| {
                         MqttMessage::Api(MqttApiMessage::ServerRpcRequest(request), responder)
                     }),
-                _ => Err(Error::InvalidTopic),
+                _ => Err(Error::InvalidTopic(msg.topic_name)),
             },
             Some("kit-rpc") => match topic_parts.next() {
                 Some("response") => Ok(MqttMessage::KitRpcResponse(
                     kit_serial,
                     msg.payload.to_vec(),
                 )),
-                _ => Err(Error::InvalidTopic),
+                _ => Err(Error::InvalidTopic(msg.topic_name)),
             },
-            _ => Err(Error::InvalidTopic),
+            _ => Err(Error::InvalidTopic(msg.topic_name)),
         }
     }
 

@@ -23,7 +23,8 @@
         devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
             cargo
-            rls
+            rust-analyzer
+            rustc
             rustfmt
             pkgconfig
             openssl
@@ -38,6 +39,10 @@
               mysqlSupport = true;
             })
           ];
+          shellHook = ''
+            export RUST_SRC_PATH="${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
+            export RUST_LOG="warn,astroplant_mqtt=debug,astroplant_api=trace";
+          '';
         };
       });
 }

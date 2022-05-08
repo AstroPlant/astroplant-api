@@ -179,9 +179,21 @@ impl Handler {
             .await?
             .ok_or_else(|| problem::NOT_FOUND)?;
 
-            let _ = object_store
+            if let Err(err) = object_store
                 .put(&kit_serial, &object_name, data, r#type.clone())
-                .await;
+                .await
+            {
+                tracing::warn!(
+                    "Failed to upload media for kit {}: file {}, name '{}', type '{}', {} byte(s). Error: {:?}",
+                    kit_serial,
+                    object_name,
+                    name,
+                    r#type,
+                    size,
+                    err,
+                );
+            };
+
             let conn = pg_pool.get().await?;
             if let Err(_) = helpers::threadpool(move || {
                 let new = models::NewMedia::new(
@@ -222,6 +234,8 @@ impl Handler {
                     self.runtime_handle
                         .spawn(Self::send(self.raw_measurement_sender.clone(), measurement));
                 }
+                // TODO: perhaps have a dedicated task for uploading media; push media through a
+                // channel to that task, and report an error if the channel is full.
                 MqttApiMessage::Media(media) => {
                     tracing::trace!("Received media: {:?}", media.name);
                     self.runtime_handle.spawn(Self::upload_media(

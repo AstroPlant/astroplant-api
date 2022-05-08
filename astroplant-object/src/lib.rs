@@ -48,7 +48,7 @@ impl ObjectStore {
         Self {
             store: Stores::S3 {
                 s3,
-                bucket_name: "kit-files".to_owned(),
+                bucket_name: "kit-media".to_owned(),
             },
         }
     }

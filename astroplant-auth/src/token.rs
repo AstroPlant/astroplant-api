@@ -1,5 +1,6 @@
 //! TODO: add ability to revoke refresh tokens.
 
+use jsonwebtoken::{DecodingKey, EncodingKey};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -33,12 +34,16 @@ pub struct Claims {
 }
 
 pub struct TokenSigner {
-    key: Vec<u8>,
+    decoding_key: DecodingKey,
+    encoding_key: EncodingKey,
 }
 
 impl TokenSigner {
     pub fn new(key: Vec<u8>) -> TokenSigner {
-        TokenSigner { key }
+        TokenSigner {
+            decoding_key: DecodingKey::from_secret(&key),
+            encoding_key: EncodingKey::from_secret(&key),
+        }
     }
 
     fn create_token(
@@ -56,13 +61,13 @@ impl TokenSigner {
             state,
         };
 
-        jsonwebtoken::encode(&header, &token, &self.key).unwrap()
+        jsonwebtoken::encode(&header, &token, &self.encoding_key).unwrap()
     }
 
     fn decode_token(&self, token: &str) -> Result<Claims, Error> {
         let validation = jsonwebtoken::Validation::default();
 
-        jsonwebtoken::decode::<Claims>(token, &self.key, &validation)
+        jsonwebtoken::decode::<Claims>(token, &self.decoding_key, &validation)
             .map_err(|e| match e.kind() {
                 jsonwebtoken::errors::ErrorKind::ExpiredSignature => Error::Expired,
                 _ => Error::Other,
@@ -115,9 +120,7 @@ mod test {
 
             assert_eq!(
                 state,
-                token_signer
-                    .decode_access_token(&access_token)
-                    .unwrap()
+                token_signer.decode_access_token(&access_token).unwrap()
             );
         }
     }

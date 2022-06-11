@@ -10,5 +10,5 @@ rust-crypto = "0.2.36"
 rand = "0.7"
 base64 = "0.10"
 serde = { version = "1.0.97", features = ["derive"] }
-jsonwebtoken = ">= 5, <= 6"
+jsonwebtoken = "8.1"
 random-string = { path = "../random-string" }

@@ -3,7 +3,7 @@ use super::{astroplant_capnp, Error};
 use capnp::serialize_packed;
 use futures::channel::oneshot;
 use futures::task::SpawnExt;
-use rumqtt::{MqttClient, QoS};
+use rumqttc::{Client as MqttClient, QoS};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -250,7 +250,11 @@ impl KitRpcRequestBuilder {
         self
     }
 
-    pub fn peripheral_command_lock(mut self, peripheral: String, request: PeripheralCommandLockRequest) -> Self {
+    pub fn peripheral_command_lock(
+        mut self,
+        peripheral: String,
+        request: PeripheralCommandLockRequest,
+    ) -> Self {
         use PeripheralCommandLockRequest::*;
 
         let request_builder = self

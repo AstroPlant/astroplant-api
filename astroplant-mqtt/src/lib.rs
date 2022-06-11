@@ -1,7 +1,7 @@
 use capnp::serialize_packed;
 use futures::task::SpawnExt;
 use futures::FutureExt;
-use rumqtt::{MqttClient, MqttOptions, Notification, QoS, ReconnectOptions, SecurityOptions};
+use rumqttc::{Client as MqttClient, Event, MqttOptions, Packet, Publish, QoS};
 use std::collections::HashMap;
 use std::future::Future;
 
@@ -92,7 +92,7 @@ fn parse_raw_measurement(kit_serial: String, mut payload: &[u8]) -> Result<MqttA
     let measurement = RawMeasurement {
         id: uuid::Uuid::from_slice(raw_measurement.get_id().map_err(Error::Capnp)?)
             .map_err(|_| Error::MalformedMessage)?,
-        kit_serial: kit_serial,
+        kit_serial,
         datetime: raw_measurement.get_datetime(),
         peripheral: raw_measurement.get_peripheral(),
         quantity_type: raw_measurement.get_quantity_type(),
@@ -116,7 +116,7 @@ fn parse_aggregate_measurement(
     let measurement = AggregateMeasurement {
         id: uuid::Uuid::from_slice(aggregate_measurement.get_id().map_err(Error::Capnp)?)
             .map_err(|_| Error::MalformedMessage)?,
-        kit_serial: kit_serial,
+        kit_serial,
         datetime_start: aggregate_measurement.get_datetime_start(),
         datetime_end: aggregate_measurement.get_datetime_end(),
         peripheral: aggregate_measurement.get_peripheral(),
@@ -146,7 +146,7 @@ fn parse_media(kit_serial: String, mut payload: &[u8]) -> Result<MqttApiMessage,
     let media = Media {
         id: uuid::Uuid::from_slice(media.get_id().map_err(Error::Capnp)?)
             .map_err(|_| Error::MalformedMessage)?,
-        kit_serial: kit_serial,
+        kit_serial,
         datetime: media.get_datetime(),
         peripheral: media.get_peripheral(),
         name: media.get_name().map_err(Error::Capnp)?.to_owned(),
@@ -190,16 +190,16 @@ impl Handler {
         }
     }
 
-    fn handle_mqtt_publish(&mut self, msg: rumqtt::Publish) -> Result<MqttMessage, Error> {
-        tracing::trace!("received an MQTT message on topic {}", msg.topic_name);
-        let mut topic_parts = msg.topic_name.split("/");
+    fn handle_mqtt_publish(&mut self, msg: Publish) -> Result<MqttMessage, Error> {
+        tracing::trace!("received an MQTT message on topic {}", msg.topic);
+        let mut topic_parts = msg.topic.split("/");
         if topic_parts.next() != Some("kit") {
-            return Err(Error::InvalidTopic(msg.topic_name));
+            return Err(Error::InvalidTopic(msg.topic));
         }
 
         let kit_serial: String = match topic_parts.next() {
             Some(serial) => serial.to_owned(),
-            None => return Err(Error::InvalidTopic(msg.topic_name)),
+            None => return Err(Error::InvalidTopic(msg.topic)),
         };
 
         match topic_parts.next() {
@@ -212,7 +212,7 @@ impl Handler {
                     parse_aggregate_measurement(kit_serial, &msg.payload)?,
                     None,
                 )),
-                _ => Err(Error::InvalidTopic(msg.topic_name)),
+                _ => Err(Error::InvalidTopic(msg.topic)),
             },
             Some("media") => Ok(MqttMessage::Api(
                 parse_media(kit_serial, &msg.payload)?,
@@ -226,7 +226,7 @@ impl Handler {
                         MqttMessage::Api(MqttApiMessage::ServerRpcRequest(request), responder)
                     }),
                 Some("response") => Ok(MqttMessage::IgnoredTopic),
-                _ => Err(Error::InvalidTopic(msg.topic_name)),
+                _ => Err(Error::InvalidTopic(msg.topic)),
             },
             Some("kit-rpc") => match topic_parts.next() {
                 Some("request") => Ok(MqttMessage::IgnoredTopic),
@@ -234,9 +234,9 @@ impl Handler {
                     kit_serial,
                     msg.payload.to_vec(),
                 )),
-                _ => Err(Error::InvalidTopic(msg.topic_name)),
+                _ => Err(Error::InvalidTopic(msg.topic)),
             },
-            _ => Err(Error::InvalidTopic(msg.topic_name)),
+            _ => Err(Error::InvalidTopic(msg.topic)),
         }
     }
 
@@ -244,20 +244,20 @@ impl Handler {
         &mut self,
         thread_pool: futures::executor::ThreadPool,
         mut mqtt_client: MqttClient,
-        notifications: crossbeam_channel::Receiver<Notification>,
+        mut connection: rumqttc::Connection,
         kit_rpc_mqtt_message_handler: crossbeam_channel::Sender<(String, Vec<u8>)>,
         mqtt_api_sender: crossbeam_channel::Sender<MqttApiMessage>,
     ) {
         establish_subscriptions(&mut mqtt_client);
 
         // Receive incoming notifications.
-        for notification in notifications {
+        for notification in connection.iter() {
             tracing::trace!("Received MQTT notification: {:?}", notification);
             match notification {
-                Notification::Reconnection => {
+                Ok(Event::Incoming(Packet::ConnAck(_))) => {
                     establish_subscriptions(&mut mqtt_client);
                 }
-                Notification::Publish(publish) => {
+                Ok(Event::Incoming(Packet::Publish(publish))) => {
                     match self.handle_mqtt_publish(publish) {
                         Ok(MqttMessage::IgnoredTopic) => {}
                         Ok(MqttMessage::Api(msg, responder)) => {
@@ -297,6 +297,10 @@ impl Handler {
                         }
                     }
                 }
+                Err(e) => {
+                    tracing::error!("An unhandled MQTT error occurred: {:?}", e);
+                    break;
+                }
                 _ => {}
             }
         }
@@ -318,13 +322,11 @@ pub fn run(
         .create()
         .expect("Could not build thread pool");
 
-    let mqtt_options = MqttOptions::new("astroplant-api-connector", mqtt_host, mqtt_port)
-        .set_reconnect_opts(ReconnectOptions::Always(10))
-        .set_security_opts(SecurityOptions::UsernamePassword(
-            mqtt_username,
-            mqtt_password,
-        ));
-    let (mqtt_client, notifications) = MqttClient::start(mqtt_options).unwrap();
+    let mut mqtt_options = MqttOptions::new("astroplant-api-connector", mqtt_host, mqtt_port);
+    mqtt_options
+        .set_keep_alive(std::time::Duration::from_secs(5))
+        .set_credentials(mqtt_username, mqtt_password);
+    let (mqtt_client, connection) = MqttClient::new(mqtt_options, 16);
 
     let kit_rpc_runner = kit_rpc::kit_rpc_runner(mqtt_client.clone(), thread_pool.clone());
 
@@ -334,7 +336,7 @@ pub fn run(
         handler.runner(
             thread_pool,
             mqtt_client,
-            notifications,
+            connection,
             kit_rpc_mqtt_message_handler,
             mqtt_api_sender,
         );

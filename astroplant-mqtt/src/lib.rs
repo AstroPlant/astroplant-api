@@ -1,11 +1,9 @@
-//! Implementation of the AstroPlant back-end MQTT client. This abstracts away over the MQTT
-//! protocol.
+//! Implementation of the AstroPlant back-end MQTT client. This abstracts away over the underlying
+//! MQTT protocol.
 //!
-//! The client exposes a kit RPC handle to send RPC requests to kits.
-//!
-//! The client can be given a server RPC handler (to handle Kit's requests to the server RPC).
-//!
-//! A Tokio task is spawned for each server RPC request.
+//! The client exposes a kit RPC handle to send RPC requests to kits. The client can be given a
+//! server RPC handler (to handle kits' requests to the server RPC). A Tokio task is spawned for
+//! each server RPC request.
 
 use async_trait::async_trait;
 use capnp::serialize_packed;
@@ -18,10 +16,11 @@ use std::{collections::HashMap, convert::TryFrom};
 mod kit_rpc;
 mod server_rpc;
 use kit_rpc::{DecodeError, Driver as KitsRpcDriver, ResponseTx as KitsRpcResponseTx};
-pub use kit_rpc::{KitRpcResponseError, KitsRpc};
 use server_rpc::{
     ServerRpcRequest, ServerRpcRequestBody, ServerRpcResponse, ServerRpcResponseBuilder,
 };
+
+pub use kit_rpc::{KitRpcResponseError, KitsRpc};
 
 pub mod astroplant_capnp {
     include!(concat!(env!("OUT_DIR"), "/proto/astroplant_capnp.rs"));
@@ -161,6 +160,36 @@ pub enum Message {
     Media(Media),
 }
 
+/// A server RPC request handler. It must respond to each request with a value or an [RpcError]
+/// (probably [RpcError::Other]). Rate limiting is handled internally by this library. An
+/// implementation should use `#[async_trait]` to allow for the implementation of the async
+/// methods.
+///
+/// # Example
+/// ```
+/// use async_trait::async_trait;
+/// use astroplant_mqtt::{RpcError, ServerRpcHandler};
+///
+/// struct Handler;
+///
+/// #[async_trait]
+/// impl ServerRpcHandler for Handler {
+///     async fn version(&self) -> Result<String, RpcError> {
+///         Ok("0.0.1".to_owned())
+///     }
+///
+///     async fn get_active_configuration(
+///         &self,
+///         kit_serial: String,
+///     ) -> Result<Option<serde_json::Value>, RpcError> {
+///         Ok(None)
+///     }
+///
+///     async fn get_quantity_types(&self) -> Result<Vec<serde_json::Value>, RpcError> {
+///         Ok(vec![])
+///     }
+/// }
+/// ```
 #[async_trait]
 pub trait ServerRpcHandler {
     async fn version(&self) -> Result<String, RpcError>;

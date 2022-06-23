@@ -90,10 +90,12 @@ enum ResponseBody {
 
 #[derive(Debug, thiserror::Error)]
 pub enum DecodeErrorKind {
+    /// An internal decoding error, e.g., due to lack of resources.
     #[error("An internal decoding error occurred, e.g., due to lack of resoruces")]
-    Internal, // e.g., lack of resources
+    Internal,
+    /// A message was malformed and could not be decoded.
     #[error("The message is malformed and cannot not be decoded")]
-    Malformed, // e.g., corrupted message
+    Malformed,
 }
 
 impl From<capnp::Error> for DecodeErrorKind {
@@ -111,6 +113,7 @@ impl From<serde_json::Error> for DecodeErrorKind {
     }
 }
 
+/// Error that occurs when a kit RPC response message could not be decoded.
 #[derive(Debug, thiserror::Error)]
 #[error("A decoding error occurred")]
 pub struct DecodeError {
@@ -317,20 +320,30 @@ impl Driver {
     }
 }
 
+/// A handle to make kit RPC requests.
 #[derive(Clone)]
 pub struct KitsRpc {
     request_tx: mpsc::Sender<Request>,
 }
 
+/// Errors that can occur in response to a [kit RPC](KitsRpc) request.
+///
+/// Erroneous kit responses that cannot be matched with a specific kit RPC request, are instead
+/// transmitted as a [KitRpcResponse](super::Error::KitRpcResponse) error on the [MQTT connection
+/// stream](super::Connection).
 #[derive(thiserror::Error, Debug)]
 pub enum KitRpcResponseError {
+    /// The kit RPC request timed out: no response was received.
     #[error("The kit RPC request timed out: no response was received")]
     TimedOut,
+    /// The kit's response to the RPC request could not be decoded.
     #[error("The kit's response to the RPC request could not be decoded")]
     MalformedResponse,
+    /// The kit's response to the RPC request was invalid (e.g., a wrong value was returned).
     #[error("The kit's response to the RPC request was invalid")]
     InvalidResponse,
-    #[error("The kit sent an error response")]
+    /// The kit indicated our our request was erroneous.
+    #[error("The kit indicated our request was erroneous")]
     RpcError(#[from] RpcError),
 }
 

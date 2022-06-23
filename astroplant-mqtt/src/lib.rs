@@ -26,32 +26,56 @@ pub mod astroplant_capnp {
     include!(concat!(env!("OUT_DIR"), "/proto/astroplant_capnp.rs"));
 }
 
+/// Errors sent as a response of an RPC.
+///
+/// This can either be an error response by the server to a server RPC request made by a kit, or a
+/// response by a kit to a kit RPC request made by the server.
 #[derive(thiserror::Error, Debug)]
 pub enum RpcError {
+    /// An unspecified error occurred. This may indicate internal errors or malformed requests.
     #[error("An unspecified error occurred")]
     Other,
+    /// The requested RPC method was not found.
     #[error("The requested RPC method was not found")]
     MethodNotFound,
+    /// The request was rated limited. The [duration](Duration) indicates when the next request can
+    /// be made.
     #[error("The RPC request was rate limited. Next request can be made in {} milliseconds", .0.as_millis())]
     RateLimit(Duration),
 }
 
+/// Errors that can happen.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    /// A message was seen on an invalid topic.
     #[error("An invalid topic was encountered: {0}")]
     InvalidTopic(String),
+
+    /// A kit sent a malformed message.
     #[error("A malformed message was encountered")]
     MalformedMessage,
-    #[error("There was an issue with the kit RPC response")]
+
+    /// A kit responded erroneously to an RPC request.
+    ///
+    /// Erroneous kit RPC responses that can be matched to a specific request are sent as
+    /// [KitRpcResponseError] to the specific request.
+    #[error("There was an issue with a kit RPC response")]
     KitRpcResponse(#[from] DecodeError),
+
+    /// A message could not be decoded.
     #[error("An issue occurred when trying to decode the message")]
     Capnp(#[from] capnp::Error),
+
+    /// An MQTT connection issue occurred.
     #[error("An MQTT connection issue occurred")]
     Mqtt(#[from] rumqttc::ConnectionError),
+
+    /// An MQTT client error occurred.
     #[error("An MQTT client issue occurred")]
     MqttClientError(#[from] rumqttc::ClientError),
 }
 
+/// A raw measurement made by a kit.
 #[derive(Debug)]
 pub struct RawMeasurement {
     pub id: uuid::Uuid,
@@ -62,6 +86,7 @@ pub struct RawMeasurement {
     pub value: f64,
 }
 
+/// An aggregate of raw measurements made by a kit.
 #[derive(Debug)]
 pub struct AggregateMeasurement {
     pub id: uuid::Uuid,
@@ -73,6 +98,7 @@ pub struct AggregateMeasurement {
     pub values: HashMap<String, f64>,
 }
 
+/// Media produced by a kit.
 #[derive(Debug)]
 pub struct Media {
     pub id: uuid::Uuid,
@@ -153,6 +179,10 @@ fn parse_media(kit_serial: String, mut payload: &[u8]) -> Result<Media, Error> {
     Ok(media)
 }
 
+/// A message sent by a kit.
+///
+/// These messages do not include requests to the server RPC, nor
+/// responses to kit RPC requests.
 #[derive(Debug)]
 pub enum Message {
     RawMeasurement(RawMeasurement),
@@ -160,10 +190,11 @@ pub enum Message {
     Media(Media),
 }
 
-/// A server RPC request handler. It must respond to each request with a value or an [RpcError]
-/// (probably [RpcError::Other]). Rate limiting is handled internally by this library. An
-/// implementation should use `#[async_trait]` to allow for the implementation of the async
-/// methods.
+/// A server RPC request handler.
+///
+/// The handler must respond to each request with a value or an [RpcError] (probably
+/// [RpcError::Other]). Rate limiting is handled internally by this library. An implementation
+/// should use `#[async_trait]` to allow for the implementation of the async methods.
 ///
 /// # Example
 /// ```
@@ -200,7 +231,9 @@ pub trait ServerRpcHandler {
     async fn get_quantity_types(&self) -> Result<Vec<serde_json::Value>, RpcError>;
 }
 
-/// Unconstructable. Used as a marker type for when no server RPC handler is given.
+/// A marker type for when no server RPC handler is given.
+///
+/// Unconstructable.
 pub enum NullHandler {}
 
 #[async_trait]
@@ -271,6 +304,10 @@ impl TryFrom<String> for Topic {
     }
 }
 
+/// An MQTT connection handle.
+///
+/// It must be consumed into a stream, and the stream driven, in order for the underlying protocol
+/// to make progress.
 pub struct Connection<H> {
     client: AsyncClient,
     event_loop: EventLoop,

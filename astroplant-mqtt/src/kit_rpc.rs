@@ -71,13 +71,13 @@ impl RequestBody {
 struct Request {
     kit_serial: String,
     body: RequestBody,
-    response_channel: oneshot::Sender<ResponseBody>,
+    response_channel: oneshot::Sender<Result<ResponseBody, DecodeErrorKind>>,
 }
 
 struct Response {
     kit_serial: String,
     request_id: u64,
-    body: ResponseBody,
+    body: Result<ResponseBody, DecodeErrorKind>,
 }
 
 enum ResponseBody {
@@ -207,7 +207,14 @@ pub(crate) struct ResponseTx(mpsc::Sender<Response>);
 
 impl ResponseTx {
     pub async fn send(&self, kit_serial: String, payload: Vec<u8>) -> Result<(), DecodeError> {
-        let (request_id, body) = decode_rpc_response(&payload)?;
+        let (request_id, body) = match decode_rpc_response(&payload) {
+            Err(DecodeError {
+                request_id: Some(id),
+                kind,
+            }) => Ok((id, Err(kind))),
+            Err(err) => Err(err),
+            Ok((request_id, body)) => Ok((request_id, Ok(body))),
+        }?;
         let response = Response {
             kit_serial,
             request_id,
@@ -222,7 +229,13 @@ impl ResponseTx {
 pub(crate) struct Driver {
     mqtt: AsyncClient,
     next_id: u64,
-    waiters: HashMap<(String, u64), (Instant, oneshot::Sender<ResponseBody>)>,
+    waiters: HashMap<
+        (String, u64),
+        (
+            Instant,
+            oneshot::Sender<Result<ResponseBody, DecodeErrorKind>>,
+        ),
+    >,
     request_rx: mpsc::Receiver<Request>,
     response_rx: mpsc::Receiver<Response>,
 }
@@ -342,9 +355,10 @@ impl KitsRpc {
             })
             .await;
         match rx.await.map_err(|_| KitRpcResponseError::TimedOut)? {
-            ResponseBody::Version(v) => Ok(v),
-            ResponseBody::Error(err) => Err(err.into()),
-            _ => Err(KitRpcResponseError::InvalidResponse),
+            Ok(ResponseBody::Version(v)) => Ok(v),
+            Ok(ResponseBody::Error(err)) => Err(err.into()),
+            Ok(_) => Err(KitRpcResponseError::InvalidResponse),
+            Err(_) => Err(KitRpcResponseError::MalformedResponse),
         }
     }
 
@@ -362,9 +376,10 @@ impl KitsRpc {
             })
             .await;
         match rx.await.map_err(|_| KitRpcResponseError::TimedOut)? {
-            ResponseBody::Uptime(v) => Ok(v),
-            ResponseBody::Error(err) => Err(err.into()),
-            _ => Err(KitRpcResponseError::InvalidResponse),
+            Ok(ResponseBody::Uptime(v)) => Ok(v),
+            Ok(ResponseBody::Error(err)) => Err(err.into()),
+            Ok(_) => Err(KitRpcResponseError::InvalidResponse),
+            Err(_) => Err(KitRpcResponseError::MalformedResponse),
         }
     }
 
@@ -387,9 +402,10 @@ impl KitsRpc {
             })
             .await;
         match rx.await.map_err(|_| KitRpcResponseError::TimedOut)? {
-            ResponseBody::PeripheralCommand(v) => Ok(v),
-            ResponseBody::Error(err) => Err(err.into()),
-            _ => Err(KitRpcResponseError::InvalidResponse),
+            Ok(ResponseBody::PeripheralCommand(v)) => Ok(v),
+            Ok(ResponseBody::Error(err)) => Err(err.into()),
+            Ok(_) => Err(KitRpcResponseError::InvalidResponse),
+            Err(_) => Err(KitRpcResponseError::MalformedResponse),
         }
     }
 
@@ -412,9 +428,10 @@ impl KitsRpc {
             })
             .await;
         match rx.await.map_err(|_| KitRpcResponseError::TimedOut)? {
-            ResponseBody::PeripheralCommandLock(v) => Ok(v),
-            ResponseBody::Error(err) => Err(err.into()),
-            _ => Err(KitRpcResponseError::InvalidResponse),
+            Ok(ResponseBody::PeripheralCommandLock(v)) => Ok(v),
+            Ok(ResponseBody::Error(err)) => Err(err.into()),
+            Ok(_) => Err(KitRpcResponseError::InvalidResponse),
+            Err(_) => Err(KitRpcResponseError::MalformedResponse),
         }
     }
 }

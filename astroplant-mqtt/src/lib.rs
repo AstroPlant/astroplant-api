@@ -15,12 +15,12 @@ use std::{collections::HashMap, convert::TryFrom};
 
 mod kit_rpc;
 mod server_rpc;
-use kit_rpc::{DecodeError, Driver as KitsRpcDriver, ResponseTx as KitsRpcResponseTx};
+use kit_rpc::{Driver as KitsRpcDriver, ResponseTx as KitsRpcResponseTx};
 use server_rpc::{
     ServerRpcRequest, ServerRpcRequestBody, ServerRpcResponse, ServerRpcResponseBuilder,
 };
 
-pub use kit_rpc::{KitRpcResponseError, KitsRpc};
+pub use kit_rpc::{DecodeError, KitRpcResponseError, KitsRpc};
 
 pub mod astroplant_capnp {
     include!(concat!(env!("OUT_DIR"), "/proto/astroplant_capnp.rs"));

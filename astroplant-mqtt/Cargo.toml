@@ -6,24 +6,20 @@ edition = "2018"
 build = "build.rs"
 
 [dependencies]
-tracing = "0.1"
-uuid = "0.8"
+async-trait = "0.1"
+capnp = "0.14"
 futures = { version = "0.3", features = ["thread-pool"] }
-futures-timer = "3.0"
-tokio = { version = "1.0", features = ["sync"] }
-async-stream = "0.3"
-crossbeam-channel = "0.3"
+ratelimit_meter = "5.0"
 rumqttc = "0.12"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
-capnp = "0.10"
-capnp-rpc = "0.10"
-ratelimit_meter = "5.0"
-async-trait = "0.1"
 thiserror = "1.0"
+tokio = { version = "1.0", features = ["sync"] }
+tracing = "0.1"
+uuid = "0.8"
 
 [build-dependencies]
-capnpc = "0.10"
+capnpc = "0.14"
 
 [lib]
 name = "astroplant_mqtt"

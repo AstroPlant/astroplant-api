@@ -54,18 +54,26 @@ pub enum Error {
 
     /// A kit sent a malformed message.
     #[error("A malformed message was encountered")]
-    MalformedMessage,
+    MalformedMessage { kit_serial: String },
 
     /// A kit responded erroneously to an RPC request.
     ///
     /// Erroneous kit RPC responses that can be matched to a specific request are sent as
     /// [KitRpcResponseError] to the specific request.
     #[error("There was an issue with a kit RPC response")]
-    KitRpcResponse(#[from] DecodeError),
+    KitRpcResponse {
+        kit_serial: String,
+        #[source]
+        error: DecodeError,
+    },
 
     /// A message could not be decoded.
     #[error("An issue occurred when trying to decode the message")]
-    Capnp(#[from] capnp::Error),
+    DecodingIssue {
+        kit_serial: String,
+        #[source]
+        error: capnp::Error,
+    },
 
     /// An MQTT connection issue occurred.
     #[error("An MQTT connection issue occurred")]
@@ -74,6 +82,15 @@ pub enum Error {
     /// An MQTT client error occurred.
     #[error("An MQTT client issue occurred")]
     MqttClientError(#[from] rumqttc::ClientError),
+}
+
+impl Error {
+    fn from_kit_serial_and_capnp(kit_serial: String, error: impl Into<capnp::Error>) -> Self {
+        Error::DecodingIssue {
+            kit_serial,
+            error: error.into(),
+        }
+    }
 }
 
 /// A raw measurement made by a kit.
@@ -114,17 +131,25 @@ pub struct Media {
 
 fn parse_raw_measurement(kit_serial: String, mut payload: &[u8]) -> Result<RawMeasurement, Error> {
     let message_reader =
-        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())?;
-    let raw_measurement = message_reader.get_root::<astroplant_capnp::raw_measurement::Reader>()?;
+        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())
+            .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?;
+    let raw_measurement = message_reader
+        .get_root::<astroplant_capnp::raw_measurement::Reader>()
+        .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?;
+
+    let id = raw_measurement
+        .get_id()
+        .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?;
 
     let measurement = RawMeasurement {
-        id: uuid::Uuid::from_slice(raw_measurement.get_id()?)
-            .map_err(|_| Error::MalformedMessage)?,
-        kit_serial,
+        id: uuid::Uuid::from_slice(id).map_err(|_| Error::MalformedMessage {
+            kit_serial: kit_serial.clone(),
+        })?,
         datetime: raw_measurement.get_datetime(),
         peripheral: raw_measurement.get_peripheral(),
         quantity_type: raw_measurement.get_quantity_type(),
         value: raw_measurement.get_value(),
+        kit_serial,
     };
 
     Ok(measurement)
@@ -135,26 +160,36 @@ fn parse_aggregate_measurement(
     mut payload: &[u8],
 ) -> Result<AggregateMeasurement, Error> {
     let message_reader =
-        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())?;
-    let aggregate_measurement =
-        message_reader.get_root::<astroplant_capnp::aggregate_measurement::Reader>()?;
+        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())
+            .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?;
+    let aggregate_measurement = message_reader
+        .get_root::<astroplant_capnp::aggregate_measurement::Reader>()
+        .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?;
+
+    let id = aggregate_measurement
+        .get_id()
+        .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?;
 
     let measurement = AggregateMeasurement {
-        id: uuid::Uuid::from_slice(aggregate_measurement.get_id()?)
-            .map_err(|_| Error::MalformedMessage)?,
-        kit_serial,
+        id: uuid::Uuid::from_slice(id).map_err(|_| Error::MalformedMessage {
+            kit_serial: kit_serial.clone(),
+        })?,
         datetime_start: aggregate_measurement.get_datetime_start(),
         datetime_end: aggregate_measurement.get_datetime_end(),
         peripheral: aggregate_measurement.get_peripheral(),
         quantity_type: aggregate_measurement.get_quantity_type(),
         values: aggregate_measurement
-            .get_values()?
+            .get_values()
+            .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?
             .into_iter()
             .map(|v| {
-                let aggregate_type = v.get_type()?;
+                let aggregate_type = v
+                    .get_type()
+                    .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?;
                 Ok((aggregate_type.to_owned(), v.get_value()))
             })
             .collect::<Result<_, Error>>()?,
+        kit_serial,
     };
 
     Ok(measurement)
@@ -162,19 +197,41 @@ fn parse_aggregate_measurement(
 
 fn parse_media(kit_serial: String, mut payload: &[u8]) -> Result<Media, Error> {
     let message_reader =
-        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())?;
-    let media = message_reader.get_root::<astroplant_capnp::media::Reader>()?;
+        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())
+            .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?;
+    let media = message_reader
+        .get_root::<astroplant_capnp::media::Reader>()
+        .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?;
+
+    let id = media
+        .get_id()
+        .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?;
+    let metadata = media
+        .get_metadata()
+        .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?;
 
     let media = Media {
-        id: uuid::Uuid::from_slice(media.get_id()?).map_err(|_| Error::MalformedMessage)?,
-        kit_serial,
+        id: uuid::Uuid::from_slice(id).map_err(|_| Error::MalformedMessage {
+            kit_serial: kit_serial.clone(),
+        })?,
+        metadata: serde_json::from_str(metadata).map_err(|_| Error::MalformedMessage {
+            kit_serial: kit_serial.clone(),
+        })?,
         datetime: media.get_datetime(),
         peripheral: media.get_peripheral(),
-        name: media.get_name()?.to_owned(),
-        r#type: media.get_type()?.to_owned(),
-        data: media.get_data()?.to_owned(),
-        metadata: serde_json::from_str(media.get_metadata()?)
-            .map_err(|_| Error::MalformedMessage)?,
+        name: media
+            .get_name()
+            .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?
+            .to_owned(),
+        r#type: media
+            .get_type()
+            .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?
+            .to_owned(),
+        data: media
+            .get_data()
+            .map_err(|err| Error::from_kit_serial_and_capnp(kit_serial.clone(), err))?
+            .to_owned(),
+        kit_serial,
     };
 
     Ok(media)
@@ -506,8 +563,9 @@ async fn handle_kit_rpc_response(
     payload: &[u8],
 ) -> Result<(), Error> {
     kits_rpc_response_tx
-        .send(kit_serial, payload.to_owned())
-        .await?;
+        .send(kit_serial.clone(), payload.to_owned())
+        .await
+        .map_err(|error| Error::KitRpcResponse { kit_serial, error })?;
 
     Ok(())
 }

@@ -329,7 +329,7 @@ impl TryFrom<&str> for Topic {
     type Error = Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let mut topic_parts = value.split("/");
+        let mut topic_parts = value.split('/');
         if topic_parts.next() != Some("kit") {
             return Err(Error::InvalidTopic(value.to_owned()));
         }
@@ -504,7 +504,7 @@ where
             if let Some(server_rpc_handler) = server_rpc_handler {
                 handle_server_rpc_request(
                     client,
-                    &server_rpc_handler,
+                    server_rpc_handler,
                     server_rpc_rate_limiter,
                     topic.kit_serial,
                     &publish.payload,

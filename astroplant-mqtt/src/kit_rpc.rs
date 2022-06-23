@@ -126,14 +126,14 @@ impl DecodeError {
     fn with_request_id(request_id: u64, error: impl Into<DecodeErrorKind>) -> Self {
         DecodeError {
             request_id: Some(request_id),
-            kind: error.into().into(),
+            kind: error.into(),
         }
     }
 
     fn without_request_id(error: impl Into<DecodeErrorKind>) -> Self {
         DecodeError {
             request_id: None,
-            kind: error.into().into(),
+            kind: error.into(),
         }
     }
 }
@@ -143,7 +143,7 @@ fn decode_rpc_error(
 ) -> Result<RpcError, DecodeErrorKind> {
     use astroplant_capnp::rpc_error::Which;
 
-    let err = match error.which().map_err(|err| capnp::Error::from(err))? {
+    let err = match error.which().map_err(capnp::Error::from)? {
         Which::Other(()) => RpcError::Other,
         Which::MethodNotFound(()) => RpcError::MethodNotFound,
         Which::RateLimit(millis) => RpcError::RateLimit(std::time::Duration::from_millis(millis)),
@@ -229,16 +229,16 @@ impl ResponseTx {
     }
 }
 
+type SerialAndRequestId = (String, u64);
+type Waiter = (
+    Instant, // Instant at which waiter was created.
+    oneshot::Sender<Result<ResponseBody, DecodeErrorKind>>,
+);
+
 pub(crate) struct Driver {
     mqtt: AsyncClient,
     next_id: u64,
-    waiters: HashMap<
-        (String, u64),
-        (
-            Instant,
-            oneshot::Sender<Result<ResponseBody, DecodeErrorKind>>,
-        ),
-    >,
+    waiters: HashMap<SerialAndRequestId, Waiter>,
     request_rx: mpsc::Receiver<Request>,
     response_rx: mpsc::Receiver<Response>,
 }

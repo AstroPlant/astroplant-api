@@ -10,15 +10,12 @@ async fn main() {
 
     while let Some(msg) = stream.next().await {
         println!("{:?}", msg);
-        match msg {
-            Ok(astroplant_mqtt::Message::RawMeasurement(measurement)) => {
-                let rpc = kits_rpc.clone();
-                tokio::spawn(async move {
-                    println!("Version: {:?}", rpc.version(&measurement.kit_serial).await);
-                    println!("Uptime:  {:?}", rpc.uptime(&measurement.kit_serial).await);
-                });
-            }
-            _ => {}
-        }
+        if let Ok(astroplant_mqtt::Message::RawMeasurement(measurement)) = msg {
+            let rpc = kits_rpc.clone();
+            tokio::spawn(async move {
+                println!("Version: {:?}", rpc.version(&measurement.kit_serial).await);
+                println!("Uptime:  {:?}", rpc.uptime(&measurement.kit_serial).await);
+            });
+        };
     }
 }

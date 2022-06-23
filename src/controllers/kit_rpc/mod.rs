@@ -39,11 +39,9 @@ pub fn version(
             crate::authorization::KitAction::RpcVersion,
         )
         .await?;
-        let rpc = kits_rpc.kit_rpc(kit.serial);
-        let version = rpc
-            .version()
+        let version = kits_rpc
+            .version(kit.serial)
             .await
-            .unwrap()
             .map_err(|err| problem::KitRpcProblem::kit_rpc_response_error_into_problem(err))?;
         Ok(ResponseBuilder::ok().body(version))
     }
@@ -74,11 +72,9 @@ pub fn uptime(
             crate::authorization::KitAction::RpcUptime,
         )
         .await?;
-        let rpc = kits_rpc.kit_rpc(kit.serial);
-        let uptime = rpc
-            .uptime()
+        let uptime = kits_rpc
+            .uptime(kit.serial)
             .await
-            .unwrap()
             .map_err(|err| problem::KitRpcProblem::kit_rpc_response_error_into_problem(err))?;
         Ok(ResponseBuilder::ok().body(uptime.as_secs()))
     }
@@ -116,11 +112,13 @@ pub fn peripheral_command(
             crate::authorization::KitAction::RpcPeripheralCommand,
         )
         .await?;
-        let rpc = kits_rpc.kit_rpc(kit.serial);
-        let peripheral_command = rpc
-            .peripheral_command(peripheral_command.peripheral, peripheral_command.command)
+        let peripheral_command = kits_rpc
+            .peripheral_command(
+                kit.serial,
+                peripheral_command.peripheral,
+                peripheral_command.command,
+            )
             .await
-            .unwrap()
             .map_err(|err| problem::KitRpcProblem::kit_rpc_response_error_into_problem(err))?;
         Ok(ResponseBuilder::ok().data(peripheral_command.media_type, peripheral_command.data))
     }

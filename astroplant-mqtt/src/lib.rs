@@ -1,20 +1,56 @@
-use capnp::serialize_packed;
-use futures::task::SpawnExt;
-use futures::FutureExt;
-use rumqttc::{Client as MqttClient, Event, MqttOptions, Packet, Publish, QoS};
-use std::collections::HashMap;
-use std::future::Future;
+//! Implementation of the AstroPlant back-end MQTT client. This abstracts away over the MQTT
+//! protocol.
+//!
+//! The client exposes a kit RPC handle to send RPC requests to kits.
+//!
+//! The client can be given a server RPC handler (to handle Kit's requests to the server RPC).
+//!
+//! A Tokio task is spawned for each server RPC request.
 
-mod server_rpc;
-pub use server_rpc::{ServerRpcRequest, ServerRpcResponder};
+use async_trait::async_trait;
+use capnp::serialize_packed;
+use futures::Stream;
+use ratelimit_meter::{algorithms::NonConformance, KeyedRateLimiter};
+use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, Publish};
+use std::time::{Duration, Instant};
+use std::{collections::HashMap, convert::TryFrom};
 
 mod kit_rpc;
-pub use kit_rpc::{KitRpc, KitRpcResponseError, KitsRpc};
-
-const MQTT_API_MESSAGE_BUFFER: usize = 128;
+mod server_rpc;
+use kit_rpc::{DecodeError, Driver as KitsRpcDriver, ResponseTx as KitsRpcResponseTx};
+pub use kit_rpc::{KitRpcResponseError, KitsRpc};
+use server_rpc::{
+    ServerRpcRequest, ServerRpcRequestBody, ServerRpcResponse, ServerRpcResponseBuilder,
+};
 
 pub mod astroplant_capnp {
     include!(concat!(env!("OUT_DIR"), "/proto/astroplant_capnp.rs"));
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum RpcError {
+    #[error("An unspecified error occurred")]
+    Other,
+    #[error("The requested RPC method was not found")]
+    MethodNotFound,
+    #[error("The RPC request was rate limited. Next request can be made in {} milliseconds", .0.as_millis())]
+    RateLimit(Duration),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("An invalid topic was encountered: {0}")]
+    InvalidTopic(String),
+    #[error("A malformed message was encountered")]
+    MalformedMessage,
+    #[error("There was an issue with the kit RPC response")]
+    KitRpcResponse(#[from] DecodeError),
+    #[error("An issue occurred when trying to decode the message")]
+    Capnp(#[from] capnp::Error),
+    #[error("An MQTT connection issue occurred")]
+    Mqtt(#[from] rumqttc::ConnectionError),
+    #[error("An MQTT client issue occurred")]
+    MqttClientError(#[from] rumqttc::ClientError),
 }
 
 #[derive(Debug)]
@@ -50,47 +86,13 @@ pub struct Media {
     pub metadata: serde_json::Value,
 }
 
-#[derive(Debug)]
-pub enum MqttApiMessage {
-    RawMeasurement(RawMeasurement),
-    AggregateMeasurement(AggregateMeasurement),
-    Media(Media),
-    ServerRpcRequest(ServerRpcRequest),
-}
-
-enum MqttMessage {
-    Api(MqttApiMessage, Option<ServerRpcResponder<'static>>),
-    KitRpcResponse(String, Vec<u8>),
-    /// A message sent on a topic we ignore (i.e., the topics we send on ourselves,
-    /// `kit/#/server-rpc/response` and `kit/#/kit-rpc/request`).
-    IgnoredTopic,
-}
-
-fn establish_subscriptions(mqtt_client: &mut MqttClient) {
-    if let Err(err) = mqtt_client.subscribe("kit/#", QoS::AtLeastOnce) {
-        tracing::warn!("error occurred while subscribing {:?}", err);
-    }
-}
-
-#[derive(Debug)]
-pub enum Error {
-    InvalidTopic(String),
-    MalformedMessage,
-    Capnp(capnp::Error),
-    // The response is the error to send over MQTT. This is hacky.
-    ServerRpcError(server_rpc::ServerRpcResponse),
-}
-
-fn parse_raw_measurement(kit_serial: String, mut payload: &[u8]) -> Result<MqttApiMessage, Error> {
+fn parse_raw_measurement(kit_serial: String, mut payload: &[u8]) -> Result<RawMeasurement, Error> {
     let message_reader =
-        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())
-            .map_err(Error::Capnp)?;
-    let raw_measurement = message_reader
-        .get_root::<astroplant_capnp::raw_measurement::Reader>()
-        .map_err(Error::Capnp)?;
+        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())?;
+    let raw_measurement = message_reader.get_root::<astroplant_capnp::raw_measurement::Reader>()?;
 
     let measurement = RawMeasurement {
-        id: uuid::Uuid::from_slice(raw_measurement.get_id().map_err(Error::Capnp)?)
+        id: uuid::Uuid::from_slice(raw_measurement.get_id()?)
             .map_err(|_| Error::MalformedMessage)?,
         kit_serial,
         datetime: raw_measurement.get_datetime(),
@@ -99,22 +101,20 @@ fn parse_raw_measurement(kit_serial: String, mut payload: &[u8]) -> Result<MqttA
         value: raw_measurement.get_value(),
     };
 
-    Ok(MqttApiMessage::RawMeasurement(measurement))
+    Ok(measurement)
 }
 
 fn parse_aggregate_measurement(
     kit_serial: String,
     mut payload: &[u8],
-) -> Result<MqttApiMessage, Error> {
+) -> Result<AggregateMeasurement, Error> {
     let message_reader =
-        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())
-            .map_err(Error::Capnp)?;
-    let aggregate_measurement = message_reader
-        .get_root::<astroplant_capnp::aggregate_measurement::Reader>()
-        .map_err(Error::Capnp)?;
+        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())?;
+    let aggregate_measurement =
+        message_reader.get_root::<astroplant_capnp::aggregate_measurement::Reader>()?;
 
     let measurement = AggregateMeasurement {
-        id: uuid::Uuid::from_slice(aggregate_measurement.get_id().map_err(Error::Capnp)?)
+        id: uuid::Uuid::from_slice(aggregate_measurement.get_id()?)
             .map_err(|_| Error::MalformedMessage)?,
         kit_serial,
         datetime_start: aggregate_measurement.get_datetime_start(),
@@ -122,225 +122,473 @@ fn parse_aggregate_measurement(
         peripheral: aggregate_measurement.get_peripheral(),
         quantity_type: aggregate_measurement.get_quantity_type(),
         values: aggregate_measurement
-            .get_values()
-            .map_err(Error::Capnp)?
+            .get_values()?
             .into_iter()
             .map(|v| {
-                let aggregate_type = v.get_type().map_err(Error::Capnp)?;
+                let aggregate_type = v.get_type()?;
                 Ok((aggregate_type.to_owned(), v.get_value()))
             })
             .collect::<Result<_, Error>>()?,
     };
 
-    Ok(MqttApiMessage::AggregateMeasurement(measurement))
+    Ok(measurement)
 }
 
-fn parse_media(kit_serial: String, mut payload: &[u8]) -> Result<MqttApiMessage, Error> {
+fn parse_media(kit_serial: String, mut payload: &[u8]) -> Result<Media, Error> {
     let message_reader =
-        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())
-            .map_err(Error::Capnp)?;
-    let media = message_reader
-        .get_root::<astroplant_capnp::media::Reader>()
-        .map_err(Error::Capnp)?;
+        serialize_packed::read_message(&mut payload, capnp::message::ReaderOptions::default())?;
+    let media = message_reader.get_root::<astroplant_capnp::media::Reader>()?;
 
     let media = Media {
-        id: uuid::Uuid::from_slice(media.get_id().map_err(Error::Capnp)?)
-            .map_err(|_| Error::MalformedMessage)?,
+        id: uuid::Uuid::from_slice(media.get_id()?).map_err(|_| Error::MalformedMessage)?,
         kit_serial,
         datetime: media.get_datetime(),
         peripheral: media.get_peripheral(),
-        name: media.get_name().map_err(Error::Capnp)?.to_owned(),
-        r#type: media.get_type().map_err(Error::Capnp)?.to_owned(),
-        data: media.get_data().map_err(Error::Capnp)?.to_owned(),
-        metadata: serde_json::from_str(media.get_metadata().map_err(Error::Capnp)?)
+        name: media.get_name()?.to_owned(),
+        r#type: media.get_type()?.to_owned(),
+        data: media.get_data()?.to_owned(),
+        metadata: serde_json::from_str(media.get_metadata()?)
             .map_err(|_| Error::MalformedMessage)?,
     };
 
-    Ok(MqttApiMessage::Media(media))
+    Ok(media)
 }
 
-fn proxy<'a>(
-    rpc_bytes: ServerRpcResponder<'a>,
-    mut mqtt_client: MqttClient,
-) -> impl Future<Output = ()> + 'a {
-    rpc_bytes.map(move |response| {
-        if let Some(server_rpc::ServerRpcResponse { kit_serial, bytes }) = response {
-            if let Err(err) = mqtt_client.publish(
-                format!("kit/{}/server-rpc/response", kit_serial),
-                QoS::AtLeastOnce,
-                false,
-                bytes,
-            ) {
-                tracing::debug!("error occurred when sending an RPC response: {:?}", err);
-            }
-        }
-
-        ()
-    })
+#[derive(Debug)]
+pub enum Message {
+    RawMeasurement(RawMeasurement),
+    AggregateMeasurement(AggregateMeasurement),
+    Media(Media),
 }
 
-struct Handler {
-    server_rpc_handler: server_rpc::ServerRpcHandler,
+#[async_trait]
+pub trait ServerRpcHandler {
+    async fn version(&self) -> Result<String, RpcError>;
+    async fn get_active_configuration(
+        &self,
+        kit_serial: String,
+    ) -> Result<Option<serde_json::Value>, RpcError>;
+    async fn get_quantity_types(&self) -> Result<Vec<serde_json::Value>, RpcError>;
 }
 
-impl Handler {
-    pub fn new() -> Self {
-        Self {
-            server_rpc_handler: server_rpc::ServerRpcHandler::new(),
-        }
+/// Unconstructable. Used as a marker type for when no server RPC handler is given.
+pub enum NullHandler {}
+
+#[async_trait]
+impl ServerRpcHandler for NullHandler {
+    async fn version(&self) -> Result<String, RpcError> {
+        unimplemented!()
     }
+    async fn get_active_configuration(
+        &self,
+        _kit_serial: String,
+    ) -> Result<Option<serde_json::Value>, RpcError> {
+        unimplemented!()
+    }
+    async fn get_quantity_types(&self) -> Result<Vec<serde_json::Value>, RpcError> {
+        unimplemented!()
+    }
+}
 
-    fn handle_mqtt_publish(&mut self, msg: Publish) -> Result<MqttMessage, Error> {
-        tracing::trace!("received an MQTT message on topic {}", msg.topic);
-        let mut topic_parts = msg.topic.split("/");
+enum TopicKind {
+    RawMeasurement,
+    AggregateMeasurement,
+    Media,
+    ServerRpcRequest,
+    ServerRpcResponse,
+    KitRpcRequest,
+    KitRpcResponse,
+}
+
+struct Topic {
+    kit_serial: String,
+    kind: TopicKind,
+}
+
+impl TryFrom<&str> for Topic {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let mut topic_parts = value.split("/");
         if topic_parts.next() != Some("kit") {
-            return Err(Error::InvalidTopic(msg.topic));
+            return Err(Error::InvalidTopic(value.to_owned()));
         }
 
         let kit_serial: String = match topic_parts.next() {
             Some(serial) => serial.to_owned(),
-            None => return Err(Error::InvalidTopic(msg.topic)),
+            None => return Err(Error::InvalidTopic(value.to_owned())),
         };
 
-        match topic_parts.next() {
-            Some("measurement") => match topic_parts.next() {
-                Some("raw") => Ok(MqttMessage::Api(
-                    parse_raw_measurement(kit_serial, &msg.payload)?,
-                    None,
-                )),
-                Some("aggregate") => Ok(MqttMessage::Api(
-                    parse_aggregate_measurement(kit_serial, &msg.payload)?,
-                    None,
-                )),
-                _ => Err(Error::InvalidTopic(msg.topic)),
-            },
-            Some("media") => Ok(MqttMessage::Api(
-                parse_media(kit_serial, &msg.payload)?,
-                None,
-            )),
-            Some("server-rpc") => match topic_parts.next() {
-                Some("request") => self
-                    .server_rpc_handler
-                    .handle_rpc_request(kit_serial, &msg.payload)
-                    .map(|(request, responder)| {
-                        MqttMessage::Api(MqttApiMessage::ServerRpcRequest(request), responder)
-                    }),
-                Some("response") => Ok(MqttMessage::IgnoredTopic),
-                _ => Err(Error::InvalidTopic(msg.topic)),
-            },
-            Some("kit-rpc") => match topic_parts.next() {
-                Some("request") => Ok(MqttMessage::IgnoredTopic),
-                Some("response") => Ok(MqttMessage::KitRpcResponse(
-                    kit_serial,
-                    msg.payload.to_vec(),
-                )),
-                _ => Err(Error::InvalidTopic(msg.topic)),
-            },
-            _ => Err(Error::InvalidTopic(msg.topic)),
-        }
-    }
+        let kind = match (topic_parts.next(), topic_parts.next(), topic_parts.next()) {
+            (Some("measurement"), Some("raw"), None) => TopicKind::RawMeasurement,
+            (Some("measurement"), Some("aggregate"), None) => TopicKind::AggregateMeasurement,
+            (Some("media"), None, None) => TopicKind::Media,
+            (Some("server-rpc"), Some("request"), None) => TopicKind::ServerRpcRequest,
+            (Some("server-rpc"), Some("response"), None) => TopicKind::ServerRpcResponse,
+            (Some("kit-rpc"), Some("request"), None) => TopicKind::KitRpcRequest,
+            (Some("kit-rpc"), Some("response"), None) => TopicKind::KitRpcResponse,
+            _ => return Err(Error::InvalidTopic(value.to_owned())),
+        };
 
-    fn runner(
-        &mut self,
-        thread_pool: futures::executor::ThreadPool,
-        mut mqtt_client: MqttClient,
-        mut connection: rumqttc::Connection,
-        kit_rpc_mqtt_message_handler: crossbeam_channel::Sender<(String, Vec<u8>)>,
-        mqtt_api_sender: crossbeam_channel::Sender<MqttApiMessage>,
-    ) {
-        establish_subscriptions(&mut mqtt_client);
-
-        // Receive incoming notifications.
-        for notification in connection.iter() {
-            tracing::trace!("Received MQTT notification: {:?}", notification);
-            match notification {
-                Ok(Event::Incoming(Packet::ConnAck(_))) => {
-                    establish_subscriptions(&mut mqtt_client);
-                }
-                Ok(Event::Incoming(Packet::Publish(publish))) => {
-                    match self.handle_mqtt_publish(publish) {
-                        Ok(MqttMessage::IgnoredTopic) => {}
-                        Ok(MqttMessage::Api(msg, responder)) => {
-                            if let Some(responder) = responder {
-                                thread_pool
-                                    .spawn(proxy(responder, mqtt_client.clone()))
-                                    .expect("Could not spawn on threadpool");
-                            }
-                            if mqtt_api_sender.send(msg).is_err() {
-                                // Receiver not keeping up. Disconnect.
-                                tracing::error!("MQTT sender not keeping up. Disconnecting.");
-                                break;
-                            }
-                        }
-                        Ok(MqttMessage::KitRpcResponse(kit_serial, payload)) => {
-                            if kit_rpc_mqtt_message_handler
-                                .send((kit_serial, payload))
-                                .is_err()
-                            {
-                                // Kit RPC handler not keeping up. Disconnect.
-                                tracing::error!(
-                                    "MQTT kit RPC message handler not keeping up. Disconnecting."
-                                );
-                                break;
-                            }
-                        }
-                        Err(Error::ServerRpcError(response)) => {
-                            let _ = mqtt_client.publish(
-                                format!("kit/{}/server-rpc/response", response.kit_serial),
-                                QoS::AtLeastOnce,
-                                false,
-                                response.bytes,
-                            );
-                        }
-                        Err(err) => {
-                            tracing::debug!("Error parsing MQTT message: {:?}", err);
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("An unhandled MQTT error occurred: {:?}", e);
-                    break;
-                }
-                _ => {}
-            }
-        }
-        tracing::debug!("mqtt notification listener stopped");
+        Ok(Topic { kit_serial, kind })
     }
 }
 
-pub fn run(
-    mqtt_host: String,
-    mqtt_port: u16,
-    mqtt_username: String,
-    mqtt_password: String,
-) -> (crossbeam_channel::Receiver<MqttApiMessage>, KitsRpc) {
-    let (mqtt_api_sender, mqtt_api_receiver) = crossbeam_channel::bounded(MQTT_API_MESSAGE_BUFFER);
+impl TryFrom<String> for Topic {
+    type Error = Error;
 
-    let thread_pool = futures::executor::ThreadPoolBuilder::new()
-        .pool_size(1)
-        .name_prefix("responder-proxy-pool")
-        .create()
-        .expect("Could not build thread pool");
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_str())
+    }
+}
 
-    let mut mqtt_options = MqttOptions::new("astroplant-api-connector", mqtt_host, mqtt_port);
-    mqtt_options
-        .set_keep_alive(std::time::Duration::from_secs(5))
-        .set_credentials(mqtt_username, mqtt_password);
-    let (mqtt_client, connection) = MqttClient::new(mqtt_options, 16);
+pub struct Connection<H> {
+    client: AsyncClient,
+    event_loop: EventLoop,
+    server_rpc_handler: Option<std::sync::Arc<H>>,
+    server_rpc_rate_limiter: KeyedRateLimiter<String>,
+    kits_rpc_driver: KitsRpcDriver,
+    kits_rpc_response_tx: KitsRpcResponseTx,
+}
 
-    let kit_rpc_runner = kit_rpc::kit_rpc_runner(mqtt_client.clone(), thread_pool.clone());
+impl<H> Connection<H>
+where
+    H: ServerRpcHandler + Send + Sync + 'static,
+{
+    /// Stream the connection contents. This stream must continuously be consumed for the
+    /// underlying connection to make progress, including the server and kit RPC. This means the
+    /// stream *should not* be used in the same task as the kit RPC, unless you are careful to
+    /// continue polling the stream. If the stream isn't polled across a kit RPC await point, a
+    /// deadlock occurs.
+    pub fn into_stream(self) -> impl Stream<Item = Result<Message, Error>> + Unpin {
+        let Self {
+            client,
+            event_loop,
+            server_rpc_handler,
+            server_rpc_rate_limiter,
+            kits_rpc_driver,
+            kits_rpc_response_tx,
+        } = self;
+        tracing::debug!("MQTT client started");
+        tokio::spawn(kits_rpc_driver.drive());
 
-    let mut handler = Handler::new();
-    let kit_rpc_mqtt_message_handler = kit_rpc_runner.mqtt_message_handler;
-    std::thread::spawn(move || {
-        handler.runner(
-            thread_pool,
-            mqtt_client,
-            connection,
-            kit_rpc_mqtt_message_handler,
-            mqtt_api_sender,
+        struct InnerState<H> {
+            client: AsyncClient,
+            event_loop: EventLoop,
+            server_rpc_handler: Option<std::sync::Arc<H>>,
+            server_rpc_rate_limiter: KeyedRateLimiter<String>,
+            kits_rpc_response_tx: KitsRpcResponseTx,
+        }
+
+        async fn step<H>(state: &mut InnerState<H>) -> Result<Option<Message>, Error>
+        where
+            H: ServerRpcHandler + Send + Sync + 'static,
+        {
+            let event = state.event_loop.poll().await?;
+
+            match event {
+                Event::Incoming(Packet::ConnAck(_)) => {
+                    tracing::debug!("MQTT client connected");
+                    state
+                        .client
+                        .subscribe("kit/#", rumqttc::QoS::AtLeastOnce)
+                        .await?;
+                }
+                Event::Incoming(Packet::Publish(publish)) => {
+                    tracing::trace!("Received Publish packet");
+                    if let Some(message) = handle_publish(
+                        &state.client,
+                        &state.server_rpc_handler,
+                        &mut state.server_rpc_rate_limiter,
+                        &state.kits_rpc_response_tx,
+                        publish,
+                    )
+                    .await?
+                    {
+                        return Ok(Some(message));
+                    }
+                }
+                _ => {}
+            }
+
+            Ok(None)
+        }
+
+        let stream = futures::stream::unfold(
+            InnerState {
+                client,
+                event_loop,
+                server_rpc_handler,
+                server_rpc_rate_limiter,
+                kits_rpc_response_tx,
+            },
+            |mut state| async {
+                let value = loop {
+                    match step(&mut state).await {
+                        Ok(None) => {}
+                        Ok(Some(value)) => break Ok(value),
+                        Err(err) => break Err(err),
+                    };
+                };
+
+                Some((value, state))
+            },
         );
+
+        Box::pin(stream)
+    }
+}
+
+async fn handle_publish<H>(
+    client: &AsyncClient,
+    server_rpc_handler: &Option<std::sync::Arc<H>>,
+    server_rpc_rate_limiter: &mut KeyedRateLimiter<String>,
+    kits_rpc_response_tx: &KitsRpcResponseTx,
+    publish: Publish,
+) -> Result<Option<Message>, Error>
+where
+    H: ServerRpcHandler + Send + Sync + 'static,
+{
+    let topic = Topic::try_from(publish.topic)?;
+
+    match topic.kind {
+        TopicKind::RawMeasurement => {
+            if let Ok(m) = parse_raw_measurement(topic.kit_serial, &publish.payload) {
+                Ok(Some(Message::RawMeasurement(m)))
+            } else {
+                // Ignore decoding errors
+                Ok(None)
+            }
+        }
+        TopicKind::AggregateMeasurement => {
+            if let Ok(m) = parse_aggregate_measurement(topic.kit_serial, &publish.payload) {
+                Ok(Some(Message::AggregateMeasurement(m)))
+            } else {
+                // Ignore decoding errors
+                Ok(None)
+            }
+        }
+        TopicKind::Media => {
+            if let Ok(m) = parse_media(topic.kit_serial, &publish.payload) {
+                Ok(Some(Message::Media(m)))
+            } else {
+                // Ignore decoding errors
+                Ok(None)
+            }
+        }
+        TopicKind::ServerRpcRequest => {
+            if let Some(server_rpc_handler) = server_rpc_handler {
+                handle_server_rpc_request(
+                    client,
+                    &server_rpc_handler,
+                    server_rpc_rate_limiter,
+                    topic.kit_serial,
+                    &publish.payload,
+                )
+                .await?;
+            }
+
+            Ok(None)
+        }
+        TopicKind::KitRpcResponse => {
+            handle_kit_rpc_response(kits_rpc_response_tx, topic.kit_serial, &publish.payload)
+                .await?;
+            Ok(None)
+        }
+        TopicKind::ServerRpcResponse | TopicKind::KitRpcRequest => {
+            // Ignored: we send on these topics ourselves
+            Ok(None)
+        }
+    }
+}
+
+async fn call_server_rpc_handler<H>(
+    server_rpc_handler: std::sync::Arc<H>,
+    kit_serial: String,
+    request: ServerRpcRequest,
+) -> ServerRpcResponse
+where
+    H: ServerRpcHandler + Send + Sync + 'static,
+{
+    let response = ServerRpcResponseBuilder::new(kit_serial.clone(), request.id);
+
+    match request.body {
+        ServerRpcRequestBody::Version => match server_rpc_handler.version().await {
+            Ok(v) => response.set_version(v).create(),
+            Err(v) => response.set_from_rpc_error(v).create(),
+        },
+        ServerRpcRequestBody::GetActiveConfiguration => match server_rpc_handler
+            .get_active_configuration(kit_serial)
+            .await
+        {
+            Ok(v) => response.set_active_configuration(v).create(),
+            Err(v) => response.set_from_rpc_error(v).create(),
+        },
+        ServerRpcRequestBody::GetQuantityTypes => {
+            match server_rpc_handler.get_quantity_types().await {
+                Ok(v) => response.set_quantity_types(v).create(),
+                Err(v) => response.set_from_rpc_error(v).create(),
+            }
+        }
+    }
+}
+
+async fn handle_kit_rpc_response(
+    kits_rpc_response_tx: &KitsRpcResponseTx,
+    kit_serial: String,
+    payload: &[u8],
+) -> Result<(), Error> {
+    kits_rpc_response_tx
+        .send(kit_serial, payload.to_owned())
+        .await?;
+
+    Ok(())
+}
+
+async fn handle_server_rpc_request<H>(
+    client: &AsyncClient,
+    server_rpc_handler: &std::sync::Arc<H>,
+    server_rpc_rate_limiter: &mut KeyedRateLimiter<String>,
+    kit_serial: String,
+    payload: &[u8],
+) -> Result<(), Error>
+where
+    H: ServerRpcHandler + Send + Sync + 'static,
+{
+    let request = crate::server_rpc::decode_rpc_request(payload);
+    let client = client.clone();
+    let handler = server_rpc_handler.clone();
+
+    let rate_limit_wait_time = server_rpc_rate_limiter
+        .check(kit_serial.clone())
+        .err()
+        .map(|neg| neg.wait_time_from(Instant::now()).as_millis() as u64);
+
+    // FIXME:
+    // This spawns a task for every RPC request. This can lead to uncontrolled resource consumption
+    // when it's busy. There should be a queue for task spawning, such that backpressure can be
+    // applied.
+
+    tokio::spawn(async move {
+        let response = match request {
+            Err(crate::server_rpc::DecodeError::WithRequestId { id, .. }) => {
+                let response = ServerRpcResponseBuilder::new(kit_serial.clone(), id)
+                    .set_error_method_not_found()
+                    .create();
+                Some(response)
+            }
+            Err(crate::server_rpc::DecodeError::WithoutRequestId(_)) => None,
+            Ok(request) => {
+                if let Some(wait_time) = rate_limit_wait_time {
+                    let response = ServerRpcResponseBuilder::new(kit_serial.clone(), request.id)
+                        .set_error_rate_limit(wait_time)
+                        .create();
+                    Some(response)
+                } else {
+                    Some(call_server_rpc_handler(handler, kit_serial, request).await)
+                }
+            }
+        };
+
+        if let Some(response) = response {
+            let _ = client
+                .publish(
+                    format!("kit/{}/server-rpc/response", response.kit_serial),
+                    rumqttc::QoS::AtLeastOnce,
+                    false,
+                    response.bytes,
+                )
+                .await;
+        }
     });
 
-    (mqtt_api_receiver, kit_rpc_runner.kits_rpc)
+    Ok(())
+}
+
+/// An MQTT connection builder.
+pub struct ConnectionBuilder<H> {
+    // TODO: allow specifying subscriptions.
+    host: String,
+    port: u16,
+    username: Option<String>,
+    password: Option<String>,
+    server_rpc_handler: Option<H>,
+}
+
+impl ConnectionBuilder<NullHandler> {
+    /// Create a connection builder.
+    pub fn new<S: Into<String>>(host: S, port: u16) -> Self {
+        Self {
+            host: host.into(),
+            port,
+            username: None,
+            password: None,
+            server_rpc_handler: None,
+        }
+    }
+}
+
+impl<H> ConnectionBuilder<H> {
+    /// Specify credentials to use when establishing the connection.
+    pub fn with_credentials<S1: Into<String>, S2: Into<String>>(
+        self,
+        username: S1,
+        password: S2,
+    ) -> Self {
+        Self {
+            username: Some(username.into()),
+            password: Some(password.into()),
+            ..self
+        }
+    }
+
+    /// Add a server RPC handler to respond to requests made by kits to the server. The handler
+    /// should implement the [ServerRpcHandler] trait. If no handler is added, this MQTT client
+    /// ignores RPC requests. This allows a different MQTT client to handle requests.
+    pub fn with_server_rpc_handler<I>(self, server_rpc_handler: I) -> ConnectionBuilder<I> {
+        ConnectionBuilder {
+            host: self.host,
+            port: self.port,
+            username: self.username,
+            password: self.password,
+            server_rpc_handler: Some(server_rpc_handler),
+        }
+    }
+
+    /// Create the MQTT client. Returns a connection and a kits RPC handle. The connection must be
+    /// driven for the underlying protocol to make progress.
+    pub fn create(self) -> (Connection<H>, KitsRpc) {
+        let mut options = MqttOptions::new("astroplant-mqtt", self.host, self.port);
+        options.set_max_packet_size(
+            // Note: capnproto traversal is limited to 64 MiB as well
+            64 * 1024 * 1024, // incoming: 64 MiB
+            8 * 1024 * 1024,  // outgoing: 8 MiB
+        );
+        if self.username.is_some() {
+            options.set_credentials(self.username.unwrap(), self.password.unwrap());
+        }
+        options.set_keep_alive(Duration::from_secs(10));
+        let (client, event_loop) = AsyncClient::new(options, 32);
+
+        let (kits_rpc, kits_rpc_driver, kits_rpc_response_tx) =
+            crate::kit_rpc::create(client.clone());
+
+        let server_rpc_rate_limiter = {
+            const NUM_REQUESTS: u32 = 30u32;
+            const PER: Duration = Duration::from_secs(60);
+
+            KeyedRateLimiter::<String>::new(std::num::NonZeroU32::new(NUM_REQUESTS).unwrap(), PER)
+        };
+
+        let connection = Connection {
+            client,
+            event_loop,
+            server_rpc_handler: self.server_rpc_handler.map(std::sync::Arc::new),
+            server_rpc_rate_limiter,
+            kits_rpc_driver,
+            kits_rpc_response_tx,
+        };
+
+        (connection, kits_rpc)
+    }
 }

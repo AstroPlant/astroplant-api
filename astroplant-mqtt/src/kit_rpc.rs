@@ -1,21 +1,324 @@
-use super::{astroplant_capnp, Error};
-
 use capnp::serialize_packed;
-use futures::channel::oneshot;
-use futures::task::SpawnExt;
-use rumqttc::{Client as MqttClient, QoS};
-use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
-use std::sync::Mutex;
+use rumqttc::{AsyncClient, QoS};
+use std::collections::HashMap;
+use std::time::{Duration, Instant};
+use tokio::sync::{mpsc, oneshot};
 
-const KIT_RPC_RESPONSE_BUFFER: usize = super::MQTT_API_MESSAGE_BUFFER;
+use super::{astroplant_capnp, RpcError};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum PeripheralCommandLockRequest {
+    Status,
+    Acquire,
+    Release,
+}
+
+enum RequestBody {
+    Version,
+    Uptime,
+    PeripheralCommand {
+        peripheral: String,
+        command: serde_json::Value,
+    },
+    PeripheralCommandLock {
+        peripheral: String,
+        request: PeripheralCommandLockRequest,
+    },
+}
+
+impl RequestBody {
+    fn build(self, request_id: u64) -> Vec<u8> {
+        let mut message_builder = capnp::message::Builder::new_default();
+        let mut request_builder =
+            message_builder.init_root::<astroplant_capnp::kit_rpc_request::Builder>();
+        request_builder.set_id(request_id);
+
+        use RequestBody::*;
+        match self {
+            Version => {
+                request_builder.set_version(());
+            }
+            Uptime => {
+                request_builder.set_uptime(());
+            }
+            PeripheralCommand {
+                peripheral,
+                command,
+            } => {
+                let mut builder = request_builder.init_peripheral_command();
+                builder.set_peripheral(&peripheral);
+                builder.set_command(&serde_json::to_string(&command).unwrap());
+            }
+            PeripheralCommandLock {
+                peripheral,
+                request,
+            } => {
+                let mut builder = request_builder.init_peripheral_command_lock();
+                builder.set_peripheral(&peripheral);
+                match request {
+                    PeripheralCommandLockRequest::Status => builder.set_status(()),
+                    PeripheralCommandLockRequest::Acquire => builder.set_acquire(()),
+                    PeripheralCommandLockRequest::Release => builder.set_release(()),
+                };
+            }
+        }
+
+        let mut bytes = Vec::new();
+        capnp::serialize_packed::write_message(&mut bytes, &message_builder).unwrap();
+        bytes
+    }
+}
+
+struct Request {
+    kit_serial: String,
+    body: RequestBody,
+    response_channel: oneshot::Sender<ResponseBody>,
+}
+
+struct Response {
+    kit_serial: String,
+    request_id: u64,
+    body: ResponseBody,
+}
+
+enum ResponseBody {
+    Version(String),
+    Uptime(std::time::Duration),
+    PeripheralCommand(PeripheralCommandResponse),
+    PeripheralCommandLock(bool),
+    Error(RpcError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum DecodeErrorKind {
+    #[error("An internal decoding error occurred, e.g., due to lack of resoruces")]
+    Internal, // e.g., lack of resources
+    #[error("The message is malformed and cannot not be decoded")]
+    Malformed, // e.g., corrupted message
+}
+
+impl From<capnp::Error> for DecodeErrorKind {
+    fn from(error: capnp::Error) -> Self {
+        match error.kind {
+            capnp::ErrorKind::Failed => DecodeErrorKind::Malformed,
+            _ => DecodeErrorKind::Internal,
+        }
+    }
+}
+
+impl From<serde_json::Error> for DecodeErrorKind {
+    fn from(_error: serde_json::Error) -> Self {
+        DecodeErrorKind::Malformed
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("A decoding error occurred")]
+pub struct DecodeError {
+    request_id: Option<u64>,
+    #[source]
+    kind: DecodeErrorKind,
+}
+
+impl DecodeError {
+    fn with_request_id(request_id: u64, error: impl Into<DecodeErrorKind>) -> Self {
+        DecodeError {
+            request_id: Some(request_id),
+            kind: error.into().into(),
+        }
+    }
+
+    fn without_request_id(error: impl Into<DecodeErrorKind>) -> Self {
+        DecodeError {
+            request_id: None,
+            kind: error.into().into(),
+        }
+    }
+}
+
+fn decode_rpc_error(
+    error: astroplant_capnp::rpc_error::Reader,
+) -> Result<RpcError, DecodeErrorKind> {
+    use astroplant_capnp::rpc_error::Which;
+
+    let err = match error.which().map_err(|err| capnp::Error::from(err))? {
+        Which::Other(()) => RpcError::Other,
+        Which::MethodNotFound(()) => RpcError::MethodNotFound,
+        Which::RateLimit(millis) => RpcError::RateLimit(std::time::Duration::from_millis(millis)),
+    };
+
+    Ok(err)
+}
+
+/// Returns the response's request id and the response body.
+fn decode_rpc_response(mut message: &[u8]) -> Result<(u64, ResponseBody), DecodeError> {
+    let message_reader =
+        serialize_packed::read_message(&mut message, capnp::message::ReaderOptions::default())
+            .map_err(DecodeError::without_request_id)?;
+    let response = message_reader
+        .get_root::<astroplant_capnp::kit_rpc_response::Reader>()
+        .map_err(DecodeError::without_request_id)?;
+
+    let id = response.get_id();
+
+    use astroplant_capnp::kit_rpc_response::Which;
+    let body = match response
+        .which()
+        .map_err(|err| DecodeError::with_request_id(id, capnp::Error::from(err)))?
+    {
+        Which::Version(v) => ResponseBody::Version(
+            v.map_err(|err| DecodeError::with_request_id(id, err))?
+                .to_string(),
+        ),
+        Which::Uptime(v) => ResponseBody::Uptime(std::time::Duration::from_secs(v)),
+        Which::PeripheralCommand(v) => {
+            let v = v.map_err(|err| DecodeError::with_request_id(id, err))?;
+
+            let peripheral_command_response = PeripheralCommandResponse {
+                media_type: v
+                    .get_media_type()
+                    .map_err(|err| DecodeError::with_request_id(id, err))?
+                    .to_string(),
+                data: v
+                    .get_data()
+                    .map_err(|err| DecodeError::with_request_id(id, err))?
+                    .to_vec(),
+                metadata: serde_json::from_str(
+                    v.get_metadata()
+                        .map_err(|err| DecodeError::with_request_id(id, err))?,
+                )
+                .map_err(|err| DecodeError::with_request_id(id, err))?,
+            };
+
+            ResponseBody::PeripheralCommand(peripheral_command_response)
+        }
+        Which::PeripheralCommandLock(v) => ResponseBody::PeripheralCommandLock(v),
+        Which::Error(v) => {
+            let v = v.map_err(|err| DecodeError::with_request_id(id, err))?;
+
+            let error = decode_rpc_error(v).map_err(|err| DecodeError::with_request_id(id, err))?;
+            ResponseBody::Error(error)
+        }
+    };
+
+    Ok((id, body))
+}
+
+pub(crate) struct ResponseTx(mpsc::Sender<Response>);
+
+impl ResponseTx {
+    pub async fn send(&self, kit_serial: String, payload: Vec<u8>) -> Result<(), DecodeError> {
+        let (request_id, body) = decode_rpc_response(&payload)?;
+        let response = Response {
+            kit_serial,
+            request_id,
+            body,
+        };
+        let _ = self.0.send(response).await;
+
+        Ok(())
+    }
+}
+
+pub(crate) struct Driver {
+    mqtt: AsyncClient,
+    next_id: u64,
+    waiters: HashMap<(String, u64), (Instant, oneshot::Sender<ResponseBody>)>,
+    request_rx: mpsc::Receiver<Request>,
+    response_rx: mpsc::Receiver<Response>,
+}
+
+impl Driver {
+    fn new(
+        mqtt: AsyncClient,
+        request_rx: mpsc::Receiver<Request>,
+        response_rx: mpsc::Receiver<Response>,
+    ) -> Self {
+        Self {
+            mqtt,
+            next_id: 0,
+            waiters: HashMap::new(),
+            request_rx,
+            response_rx,
+        }
+    }
+
+    async fn handle_request(&mut self, request: Request) {
+        let id = self.next_id;
+        self.next_id += 1;
+
+        let _ = self
+            .mqtt
+            .publish(
+                format!("kit/{}/kit-rpc/request", request.kit_serial),
+                QoS::AtLeastOnce,
+                false,
+                request.body.build(id),
+            )
+            .await;
+
+        self.waiters.insert(
+            (request.kit_serial.clone(), id),
+            (Instant::now(), request.response_channel),
+        );
+
+        tracing::trace!("Sent kit {} RPC request {}", request.kit_serial, id);
+    }
+
+    fn cleanup(&mut self) {
+        const TIMEOUT: Duration = Duration::from_secs(30);
+        let now = Instant::now();
+        self.waiters
+            .retain(|_, (creation_instant, _)| now.duration_since(*creation_instant) < TIMEOUT);
+    }
+
+    pub(crate) async fn drive(mut self) {
+        let mut cleanup_interval = tokio::time::interval(Duration::from_secs(1));
+        cleanup_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+        loop {
+            tokio::select! {
+                request = self.request_rx.recv() => {
+                    let request = match request {
+                        Some(request) => request,
+                        // Channel closed.
+                        None => break,
+                    };
+                    self.handle_request(request).await;
+                }
+                response = self.response_rx.recv() => {
+                    let response = match response {
+                        Some(response) => response,
+                        // Channel closed.
+                        None => break,
+                    };
+
+                    if let Some((_, tx)) = self.waiters.remove(&(response.kit_serial, response.request_id)) {
+                        let _ = tx.send(response.body);
+                    }
+                }
+                _ = cleanup_interval.tick() => {
+                    self.cleanup();
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct KitsRpc {
+    request_tx: mpsc::Sender<Request>,
+}
+
+#[derive(thiserror::Error, Debug)]
 pub enum KitRpcResponseError {
+    #[error("The kit RPC request timed out: no response was received")]
     TimedOut,
-    RpcError,
+    #[error("The kit's response to the RPC request could not be decoded")]
     MalformedResponse,
+    #[error("The kit's response to the RPC request was invalid")]
     InvalidResponse,
+    #[error("The kit sent an error response")]
+    RpcError(#[from] RpcError),
 }
 
 pub struct PeripheralCommandResponse {
@@ -24,457 +327,105 @@ pub struct PeripheralCommandResponse {
     pub metadata: serde_json::Value,
 }
 
-pub enum PeripheralCommandLockRequest {
-    Status,
-    Acquire,
-    Release,
-}
-
-pub type KitRpcResponse<T> = Result<T, KitRpcResponseError>;
-pub type KitResponseReceiver<T> = oneshot::Receiver<KitRpcResponse<T>>;
-
-enum KitRpcResponseCallback {
-    Version(oneshot::Sender<KitRpcResponse<String>>),
-    Uptime(oneshot::Sender<KitRpcResponse<std::time::Duration>>),
-    PeripheralCommand(oneshot::Sender<KitRpcResponse<PeripheralCommandResponse>>),
-    PeripheralCommandLock(oneshot::Sender<KitRpcResponse<bool>>),
-}
-
-impl KitRpcResponseCallback {
-    pub fn invoke(self, payload: Vec<u8>) -> Result<(), ()> {
-        use astroplant_capnp::kit_rpc_response::Which;
-        use KitRpcResponseCallback::*;
-
-        let message_reader = serialize_packed::read_message(
-            &mut payload.as_ref(),
-            capnp::message::ReaderOptions::default(),
-        )
-        // `invoke` is only called when the message was successfully deserialized before,
-        // so this unwrap is safe.
-        .unwrap();
-
-        let rpc_response = message_reader
-            .get_root::<astroplant_capnp::kit_rpc_response::Reader>()
-            // `invoke` is only called when the message was successfully deserialized before,
-            // so this unwrap is safe.
-            .unwrap();
-
-        let which_response = rpc_response.which();
-
-        match self {
-            Version(callback) => {
-                if let Ok(Which::Version(Ok(version))) = which_response {
-                    callback.send(Ok(version.to_owned())).map_err(|_| ())
-                } else if let Ok(Which::Error(_)) = which_response {
-                    callback
-                        .send(Err(KitRpcResponseError::RpcError))
-                        .map_err(|_| ())
-                } else {
-                    callback
-                        .send(Err(KitRpcResponseError::InvalidResponse))
-                        .map_err(|_| ())
-                }
-            }
-            Uptime(callback) => {
-                if let Ok(Which::Uptime(uptime)) = which_response {
-                    callback
-                        .send(Ok(std::time::Duration::from_secs(uptime)))
-                        .map_err(|_| ())
-                } else if let Ok(Which::Error(_)) = which_response {
-                    callback
-                        .send(Err(KitRpcResponseError::RpcError))
-                        .map_err(|_| ())
-                } else {
-                    callback
-                        .send(Err(KitRpcResponseError::InvalidResponse))
-                        .map_err(|_| ())
-                }
-            }
-            PeripheralCommand(callback) => {
-                fn process(
-                    peripheral_command: astroplant_capnp::kit_rpc_response::peripheral_command::Reader,
-                ) -> Result<PeripheralCommandResponse, KitRpcResponseError> {
-                    Ok(PeripheralCommandResponse {
-                        media_type: peripheral_command
-                            .get_media_type()
-                            .map_err(|_| KitRpcResponseError::MalformedResponse)?
-                            .to_string(),
-                        data: peripheral_command
-                            .get_data()
-                            .map_err(|_| KitRpcResponseError::MalformedResponse)?
-                            .to_vec(),
-                        metadata: serde_json::from_str(
-                            peripheral_command
-                                .get_metadata()
-                                .map_err(|_| KitRpcResponseError::MalformedResponse)?,
-                        )
-                        .map_err(|_| KitRpcResponseError::MalformedResponse)?,
-                    })
-                }
-
-                if let Ok(Which::PeripheralCommand(Ok(peripheral_command))) = which_response {
-                    callback.send(process(peripheral_command)).map_err(|_| ())
-                } else if let Ok(Which::Error(_)) = which_response {
-                    callback
-                        .send(Err(KitRpcResponseError::RpcError))
-                        .map_err(|_| ())
-                } else {
-                    callback
-                        .send(Err(KitRpcResponseError::InvalidResponse))
-                        .map_err(|_| ())
-                }
-            }
-            PeripheralCommandLock(callback) => {
-                if let Ok(Which::PeripheralCommandLock(locked)) = which_response {
-                    callback.send(Ok(locked)).map_err(|_| ())
-                } else if let Ok(Which::Error(_)) = which_response {
-                    callback
-                        .send(Err(KitRpcResponseError::RpcError))
-                        .map_err(|_| ())
-                } else {
-                    callback
-                        .send(Err(KitRpcResponseError::InvalidResponse))
-                        .map_err(|_| ())
-                }
-            }
-        }
-    }
-
-    pub fn time_out(self) {
-        use KitRpcResponseCallback::*;
-
-        match self {
-            Version(callback) => {
-                let _ = callback.send(Err(KitRpcResponseError::TimedOut));
-            }
-            Uptime(callback) => {
-                let _ = callback.send(Err(KitRpcResponseError::TimedOut));
-            }
-            PeripheralCommand(callback) => {
-                let _ = callback.send(Err(KitRpcResponseError::TimedOut));
-            }
-            PeripheralCommandLock(callback) => {
-                let _ = callback.send(Err(KitRpcResponseError::TimedOut));
-            }
-        };
-    }
-}
-
-struct Handle {
-    mqtt_client: MqttClient,
-    next_id: u64,
-    callbacks: HashMap<u64, KitRpcResponseCallback>,
-    timeouts: VecDeque<(u64, std::time::Instant)>,
-}
-
-impl Handle {
-    fn get_next_id(&mut self) -> u64 {
-        let id = self.next_id;
-        self.next_id += 1;
-        id
-    }
-
-    /// Insert the response callback, and get the id to be used for request.
-    pub fn insert_callback(&mut self, callback: KitRpcResponseCallback) -> u64 {
-        let id = self.get_next_id();
-        self.callbacks.insert(id, callback);
-        self.timeouts.push_back((id, std::time::Instant::now()));
-        tracing::debug!("created kit RPC callback with id: {}", id);
-        id
-    }
-
-    /// Expire old callbacks.
-    pub fn cleanup(&mut self) {
-        let now = std::time::Instant::now();
-        while let Some(&(idx, instant)) = self.timeouts.get(0) {
-            if now.duration_since(instant).as_secs() >= 60 {
-                self.timeouts.pop_front();
-                if let Some(callback) = self.callbacks.remove(&idx) {
-                    callback.time_out();
-                }
-            } else {
-                break;
-            }
-        }
-    }
-}
-
-struct KitRpcRequest {
-    kit_serial: String,
-    bytes: Vec<u8>,
-}
-
-struct KitRpcRequestBuilder {
-    kit_serial: String,
-    message_builder: capnp::message::Builder<capnp::message::HeapAllocator>,
-}
-
-impl KitRpcRequestBuilder {
-    pub fn new(kit_serial: String, id: u64) -> Self {
-        let mut message_builder = capnp::message::Builder::new_default();
-        let mut request_builder =
-            message_builder.init_root::<astroplant_capnp::kit_rpc_request::Builder>();
-        request_builder.set_id(id);
-        Self {
-            kit_serial,
-            message_builder,
-        }
-    }
-
-    pub fn version(mut self) -> Self {
-        let mut request_builder = self
-            .message_builder
-            .get_root::<astroplant_capnp::kit_rpc_request::Builder>()
-            .expect("could not get root");
-        request_builder.set_version(());
-        self
-    }
-
-    pub fn uptime(mut self) -> Self {
-        let mut request_builder = self
-            .message_builder
-            .get_root::<astroplant_capnp::kit_rpc_request::Builder>()
-            .expect("could not get root");
-        request_builder.set_uptime(());
-        self
-    }
-
-    pub fn peripheral_command(mut self, peripheral: String, command: serde_json::Value) -> Self {
-        let request_builder = self
-            .message_builder
-            .get_root::<astroplant_capnp::kit_rpc_request::Builder>()
-            .expect("could not get root");
-        let mut command_builder = request_builder.init_peripheral_command();
-        command_builder.set_peripheral(&peripheral);
-        command_builder.set_command(&serde_json::to_string(&command).unwrap());
-        self
-    }
-
-    pub fn peripheral_command_lock(
-        mut self,
-        peripheral: String,
-        request: PeripheralCommandLockRequest,
-    ) -> Self {
-        use PeripheralCommandLockRequest::*;
-
-        let request_builder = self
-            .message_builder
-            .get_root::<astroplant_capnp::kit_rpc_request::Builder>()
-            .expect("could not get root");
-        let mut lock_builder = request_builder.init_peripheral_command_lock();
-        lock_builder.set_peripheral(&peripheral);
-        match request {
-            Status => lock_builder.set_status(()),
-            Acquire => lock_builder.set_acquire(()),
-            Release => lock_builder.set_release(()),
-        }
-        self
-    }
-
-    pub fn create(self) -> KitRpcRequest {
-        let mut bytes = Vec::new();
-        serialize_packed::write_message(&mut bytes, &self.message_builder).unwrap();
-
-        KitRpcRequest {
-            kit_serial: self.kit_serial,
-            bytes,
-        }
-    }
-}
-
-/// A handle to a kit's RPC.
-#[derive(Clone)]
-pub struct KitRpc {
-    kit_serial: String,
-    handle: Arc<Mutex<Handle>>,
-}
-
-impl KitRpc {
-    fn send(rpc_request: KitRpcRequest, mqtt_client: &mut MqttClient) {
-        mqtt_client
-            .publish(
-                format!("kit/{}/kit-rpc/request", rpc_request.kit_serial),
-                QoS::AtLeastOnce,
-                false,
-                rpc_request.bytes,
-            )
-            .expect("could not publish kit RPC request to MQTT");
-    }
-
-    pub fn version(&self) -> KitResponseReceiver<String> {
-        let (sender, receiver) = oneshot::channel();
-
-        let mut handle = self.handle.lock().unwrap();
-        let id = handle.insert_callback(KitRpcResponseCallback::Version(sender));
-
-        let request = KitRpcRequestBuilder::new(self.kit_serial.clone(), id)
-            .version()
-            .create();
-        Self::send(request, &mut handle.mqtt_client);
-
-        receiver
-    }
-
-    pub fn uptime(&self) -> KitResponseReceiver<std::time::Duration> {
-        let (sender, receiver) = oneshot::channel();
-
-        let mut handle = self.handle.lock().unwrap();
-        let id = handle.insert_callback(KitRpcResponseCallback::Uptime(sender));
-
-        let request = KitRpcRequestBuilder::new(self.kit_serial.clone(), id)
-            .uptime()
-            .create();
-        Self::send(request, &mut handle.mqtt_client);
-
-        receiver
-    }
-
-    pub fn peripheral_command(
+impl KitsRpc {
+    pub async fn version(
         &self,
+        kit_serial: impl Into<String>,
+    ) -> Result<String, KitRpcResponseError> {
+        let (tx, rx) = oneshot::channel();
+        let _ = self
+            .request_tx
+            .send(Request {
+                kit_serial: kit_serial.into(),
+                body: RequestBody::Version,
+                response_channel: tx,
+            })
+            .await;
+        match rx.await.map_err(|_| KitRpcResponseError::TimedOut)? {
+            ResponseBody::Version(v) => Ok(v),
+            ResponseBody::Error(err) => Err(err.into()),
+            _ => Err(KitRpcResponseError::InvalidResponse),
+        }
+    }
+
+    pub async fn uptime(
+        &self,
+        kit_serial: impl Into<String>,
+    ) -> Result<std::time::Duration, KitRpcResponseError> {
+        let (tx, rx) = oneshot::channel();
+        let _ = self
+            .request_tx
+            .send(Request {
+                kit_serial: kit_serial.into(),
+                body: RequestBody::Uptime,
+                response_channel: tx,
+            })
+            .await;
+        match rx.await.map_err(|_| KitRpcResponseError::TimedOut)? {
+            ResponseBody::Uptime(v) => Ok(v),
+            ResponseBody::Error(err) => Err(err.into()),
+            _ => Err(KitRpcResponseError::InvalidResponse),
+        }
+    }
+
+    pub async fn peripheral_command(
+        &self,
+        kit_serial: impl Into<String>,
         peripheral: String,
         command: serde_json::Value,
-    ) -> KitResponseReceiver<PeripheralCommandResponse> {
-        let (sender, receiver) = oneshot::channel();
-
-        let mut handle = self.handle.lock().unwrap();
-        let id = handle.insert_callback(KitRpcResponseCallback::PeripheralCommand(sender));
-
-        let request = KitRpcRequestBuilder::new(self.kit_serial.clone(), id)
-            .peripheral_command(peripheral, command)
-            .create();
-        Self::send(request, &mut handle.mqtt_client);
-
-        receiver
+    ) -> Result<PeripheralCommandResponse, KitRpcResponseError> {
+        let (tx, rx) = oneshot::channel();
+        let _ = self
+            .request_tx
+            .send(Request {
+                kit_serial: kit_serial.into(),
+                body: RequestBody::PeripheralCommand {
+                    peripheral,
+                    command,
+                },
+                response_channel: tx,
+            })
+            .await;
+        match rx.await.map_err(|_| KitRpcResponseError::TimedOut)? {
+            ResponseBody::PeripheralCommand(v) => Ok(v),
+            ResponseBody::Error(err) => Err(err.into()),
+            _ => Err(KitRpcResponseError::InvalidResponse),
+        }
     }
 
-    pub fn peripheral_command_lock(
+    pub async fn peripheral_command_lock(
         &self,
+        kit_serial: impl Into<String>,
         peripheral: String,
         request: PeripheralCommandLockRequest,
-    ) -> KitResponseReceiver<bool> {
-        let (sender, receiver) = oneshot::channel();
-
-        let mut handle = self.handle.lock().unwrap();
-        let id = handle.insert_callback(KitRpcResponseCallback::PeripheralCommandLock(sender));
-
-        let request = KitRpcRequestBuilder::new(self.kit_serial.clone(), id)
-            .peripheral_command_lock(peripheral, request)
-            .create();
-        Self::send(request, &mut handle.mqtt_client);
-
-        receiver
-    }
-}
-
-/// A handle to kit RPCs.
-#[derive(Clone)]
-pub struct KitsRpc {
-    handle: Arc<Mutex<Handle>>,
-}
-
-impl KitsRpc {
-    pub fn new(mqtt_client: MqttClient) -> Self {
-        Self {
-            handle: Arc::new(Mutex::new(Handle {
-                mqtt_client,
-                next_id: 0,
-                callbacks: HashMap::new(),
-                timeouts: VecDeque::new(),
-            })),
-        }
-    }
-
-    pub fn kit_rpc(&self, kit_serial: String) -> KitRpc {
-        KitRpc {
-            kit_serial,
-            handle: self.handle.clone(),
+    ) -> Result<bool, KitRpcResponseError> {
+        let (tx, rx) = oneshot::channel();
+        let _ = self
+            .request_tx
+            .send(Request {
+                kit_serial: kit_serial.into(),
+                body: RequestBody::PeripheralCommandLock {
+                    peripheral,
+                    request,
+                },
+                response_channel: tx,
+            })
+            .await;
+        match rx.await.map_err(|_| KitRpcResponseError::TimedOut)? {
+            ResponseBody::PeripheralCommandLock(v) => Ok(v),
+            ResponseBody::Error(err) => Err(err.into()),
+            _ => Err(KitRpcResponseError::InvalidResponse),
         }
     }
 }
 
-/// Intermittently cleans old (timed-out) kit RPC response callbacks.
-async fn cleanup(handle: Arc<Mutex<Handle>>) {
-    loop {
-        futures_timer::Delay::new(std::time::Duration::from_secs(30)).await;
-        tracing::trace!("Performing kit RPC response handle cleanup");
-        let mut handle = handle.lock().unwrap();
-        handle.cleanup();
-    }
-}
+pub(crate) fn create(mqtt: AsyncClient) -> (KitsRpc, Driver, ResponseTx) {
+    let (request_tx, request_rx) = mpsc::channel(8);
+    let (response_tx, response_rx) = mpsc::channel(8);
 
-/// Handles kit RPC responses. Deserializes the payload and invokes the kit RPC response callback.
-async fn handle_response(handle: Arc<Mutex<Handle>>, kit_serial: String, payload: Vec<u8>) {
-    let message_reader = match serialize_packed::read_message(
-        &mut payload.as_ref(),
-        capnp::message::ReaderOptions::default(),
-    ) {
-        Ok(r) => r,
-        Err(_err) => {
-            tracing::debug!("Malformed RPC response from kit {}", kit_serial);
-            return;
-        }
-    };
-    let rpc_response = match message_reader
-        .get_root::<astroplant_capnp::kit_rpc_response::Reader>()
-        .map_err(Error::Capnp)
-    {
-        Ok(r) => r,
-        Err(_err) => {
-            tracing::debug!("Malformed RPC response from kit {}", kit_serial);
-            return;
-        }
-    };
+    let kits_rpc = KitsRpc { request_tx };
+    let handler = Driver::new(mqtt, request_rx, response_rx);
+    let response_tx = ResponseTx(response_tx);
 
-    let id = rpc_response.get_id();
-    let mut handle = handle.lock().unwrap();
-
-    tracing::debug!("received kit RPC response for id: {}", id);
-
-    if let Some(callback) = handle.callbacks.remove(&id) {
-        callback
-            .invoke(payload)
-            .expect("kit RPC response callback went away");
-    }
-}
-
-pub struct KitsRpcRunner {
-    pub kits_rpc: KitsRpc,
-    pub mqtt_message_handler: crossbeam_channel::Sender<(String, Vec<u8>)>,
-}
-
-pub fn kit_rpc_runner(
-    mqtt_client: MqttClient,
-    thread_pool: futures::executor::ThreadPool,
-) -> KitsRpcRunner {
-    let kits_rpc = KitsRpc::new(mqtt_client);
-    let (sender, receiver) = crossbeam_channel::bounded(KIT_RPC_RESPONSE_BUFFER);
-    thread_pool
-        .spawn(cleanup(kits_rpc.handle.clone()))
-        .expect("Could not spawn kit RPC response handler cleanup");
-
-    {
-        let handle = kits_rpc.handle.clone();
-        let thread_pool = thread_pool.clone();
-        std::thread::spawn(move || {
-            for (kit_serial, payload) in receiver {
-                tracing::trace!(
-                    "received a message on the kit RPC response channel from {}",
-                    kit_serial
-                );
-                if let Err(err) =
-                    thread_pool.spawn(handle_response(handle.clone(), kit_serial, payload))
-                {
-                    tracing::warn!(
-                        "Could not spawn kit RPC response handler onto threadpool: {:?}",
-                        err
-                    );
-                }
-            }
-        });
-    }
-
-    KitsRpcRunner {
-        kits_rpc,
-        mqtt_message_handler: sender,
-    }
+    (kits_rpc, handler, response_tx)
 }

@@ -22,7 +22,8 @@ use server_rpc::{
 
 pub use kit_rpc::{DecodeError, KitRpcResponseError, KitsRpc};
 
-pub mod astroplant_capnp {
+#[allow(dead_code)]
+mod astroplant_capnp {
     include!(concat!(env!("OUT_DIR"), "/proto/astroplant_capnp.rs"));
 }
 

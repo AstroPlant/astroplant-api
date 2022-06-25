@@ -635,6 +635,7 @@ pub struct ConnectionBuilder<H> {
     // TODO: allow specifying subscriptions.
     host: String,
     port: u16,
+    client_id: String,
     username: Option<String>,
     password: Option<String>,
     server_rpc_handler: Option<H>,
@@ -646,6 +647,7 @@ impl ConnectionBuilder<NullHandler> {
         Self {
             host: host.into(),
             port,
+            client_id: "astroplant-mqtt".to_owned(),
             username: None,
             password: None,
             server_rpc_handler: None,
@@ -654,6 +656,14 @@ impl ConnectionBuilder<NullHandler> {
 }
 
 impl<H> ConnectionBuilder<H> {
+    /// Client identifiers should be unique.
+    pub fn with_client_id<S: Into<String>>(self, client_id: S) -> Self {
+        Self {
+            client_id: client_id.into(),
+            ..self
+        }
+    }
+
     /// Specify credentials to use when establishing the connection.
     pub fn with_credentials<S1: Into<String>, S2: Into<String>>(
         self,
@@ -674,6 +684,7 @@ impl<H> ConnectionBuilder<H> {
         ConnectionBuilder {
             host: self.host,
             port: self.port,
+            client_id: self.client_id,
             username: self.username,
             password: self.password,
             server_rpc_handler: Some(server_rpc_handler),
@@ -683,7 +694,7 @@ impl<H> ConnectionBuilder<H> {
     /// Create the MQTT client. Returns a connection and a kits RPC handle. The connection must be
     /// driven for the underlying protocol to make progress.
     pub fn create(self) -> (Connection<H>, KitsRpc) {
-        let mut options = MqttOptions::new("astroplant-mqtt", self.host, self.port);
+        let mut options = MqttOptions::new(self.client_id, self.host, self.port);
         options.set_max_packet_size(
             // Note: capnproto traversal is limited to 64 MiB as well
             64 * 1024 * 1024, // incoming: 64 MiB

@@ -36,4 +36,4 @@ valico = "2"
 
 [workspace]
 # Should specify standalone projects.
-members = []
+members = ["astroplant-mqtt-ingest"]

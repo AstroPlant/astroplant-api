@@ -74,6 +74,7 @@ dependencies = [
  "async-trait",
  "capnp",
  "capnpc",
+ "chrono",
  "futures 0.3.21",
  "ratelimit_meter",
  "rumqttc",
@@ -102,6 +103,7 @@ dependencies = [
 name = "astroplant-websocket"
 version = "1.0.0-alpha.1"
 dependencies = [
+ "chrono",
  "futures 0.3.21",
  "jsonrpc-core",
  "jsonrpc-pubsub",

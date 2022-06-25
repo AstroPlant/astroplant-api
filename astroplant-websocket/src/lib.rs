@@ -15,6 +15,7 @@ use jsonrpc_server_utils::tokio;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
+use types::RawMeasurementWithTimestamp;
 use warp::{filters::BoxedFilter, Filter};
 
 use futuresOne::future::Future as FutureOne;
@@ -26,7 +27,7 @@ struct WebSocketHandler {
     executor: tokio::runtime::TaskExecutor,
     raw_measurement_subscriptions: Arc<RwLock<HashMap<String, Subscribers<Sink<Value>>>>>,
     raw_measurement_buffer:
-        Arc<RwLock<HashMap<String, HashMap<PeripheralQuantityType, RawMeasurement>>>>,
+        Arc<RwLock<HashMap<String, HashMap<PeripheralQuantityType, RawMeasurementWithTimestamp>>>>,
 }
 
 impl WebSocketHandler {
@@ -38,7 +39,7 @@ impl WebSocketHandler {
         }
     }
 
-    fn buffer_raw_measurement(&self, kit_serial: String, raw_measurement: RawMeasurement) {
+    fn buffer_raw_measurement(&self, kit_serial: String, raw_measurement: RawMeasurementWithTimestamp) {
         let mut buffer = self.raw_measurement_buffer.write().unwrap();
         let index = (raw_measurement.peripheral, raw_measurement.quantity_type);
 
@@ -50,6 +51,14 @@ impl WebSocketHandler {
 
     fn publish_raw_measurement(&self, kit_serial: String, raw_measurement: RawMeasurement) {
         let subscriptions = self.raw_measurement_subscriptions.read().unwrap();
+
+        let raw_measurement = RawMeasurementWithTimestamp {
+            kit_serial: raw_measurement.kit_serial,
+            datetime: raw_measurement.datetime.timestamp_millis(),
+            peripheral: raw_measurement.peripheral,
+            quantity_type: raw_measurement.quantity_type,
+            value: raw_measurement.value,
+        };
 
         let subscribers: Option<&Subscribers<Sink<Value>>> = subscriptions.get(&kit_serial);
         if let Some(subscribers) = subscribers {
@@ -76,7 +85,7 @@ impl WebSocketHandler {
 
     fn add_raw_measurement_subscriber(&self, kit_serial: String, subscriber: Subscriber<Value>) {
         let buffer = self.raw_measurement_buffer.read().unwrap();
-        let resend: Vec<RawMeasurement> = match buffer.get(&kit_serial) {
+        let resend: Vec<RawMeasurementWithTimestamp> = match buffer.get(&kit_serial) {
             Some(pqt_raw_measurements) => pqt_raw_measurements.values().cloned().collect(),
             None => vec![],
         };

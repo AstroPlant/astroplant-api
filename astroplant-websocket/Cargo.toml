@@ -5,6 +5,7 @@ authors = ["Thomas Churchman <thomas@kepow.org>"]
 edition = "2018"
 
 [dependencies]
+chrono = "0.4"
 tracing = "0.1"
 warp = "0.3"
 jsonrpc-pubsub = "14.0.6"

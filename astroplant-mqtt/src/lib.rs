@@ -7,6 +7,7 @@
 
 use async_trait::async_trait;
 use capnp::serialize_packed;
+use chrono::{DateTime, Utc};
 use futures::Stream;
 use ratelimit_meter::{algorithms::NonConformance, KeyedRateLimiter};
 use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, Publish};
@@ -98,7 +99,7 @@ impl Error {
 pub struct RawMeasurement {
     pub id: uuid::Uuid,
     pub kit_serial: String,
-    pub datetime: u64,
+    pub datetime: DateTime<Utc>,
     pub peripheral: i32,
     pub quantity_type: i32,
     pub value: f64,
@@ -109,8 +110,8 @@ pub struct RawMeasurement {
 pub struct AggregateMeasurement {
     pub id: uuid::Uuid,
     pub kit_serial: String,
-    pub datetime_start: u64,
-    pub datetime_end: u64,
+    pub datetime_start: DateTime<Utc>,
+    pub datetime_end: DateTime<Utc>,
     pub peripheral: i32,
     pub quantity_type: i32,
     pub values: HashMap<String, f64>,
@@ -121,12 +122,21 @@ pub struct AggregateMeasurement {
 pub struct Media {
     pub id: uuid::Uuid,
     pub kit_serial: String,
-    pub datetime: u64,
+    pub datetime: DateTime<Utc>,
     pub peripheral: i32,
     pub name: String,
     pub r#type: String,
     pub data: Vec<u8>,
     pub metadata: serde_json::Value,
+}
+
+/// Timestamp is in milliseconds. Returns None if the timestamp overflowed.
+fn timestamp_to_datetime(timestamp: u64) -> Option<DateTime<Utc>> {
+    let naive = chrono::NaiveDateTime::from_timestamp(
+        i64::try_from(timestamp / 1000).ok()?,
+        1_000_000 * u32::try_from(timestamp % 1000).expect("invariant"),
+    );
+    Some(DateTime::from_utc(naive, Utc))
 }
 
 fn parse_raw_measurement(kit_serial: String, mut payload: &[u8]) -> Result<RawMeasurement, Error> {
@@ -145,7 +155,11 @@ fn parse_raw_measurement(kit_serial: String, mut payload: &[u8]) -> Result<RawMe
         id: uuid::Uuid::from_slice(id).map_err(|_| Error::MalformedMessage {
             kit_serial: kit_serial.clone(),
         })?,
-        datetime: raw_measurement.get_datetime(),
+        datetime: timestamp_to_datetime(raw_measurement.get_datetime()).ok_or_else(|| {
+            Error::MalformedMessage {
+                kit_serial: kit_serial.clone(),
+            }
+        })?,
         peripheral: raw_measurement.get_peripheral(),
         quantity_type: raw_measurement.get_quantity_type(),
         value: raw_measurement.get_value(),
@@ -174,8 +188,15 @@ fn parse_aggregate_measurement(
         id: uuid::Uuid::from_slice(id).map_err(|_| Error::MalformedMessage {
             kit_serial: kit_serial.clone(),
         })?,
-        datetime_start: aggregate_measurement.get_datetime_start(),
-        datetime_end: aggregate_measurement.get_datetime_end(),
+        datetime_start: timestamp_to_datetime(aggregate_measurement.get_datetime_start())
+            .ok_or_else(|| Error::MalformedMessage {
+                kit_serial: kit_serial.clone(),
+            })?,
+        datetime_end: timestamp_to_datetime(aggregate_measurement.get_datetime_end()).ok_or_else(
+            || Error::MalformedMessage {
+                kit_serial: kit_serial.clone(),
+            },
+        )?,
         peripheral: aggregate_measurement.get_peripheral(),
         quantity_type: aggregate_measurement.get_quantity_type(),
         values: aggregate_measurement
@@ -217,7 +238,11 @@ fn parse_media(kit_serial: String, mut payload: &[u8]) -> Result<Media, Error> {
         metadata: serde_json::from_str(metadata).map_err(|_| Error::MalformedMessage {
             kit_serial: kit_serial.clone(),
         })?,
-        datetime: media.get_datetime(),
+        datetime: timestamp_to_datetime(media.get_datetime()).ok_or_else(|| {
+            Error::MalformedMessage {
+                kit_serial: kit_serial.clone(),
+            }
+        })?,
         peripheral: media.get_peripheral(),
         name: media
             .get_name()

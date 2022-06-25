@@ -28,13 +28,6 @@ async fn upload_media(
         let object_name = id.to_hyphenated().to_string();
         let size = i64::try_from(data.len()).map_err(|_| problem::INTERNAL_SERVER_ERROR)?;
 
-        let naive = chrono::NaiveDateTime::from_timestamp(
-            i64::try_from(datetime / 1000).map_err(|_| problem::INTERNAL_SERVER_ERROR)?,
-            0,
-        );
-        let datetime: chrono::DateTime<chrono::Utc> =
-            chrono::DateTime::from_utc(naive, chrono::Utc);
-
         tracing::trace!(
             "Uploading media for kit {}: file {}, name '{}', type '{}', {} byte(s)",
             kit_serial,

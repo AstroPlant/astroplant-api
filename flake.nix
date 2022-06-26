@@ -5,21 +5,27 @@
     url = "github:edolstra/flake-compat";
     flake = false;
   };
-  outputs = { self, nixpkgs, flake-utils, ... }:
+  inputs.naersk.url = "github:nix-community/naersk";
+  outputs = { self, nixpkgs, flake-utils, naersk, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        naersk-lib = naersk.lib.${system};
       in
       {
-        packages.astroplant-api = pkgs.rustPlatform.buildRustPackage rec {
-          pname = "astroplant-api";
-          version = "1.0.0-alpha";
-          src = ./.;
-          cargoSha256 = "sha256-keRUIlicOsmudky2HiOyMyFoEtrseRHhrt2rhAozguc=";
-          nativeBuildInputs = with pkgs; [ pkgconfig capnproto ];
-          buildInputs = with pkgs; [ openssl postgresql ];
+        packages.astroplant = naersk-lib.buildPackage {
+          pname = "astroplant";
+          root = ./.;
+          nativeBuildInputs = with pkgs; [
+            pkgconfig
+            capnproto
+          ];
+          buildInputs = with pkgs; [
+            openssl
+            postgresql
+          ];
         };
-        defaultPackage = self.packages.${system}.astroplant-api;
+        defaultPackage = self.packages.${system}.astroplant;
         devShell = pkgs.mkShell {
           buildInputs = with pkgs; [
             cargo
@@ -31,14 +37,7 @@
             openssl
             capnproto
             postgresql
-            (diesel-cli.override {
-              postgresqlSupport = true;
-              # Temporarily not false, as for some reason diesel_cli tries to build with support anyway
-              # sqliteSupport = false;
-              # mysqlSupport = false;
-              sqliteSupport = true;
-              mysqlSupport = true;
-            })
+            diesel-cli
           ];
           shellHook = ''
             export RUST_SRC_PATH="${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";

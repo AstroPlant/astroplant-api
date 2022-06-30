@@ -1,35 +1,27 @@
 {
-  description = "An API to interface with the AstroPlant back-end";
-  inputs.flake-utils.url = "github:numtide/flake-utils";
-  inputs.flake-compat = {
-    url = "github:edolstra/flake-compat";
-    flake = false;
+  description = "Services providing the AstroPlant API";
+  inputs = {
+    flake-utils.url = "github:numtide/flake-utils";
+    flake-compat = {
+      url = "github:edolstra/flake-compat";
+      flake = false;
+    };
   };
-  inputs.naersk.url = "github:nix-community/naersk";
-  outputs = { self, nixpkgs, flake-utils, naersk, ... }:
+  outputs = { self, nixpkgs, flake-utils, ... }:
+    {
+      overlays.default = final: prev: {
+        astroplant-api = final.callPackage ./nix/build.nix { };
+      };
+    }
+    //
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        naersk-lib = naersk.lib.${system};
       in
       {
-        packages.astroplant = naersk-lib.buildPackage {
-          pname = "astroplant";
-          root = ./.;
-          depsBuildBuild = with pkgs; [
-            capnproto
-          ];
-          nativeBuildInputs = with pkgs; [
-            pkgconfig
-          ];
-          buildInputs = with pkgs; [
-            openssl
-            postgresql
-          ];
-          doCheck = true;
-        };
-        defaultPackage = self.packages.${system}.astroplant;
-        devShell = pkgs.mkShell {
+        packages.astroplant-api = pkgs.callPackage ./nix/build.nix { };
+        packages.default = self.packages.${system}.astroplant-api;
+        devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             cargo
             clippy

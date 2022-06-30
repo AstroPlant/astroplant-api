@@ -16,14 +16,17 @@
         packages.astroplant = naersk-lib.buildPackage {
           pname = "astroplant";
           root = ./.;
+          depsBuildBuild = with pkgs; [
+            capnproto
+          ];
           nativeBuildInputs = with pkgs; [
             pkgconfig
-            capnproto
           ];
           buildInputs = with pkgs; [
             openssl
             postgresql
           ];
+          doCheck = true;
         };
         defaultPackage = self.packages.${system}.astroplant;
         devShell = pkgs.mkShell {

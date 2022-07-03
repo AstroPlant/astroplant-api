@@ -118,7 +118,7 @@ mod rpc_impl {
                     .expect("invariant")
                     .receiver_count();
                 tracing::trace!(
-                    "raw measurement subscription for {} was dropped -- {} subscribers left",
+                    "raw measurement subscription for {} was dropped -- there are {} subscribers left",
                     kit_serial,
                     cnt
                 );

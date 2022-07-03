@@ -218,6 +218,12 @@ pub fn run(
                 Ok(Message::Media(media)) => {
                     upload_media(pg_pool.clone(), object_store.clone(), media).await;
                 }
+                Err(astroplant_mqtt::Error::Mqtt(err)) => {
+                    tracing::warn!("An MQTT connection error was encountered: {:?}", err)
+                }
+                Err(astroplant_mqtt::Error::MqttClientError(err)) => {
+                    tracing::warn!("An MQTT client error was encountered: {:?}", err)
+                }
                 Err(err) => {
                     tracing::warn!("An MQTT error was encountered: {:?}", err)
                 }

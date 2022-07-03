@@ -36,7 +36,7 @@
           ];
           shellHook = ''
             export RUST_SRC_PATH="${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
-            export RUST_LOG="warn,astroplant_mqtt=trace,astroplant_api=trace";
+            export RUST_LOG="warn,astroplant_=trace";
           '';
         };
       });

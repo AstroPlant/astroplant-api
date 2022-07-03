@@ -183,7 +183,7 @@ pub fn run(
     mpsc::Receiver<astroplant_mqtt::RawMeasurement>,
     astroplant_mqtt::KitsRpc,
 ) {
-    let (mut raw_measurement_sender, raw_measurement_receiver) = mpsc::channel(128);
+    let (mut raw_measurement_sender, raw_measurement_receiver) = mpsc::channel(32);
 
     let mut builder = ConnectionBuilder::new(
         std::env::var("MQTT_HOST").unwrap_or(crate::DEFAULT_MQTT_HOST.to_owned()),

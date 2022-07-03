@@ -126,7 +126,7 @@ impl NewKitConfiguration {
     pub fn new(kit_id: KitId, description: Option<String>) -> Self {
         Self {
             kit_id: kit_id.0,
-            description: description,
+            description,
             controller_symbol_location: "astroplant_kit.controller".to_owned(),
             controller_symbol: "AstroplantControllerV1".to_owned(),
             control_rules: json!({}),

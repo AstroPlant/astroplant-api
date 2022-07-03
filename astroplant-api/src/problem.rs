@@ -3,6 +3,10 @@
 //!
 //! TODO: ensure each status code has exactly one problem variant
 
+use axum::headers::HeaderValue;
+use axum::http::{header, StatusCode};
+use axum::response::IntoResponse;
+use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error as StdError;
@@ -51,23 +55,37 @@ pub enum Problem {
 }
 
 impl Problem {
-    pub fn to_status_code(&self) -> warp::http::StatusCode {
+    pub fn to_status_code(&self) -> axum::http::StatusCode {
         use GenericProblem::*;
         use Problem::*;
 
         match self {
-            Generic(NotFound) => warp::http::StatusCode::NOT_FOUND,
-            Generic(InternalServerError) => warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-            Generic(Forbidden) => warp::http::StatusCode::FORBIDDEN,
-            Generic(MethodNotAllowed) => warp::http::StatusCode::METHOD_NOT_ALLOWED,
-            Generic(BadRequest) => warp::http::StatusCode::BAD_REQUEST,
-            RateLimit(_) => warp::http::StatusCode::TOO_MANY_REQUESTS,
-            AuthorizationHeader { .. } => warp::http::StatusCode::UNAUTHORIZED,
-            PayloadTooLarge { .. } => warp::http::StatusCode::PAYLOAD_TOO_LARGE,
-            InvalidJson { .. } => warp::http::StatusCode::BAD_REQUEST,
-            InvalidParameters { .. } => warp::http::StatusCode::BAD_REQUEST,
-            KitRpc(_) => warp::http::StatusCode::BAD_GATEWAY,
+            Generic(NotFound) => StatusCode::NOT_FOUND,
+            Generic(InternalServerError) => StatusCode::INTERNAL_SERVER_ERROR,
+            Generic(Forbidden) => StatusCode::FORBIDDEN,
+            Generic(MethodNotAllowed) => StatusCode::METHOD_NOT_ALLOWED,
+            Generic(BadRequest) => StatusCode::BAD_REQUEST,
+            RateLimit(_) => StatusCode::TOO_MANY_REQUESTS,
+            AuthorizationHeader { .. } => StatusCode::UNAUTHORIZED,
+            PayloadTooLarge { .. } => StatusCode::PAYLOAD_TOO_LARGE,
+            InvalidJson { .. } => StatusCode::BAD_REQUEST,
+            InvalidParameters { .. } => StatusCode::BAD_REQUEST,
+            KitRpc(_) => StatusCode::BAD_GATEWAY,
         }
+    }
+}
+
+impl IntoResponse for Problem {
+    fn into_response(self) -> axum::response::Response {
+        (
+            self.to_status_code(),
+            [(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/problem+json"),
+            )],
+            Json(self),
+        )
+            .into_response()
     }
 }
 
@@ -81,7 +99,6 @@ impl Display for Problem {
 }
 
 impl StdError for Problem {}
-impl warp::reject::Reject for Problem {}
 
 impl From<diesel::result::Error> for Problem {
     fn from(diesel_error: diesel::result::Error) -> Problem {
@@ -215,6 +232,12 @@ pub enum AccessTokenProblemCategory {
     Expired,
 }
 
+impl IntoResponse for AccessTokenProblemCategory {
+    fn into_response(self) -> axum::response::Response {
+        (Problem::AuthorizationHeader { category: self }).into_response()
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InvalidParameters {
     #[serde(flatten)]
@@ -256,7 +279,7 @@ impl<E: std::borrow::Borrow<validator::ValidationErrors>> From<E> for InvalidPar
         let mut invalid_parameters = InvalidParameters::new();
 
         for (field, errors) in validation_errors.borrow().field_errors().into_iter() {
-            for error in errors.into_iter() {
+            for error in errors.iter() {
                 invalid_parameters.add(field.to_mixed_case(), error.into())
             }
         }

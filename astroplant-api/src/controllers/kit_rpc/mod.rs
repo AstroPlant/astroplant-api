@@ -1,139 +1,88 @@
-use astroplant_mqtt::KitsRpc;
-use futures::future::FutureExt;
+use axum::{extract::Path, Extension};
+
 use serde::Deserialize;
-use warp::{filters::BoxedFilter, path, Filter, Rejection};
+
+use astroplant_mqtt::KitsRpc;
 
 use crate::database::PgPool;
-use crate::problem::{self, AppResult};
+use crate::problem::{self, Problem};
 use crate::response::{Response, ResponseBuilder};
-use crate::{authentication, helpers, models};
-
-pub fn router(kits_rpc: KitsRpc, pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
-    //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    tracing::trace!("Setting up kit rpc router.");
-
-    version(kits_rpc.clone(), pg.clone())
-        .or(uptime(kits_rpc.clone(), pg.clone()))
-        .unify()
-        .or(peripheral_command(kits_rpc.clone(), pg.clone()))
-        .unify()
-        .boxed()
-}
+use crate::{helpers, models};
 
 /// Handles the `GET /kit-rpc/{kitSerial}/version` route.
-pub fn version(
-    kits_rpc: KitsRpc,
-    pg: PgPool,
-) -> impl Filter<Extract = (AppResult<Response>,), Error = Rejection> + Clone {
-    async fn implementation(
-        kits_rpc: KitsRpc,
-        pg: PgPool,
-        kit_serial: String,
-        user_id: Option<models::UserId>,
-    ) -> AppResult<Response> {
-        let kits_rpc = kits_rpc.clone();
-        let (_, _, kit) = helpers::fut_kit_permission_or_forbidden(
-            pg,
-            user_id,
-            kit_serial,
-            crate::authorization::KitAction::RpcVersion,
-        )
-        .await?;
-        let version = kits_rpc
-            .version(kit.serial)
-            .await
-            .map_err(|err| problem::KitRpcProblem::kit_rpc_response_error_into_problem(err))?;
-        Ok(ResponseBuilder::ok().body(version))
-    }
-
-    path!(String / "version")
-        .and(authentication::option_by_token())
-        .and_then(move |kit_serial: String, user_id: Option<models::UserId>| {
-            implementation(kits_rpc.clone(), pg.clone(), kit_serial, user_id).never_error()
-        })
+pub async fn version(
+    Extension(kits_rpc): Extension<KitsRpc>,
+    Extension(pg): Extension<PgPool>,
+    Path(kit_serial): Path<String>,
+    user_id: Option<models::UserId>,
+) -> Result<Response, Problem> {
+    println!("HERE");
+    let kits_rpc = kits_rpc.clone();
+    let (_, _, kit) = helpers::fut_kit_permission_or_forbidden(
+        pg,
+        user_id,
+        kit_serial,
+        crate::authorization::KitAction::RpcVersion,
+    )
+    .await?;
+    let version = kits_rpc
+        .version(kit.serial)
+        .await
+        .map_err(problem::KitRpcProblem::kit_rpc_response_error_into_problem)?;
+    Ok(ResponseBuilder::ok().body(version))
 }
 
 /// Handles the `GET /kit-rpc/{kitSerial}/uptime` route.
-pub fn uptime(
-    kits_rpc: KitsRpc,
-    pg: PgPool,
-) -> impl Filter<Extract = (AppResult<Response>,), Error = Rejection> + Clone {
-    async fn implementation(
-        kits_rpc: KitsRpc,
-        pg: PgPool,
-        kit_serial: String,
-        user_id: Option<models::UserId>,
-    ) -> AppResult<Response> {
-        let kits_rpc = kits_rpc.clone();
-        let (_, _, kit) = helpers::fut_kit_permission_or_forbidden(
-            pg,
-            user_id,
-            kit_serial,
-            crate::authorization::KitAction::RpcUptime,
-        )
-        .await?;
-        let uptime = kits_rpc
-            .uptime(kit.serial)
-            .await
-            .map_err(|err| problem::KitRpcProblem::kit_rpc_response_error_into_problem(err))?;
-        Ok(ResponseBuilder::ok().body(uptime.as_secs()))
-    }
+pub async fn uptime(
+    Extension(kits_rpc): Extension<KitsRpc>,
+    Extension(pg): Extension<PgPool>,
+    Path(kit_serial): Path<String>,
+    user_id: Option<models::UserId>,
+) -> Result<Response, Problem> {
+    let kits_rpc = kits_rpc.clone();
+    let (_, _, kit) = helpers::fut_kit_permission_or_forbidden(
+        pg,
+        user_id,
+        kit_serial,
+        crate::authorization::KitAction::RpcUptime,
+    )
+    .await?;
+    let uptime = kits_rpc
+        .uptime(kit.serial)
+        .await
+        .map_err(problem::KitRpcProblem::kit_rpc_response_error_into_problem)?;
+    Ok(ResponseBuilder::ok().body(uptime.as_secs()))
+}
 
-    path!(String / "uptime")
-        .and(authentication::option_by_token())
-        .and_then(move |kit_serial: String, user_id: Option<models::UserId>| {
-            implementation(kits_rpc.clone(), pg.clone(), kit_serial, user_id).never_error()
-        })
+#[derive(Deserialize)]
+pub struct PeripheralCommand {
+    peripheral: String,
+    command: serde_json::Value,
 }
 
 /// Handles the `POST /kit-rpc/{kitSerial}/peripheral-command` route.
-pub fn peripheral_command(
-    kits_rpc: KitsRpc,
-    pg: PgPool,
-) -> impl Filter<Extract = (AppResult<Response>,), Error = Rejection> + Clone {
-    #[derive(Deserialize)]
-    struct PeripheralCommand {
-        peripheral: String,
-        command: serde_json::Value,
-    }
-
-    async fn implementation(
-        kits_rpc: KitsRpc,
-        pg: PgPool,
-        kit_serial: String,
-        user_id: Option<models::UserId>,
-        peripheral_command: PeripheralCommand,
-    ) -> AppResult<Response> {
-        let kits_rpc = kits_rpc.clone();
-        let (_, _, kit) = helpers::fut_kit_permission_or_forbidden(
-            pg,
-            user_id,
-            kit_serial,
-            crate::authorization::KitAction::RpcPeripheralCommand,
+pub async fn peripheral_command(
+    Extension(kits_rpc): Extension<KitsRpc>,
+    Extension(pg): Extension<PgPool>,
+    Path(kit_serial): Path<String>,
+    user_id: Option<models::UserId>,
+    crate::extract::Json(peripheral_command): crate::extract::Json<PeripheralCommand>,
+) -> Result<Response, Problem> {
+    let kits_rpc = kits_rpc.clone();
+    let (_, _, kit) = helpers::fut_kit_permission_or_forbidden(
+        pg,
+        user_id,
+        kit_serial,
+        crate::authorization::KitAction::RpcPeripheralCommand,
+    )
+    .await?;
+    let peripheral_command = kits_rpc
+        .peripheral_command(
+            kit.serial,
+            peripheral_command.peripheral,
+            peripheral_command.command,
         )
-        .await?;
-        let peripheral_command = kits_rpc
-            .peripheral_command(
-                kit.serial,
-                peripheral_command.peripheral,
-                peripheral_command.command,
-            )
-            .await
-            .map_err(|err| problem::KitRpcProblem::kit_rpc_response_error_into_problem(err))?;
-        Ok(ResponseBuilder::ok().data(peripheral_command.media_type, peripheral_command.data))
-    }
-
-    path!(String / "peripheral-command")
-        .and(authentication::option_by_token())
-        .and(helpers::deserialize())
-        .and_then(move |kit_serial, user_id, peripheral_command| {
-            implementation(
-                kits_rpc.clone(),
-                pg.clone(),
-                kit_serial,
-                user_id,
-                peripheral_command,
-            )
-            .never_error()
-        })
+        .await
+        .map_err(problem::KitRpcProblem::kit_rpc_response_error_into_problem)?;
+    Ok(ResponseBuilder::ok().data(peripheral_command.media_type, peripheral_command.data))
 }

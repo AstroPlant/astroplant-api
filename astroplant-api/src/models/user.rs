@@ -123,8 +123,8 @@ impl NewUser {
 
 fn validate_username(username: &str) -> Result<(), ValidationError> {
     if !username.chars().all(|c| c.is_alphanumeric() || c == '-')
-        || username.chars().nth(0) == Some('-')
-        || username.chars().last() == Some('-')
+        || username.starts_with('-')
+        || username.ends_with('-')
     {
         Err(ValidationError::new("invalid_username"))
     } else {

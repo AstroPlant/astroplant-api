@@ -1,9 +1,13 @@
+use axum::headers::HeaderName;
+use axum::http::{header, HeaderMap, StatusCode};
+use axum::response::IntoResponse;
+use axum::Json;
 use bytes::Bytes;
 use erased_serde::Serialize as ErasedSerialize;
 use futures::stream::Stream;
-use std::collections::HashMap;
+
 use std::pin::Pin;
-use warp::http::StatusCode;
+use std::str::FromStr;
 
 pub enum ResponseValue {
     Serializable(Box<dyn ErasedSerialize + Send>),
@@ -22,9 +26,12 @@ pub enum ResponseValue {
 pub struct Response {
     value: Option<ResponseValue>,
     status_code: StatusCode,
-    headers: HashMap<String, String>,
+    // TODO: make this Option to avoid allocation if no headers
+    // are added
+    headers: HeaderMap,
 }
 
+#[allow(dead_code)]
 impl Response {
     /// The response value.
     pub fn value(self) -> Option<ResponseValue> {
@@ -37,14 +44,49 @@ impl Response {
     }
 
     /// The response headers.
-    pub fn headers(&self) -> &HashMap<String, String> {
+    pub fn headers(&self) -> &HeaderMap {
         &self.headers
+    }
+}
+
+impl IntoResponse for Response {
+    fn into_response(mut self) -> axum::response::Response {
+        let res = match self.value {
+            Some(ResponseValue::Serializable(value)) => {
+                Box::new((self.status_code, self.headers, Json(value)).into_response())
+            }
+            Some(ResponseValue::Data { media_type, data }) => {
+                // FIXME: media type may be invalid
+                self.headers.insert(
+                    header::CONTENT_TYPE,
+                    media_type.parse().expect("valid media type"),
+                );
+                Box::new((self.status_code, self.headers, data).into_response())
+            }
+            Some(ResponseValue::Stream { media_type, stream }) => {
+                // FIXME: media type may be invalid
+                self.headers.insert(
+                    header::CONTENT_TYPE,
+                    media_type.parse().expect("valid media type"),
+                );
+                Box::new(
+                    (
+                        self.status_code,
+                        self.headers,
+                        axum::body::StreamBody::new(stream),
+                    )
+                        .into_response(),
+                )
+            }
+            None => Box::new((self.status_code, self.headers).into_response()),
+        };
+        res.into_response()
     }
 }
 
 pub struct ResponseBuilder {
     status_code: StatusCode,
-    headers: HashMap<String, String>,
+    headers: HeaderMap,
     links: Vec<String>,
 }
 
@@ -53,7 +95,7 @@ impl ResponseBuilder {
     pub fn new(status_code: StatusCode) -> Self {
         ResponseBuilder {
             status_code,
-            headers: HashMap::new(),
+            headers: HeaderMap::new(),
             links: Vec::new(),
         }
     }
@@ -61,7 +103,8 @@ impl ResponseBuilder {
     fn process(&mut self) {
         if !self.links.is_empty() {
             let links = self.links.join(", ");
-            self.headers.insert("link".to_owned(), links);
+            self.headers
+                .insert(header::LINK, links.parse().expect("valid header value"));
         }
     }
 
@@ -79,8 +122,11 @@ impl ResponseBuilder {
 
     /// Add a (relative) next-page URI header to the response.
     #[allow(dead_code)]
-    pub fn next_page_uri(mut self, uri: String) -> Self {
-        self.headers.insert("x-next".to_owned(), uri);
+    pub fn next_page_uri(mut self, uri: &str) -> Self {
+        self.headers.insert(
+            HeaderName::from_static("x-next"),
+            uri.parse().expect("valid header value"),
+        );
         self
     }
 
@@ -88,8 +134,10 @@ impl ResponseBuilder {
     #[allow(dead_code)]
     pub fn attachment_filename(mut self, filename: &str) -> Self {
         self.headers.insert(
-            "Content-Disposition".to_owned(),
-            format!("attachment; filename={}", filename),
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename={}", filename)
+                .parse()
+                .expect("valid header value"),
         );
         self
     }
@@ -101,15 +149,19 @@ impl ResponseBuilder {
 
     /// Add a Location URI header. Only makes sense with the Created or a Redirection status.
     #[allow(dead_code)]
-    pub fn content_uri(mut self, uri: String) -> Self {
-        self.headers.insert("Location".to_owned(), uri);
+    pub fn content_uri(mut self, uri: &str) -> Self {
+        self.headers
+            .insert(header::LOCATION, uri.parse().expect("valid header value"));
         self
     }
 
     /// Set a response header.
     #[allow(dead_code)]
-    pub fn header(mut self, header_name: String, header_value: String) -> Self {
-        self.headers.insert(header_name, header_value);
+    pub fn header(mut self, header_name: &str, header_value: &str) -> Self {
+        self.headers.insert(
+            HeaderName::from_str(header_name).expect("valid header name"),
+            header_value.parse().expect("valid header value"),
+        );
         self
     }
 

@@ -5,12 +5,15 @@ authors = ["Thomas Churchman <thomas@kepow.org>"]
 edition = "2018"
 
 [dependencies]
+astroplant-mqtt = { path = "../astroplant-mqtt" }
+async-trait = "0.1"
+axum = { version = "0.5", features = ["ws"] }
 chrono = "0.4"
 tracing = "0.1"
+futures-channel = "0.3"
 warp = "0.3"
-jsonrpc-pubsub = "14.0.6"
-jsonrpc-core = "14.0.5"
-jsonrpc-server-utils = "14.0.5"
+jsonrpsee = { version = "0.14.0", features = ["server", "macros"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 futures = { version = "0.3", features = ["compat"] }
+tokio = "1.0"

@@ -1,22 +1,25 @@
 mod kit_configuration;
 mod peripheral;
 
-use warp::{filters::BoxedFilter, Filter};
+pub use kit_configuration::{
+    configurations_by_kit_serial, create_configuration, patch_configuration,
+};
+pub use peripheral::{add_peripheral_to_configuration, delete_peripheral, patch_peripheral};
 
 use crate::database::PgPool;
 use crate::problem::{self, AppResult};
-use crate::response::Response;
+
 use crate::{authorization, helpers, models};
 
-pub fn router(pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
-    //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    tracing::trace!("Setting up kit configurations and peripherals router.");
-
-    kit_configuration::router(pg.clone())
-        .or(peripheral::router(pg))
-        .unify()
-        .boxed()
-}
+// pub fn router(pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
+//     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
+//     tracing::trace!("Setting up kit configurations and peripherals router.");
+//
+//     kit_configuration::router(pg.clone())
+//         .or(peripheral::router(pg))
+//         .unify()
+//         .boxed()
+// }
 
 async fn get_models_from_kit_configuration_id(
     pg: PgPool,
@@ -25,9 +28,9 @@ async fn get_models_from_kit_configuration_id(
     let conn = pg.get().await?;
     helpers::threadpool(move || {
         let kit_configuration = models::KitConfiguration::by_id(&conn, kit_configuration_id)?
-            .ok_or_else(|| problem::NOT_FOUND)?;
+            .ok_or(problem::NOT_FOUND)?;
         let kit = models::Kit::by_id(&conn, kit_configuration.get_kit_id())?
-            .ok_or_else(|| problem::INTERNAL_SERVER_ERROR)?;
+            .ok_or(problem::INTERNAL_SERVER_ERROR)?;
         Ok((kit, kit_configuration))
     })
     .await
@@ -40,12 +43,12 @@ async fn get_models_from_peripheral_id(
     let conn = pg.get().await?;
     helpers::threadpool(move || {
         let peripheral =
-            models::Peripheral::by_id(&conn, peripheral_id)?.ok_or_else(|| problem::NOT_FOUND)?;
+            models::Peripheral::by_id(&conn, peripheral_id)?.ok_or(problem::NOT_FOUND)?;
         let kit = models::Kit::by_id(&conn, peripheral.get_kit_id())?
-            .ok_or_else(|| problem::INTERNAL_SERVER_ERROR)?;
+            .ok_or(problem::INTERNAL_SERVER_ERROR)?;
         let configuration =
             models::KitConfiguration::by_id(&conn, peripheral.get_kit_configuration_id())?
-                .ok_or_else(|| problem::INTERNAL_SERVER_ERROR)?;
+                .ok_or(problem::INTERNAL_SERVER_ERROR)?;
         Ok((kit, configuration, peripheral))
     })
     .await

@@ -1,149 +1,108 @@
-use futures::future::FutureExt;
+use axum::extract::Path;
+use axum::Extension;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use warp::{filters::BoxedFilter, Filter, Rejection};
 
 use crate::database::PgPool;
-use crate::problem::{AppResult, Problem, NOT_FOUND};
+use crate::problem::{Problem, NOT_FOUND};
 use crate::response::{Response, ResponseBuilder};
-use crate::{authentication, authorization, helpers, models, views};
+use crate::{authorization, helpers, models, views};
 
-pub fn router(
-    pg: PgPool,
-    object_store: astroplant_object::ObjectStore,
-) -> BoxedFilter<(AppResult<Response>,)> {
-    //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-    tracing::trace!("Setting up media router.");
-
-    kit_media(pg.clone())
-        .or(download_media(pg.clone(), object_store))
-        .unify()
-        .boxed()
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Query {
+    cursor: Option<String>,
+    configuration: Option<i32>,
+    peripheral: Option<i32>,
 }
 
 /// Handles the `GET /kits/{kitSerial}/media` route.
-fn kit_media(
-    pg: PgPool,
-) -> impl Filter<Extract = (AppResult<Response>,), Error = Rejection> + Clone {
-    #[derive(Clone, Debug, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Query {
-        cursor: Option<String>,
-        configuration: Option<i32>,
-        peripheral: Option<i32>,
-    }
+pub async fn kit_media(
+    Extension(pg): Extension<PgPool>,
+    user_id: Option<models::UserId>,
+    Path(kit_serial): Path<String>,
+    crate::extract::Query(query): crate::extract::Query<Query>,
+) -> Result<Response, Problem> {
+    use crate::cursors;
+    use std::convert::TryFrom;
 
-    async fn implementation(
-        pg: PgPool,
-        kit_serial: String,
-        user_id: Option<models::UserId>,
-        query: Query,
-    ) -> AppResult<Response> {
-        use crate::cursors;
-        use std::convert::TryFrom;
+    let mut out_query = query.clone();
+    let cursor = query.cursor.as_ref().map(|s| s.parse()).transpose()?;
+    let base_uri = format!("/kits/{}/media", kit_serial);
 
-        let mut out_query = query.clone();
-        let cursor = (&query).cursor.as_ref().map(|s| s.parse()).transpose()?;
-        let base_uri = format!("/kits/{}/media", kit_serial);
+    let (_user, _membership, kit) = helpers::fut_kit_permission_or_forbidden(
+        pg.clone(),
+        user_id,
+        kit_serial,
+        authorization::KitAction::View,
+    )
+    .await?;
 
-        let (_user, _membership, kit) = helpers::fut_kit_permission_or_forbidden(
-            pg.clone(),
-            user_id,
-            kit_serial,
-            authorization::KitAction::View,
+    let conn = pg.get().await?;
+    let mut response = ResponseBuilder::ok();
+    let media = helpers::threadpool(move || {
+        models::Media::page(
+            &conn,
+            kit.get_id(),
+            query.configuration,
+            query.peripheral,
+            cursor,
         )
-        .await?;
+    })
+    .await?;
 
-        let conn = pg.get().await?;
-        let mut response = ResponseBuilder::ok();
-        let media = helpers::threadpool(move || {
-            models::Media::page(
-                &conn,
-                kit.get_id(),
-                query.configuration,
-                query.peripheral,
-                cursor,
-            )
-        })
-        .await?;
-
-        if let Some(next_cursor) = cursors::Media::next_from_page(&media) {
-            out_query.cursor = Some(next_cursor.into());
-            let next_page_uri = format!(
-                "{}?{}",
-                base_uri,
-                serde_urlencoded::to_string(&out_query).unwrap()
-            );
-            response = response.link(&next_page_uri, "next");
-        }
-
-        let body = media
-            .into_iter()
-            .map(|media| views::Media::try_from(media))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(response.body(body))
+    if let Some(next_cursor) = cursors::Media::next_from_page(&media) {
+        out_query.cursor = Some(next_cursor.into());
+        let next_page_uri = format!(
+            "{}?{}",
+            base_uri,
+            serde_urlencoded::to_string(&out_query).unwrap()
+        );
+        response = response.link(&next_page_uri, "next");
     }
 
-    warp::get()
-        .and(warp::path!("kits" / String / "media"))
-        .and(authentication::option_by_token())
-        .and(warp::query())
-        .and_then(move |kit_serial, user_id, query: Query| {
-            implementation(pg.clone(), kit_serial, user_id, query).never_error()
-        })
+    let body = media
+        .into_iter()
+        .map(views::Media::try_from)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(response.body(body))
 }
 
 /// Handles the `GET` /media/{mediaId}/content` route.
-fn download_media(
-    pg: PgPool,
-    object_store: astroplant_object::ObjectStore,
-) -> impl Filter<Extract = (AppResult<Response>,), Error = Rejection> + Clone {
-    /// Check user authorization and make sure the configuration has never been activated.
-    async fn implementation(
-        pg: PgPool,
-        object_store: astroplant_object::ObjectStore,
-        user_id: Option<models::UserId>,
-        media_id: models::MediaId,
-    ) -> AppResult<Response> {
-        let conn = pg.clone().get().await?;
-        let (media, kit) = helpers::threadpool(move || {
-            let media = models::Media::by_id(&conn, media_id)?.ok_or_else(|| NOT_FOUND)?;
-            let kit = models::Kit::by_id(&conn, media.get_kit_id())?.ok_or_else(|| NOT_FOUND)?;
+pub async fn download_media(
+    Extension(pg): Extension<PgPool>,
+    Extension(object_store): Extension<astroplant_object::ObjectStore>,
+    user_id: Option<models::UserId>,
+    Path(media_id): Path<Uuid>,
+) -> Result<Response, Problem> {
+    let media_id = models::MediaId(media_id);
 
-            Ok::<_, Problem>((media, kit))
-        })
-        .await?;
+    // Check user authorization and make sure the configuration has never been activated.
+    let conn = pg.clone().get().await?;
+    let (media, kit) = helpers::threadpool(move || {
+        let media = models::Media::by_id(&conn, media_id)?.ok_or(NOT_FOUND)?;
+        let kit = models::Kit::by_id(&conn, media.get_kit_id())?.ok_or(NOT_FOUND)?;
 
-        // FIXME: this unnecessarily queries for the kit: we already have it.
-        helpers::fut_kit_permission_or_forbidden(
-            pg,
-            user_id,
-            kit.serial.to_owned(),
-            authorization::KitAction::View,
-        )
-        .await?;
+        Ok::<_, Problem>((media, kit))
+    })
+    .await?;
 
-        let stream = object_store
-            .get(&kit.serial, &media.id.to_hyphenated().to_string())
-            .await
-            .unwrap();
+    // FIXME: this unnecessarily queries for the kit: we already have it.
+    helpers::fut_kit_permission_or_forbidden(
+        pg,
+        user_id,
+        kit.serial.to_owned(),
+        authorization::KitAction::View,
+    )
+    .await?;
 
-        Ok(ResponseBuilder::ok()
-            .attachment_filename(&media.name)
-            .stream(media.r#type, stream))
-    }
+    let stream = object_store
+        .get(&kit.serial, &media.id.to_hyphenated().to_string())
+        .await
+        .unwrap();
 
-    warp::get()
-        .and(warp::path!("media" / Uuid / "content"))
-        .and(authentication::option_by_token())
-        .and_then(move |media_id: Uuid, user_id: Option<models::UserId>| {
-            implementation(
-                pg.clone(),
-                object_store.clone(),
-                user_id,
-                models::MediaId(media_id),
-            )
-            .never_error()
-        })
+    Ok(ResponseBuilder::ok()
+        .attachment_filename(&media.name)
+        .stream(media.r#type, stream))
 }

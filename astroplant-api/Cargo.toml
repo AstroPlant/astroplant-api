@@ -5,11 +5,13 @@ authors = ["Thomas Churchman <thomas@kepow.org>"]
 edition = "2018"
 
 [dependencies]
+anyhow = "1.0"
 astroplant-auth = { path = "../astroplant-auth" }
 astroplant-mqtt = { path = "../astroplant-mqtt" }
 astroplant-object = { path = "../astroplant-object" }
 astroplant-websocket = { path = "../astroplant-websocket" }
 async-trait = "0.1"
+axum = { version = "0.5", features = ["headers", "ws"] }
 bigdecimal = "0.1.0"
 bytes = "1"
 chrono = { version = "0.4", features = ["serde"] }
@@ -27,9 +29,9 @@ serde_urlencoded = "0.6"
 strum = "0.19"
 strum_macros = "0.19"
 tokio = { version = "1.19", features = ["macros", "rt", "rt-multi-thread", "sync"] }
+tower-http = { version = "0.3.0", features = ["cors", "compression-full"] }
 tracing = "0.1.21"
 tracing-subscriber = "0.2"
 uuid = { version = "0.8", features = ["serde"] }
 valico = "2"
 validator = { version = "0.11.0", features = ["derive"] }
-warp = "0.3.1"

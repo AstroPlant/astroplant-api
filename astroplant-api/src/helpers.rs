@@ -1,10 +1,8 @@
 use futures::future::TryFutureExt;
-use serde::de::DeserializeOwned;
-use warp::{Filter, Rejection};
 
 use crate::authorization::{KitUser, Permission};
 use crate::database::PgPool;
-use crate::problem::{AppResult, Problem, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND};
+use crate::problem::{Problem, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND};
 
 /// Run a blocking function on a threadpool.
 pub async fn threadpool<F, T>(f: F) -> T
@@ -16,7 +14,7 @@ where
 }
 
 /// Runs a function on a threadpool, converting potential errors through Problem into Rejection.
-pub async fn threadpool_result<F, T, E>(f: F) -> AppResult<T>
+pub async fn threadpool_result<F, T, E>(f: F) -> Result<T, Problem>
 where
     F: FnOnce() -> Result<T, E> + Send + 'static,
     T: Send + 'static,
@@ -28,55 +26,14 @@ where
     })
 }
 
-/// Flatten a nested result with equal error types to a single result.
 #[allow(dead_code)]
-pub fn flatten_result<T, E>(nested: Result<Result<T, E>, E>) -> Result<T, E> {
-    nested.and_then(|nested| nested)
-}
-
-/// Create a filter to deserialize a request.
-pub fn deserialize<T>() -> impl Filter<Extract = (T,), Error = Rejection> + Copy
-where
-    T: DeserializeOwned + Send,
-{
-    // TODO: Also allow e.g. XML, basing the attempted deserialization on the Content-Type header.
-    // Default to JSON.
-
-    // Allow a request of at most 64 KiB
-    const CONTENT_LENGTH_LIMIT: u64 = 1024 * 64;
-
-    warp::body::content_length_limit(CONTENT_LENGTH_LIMIT)
-        .or_else(|_| {
-            futures::future::err(warp::reject::custom(Problem::PayloadTooLarge {
-                limit: CONTENT_LENGTH_LIMIT,
-            }))
-        })
-        .and(warp::body::bytes())
-        .and_then(|body_buffer: bytes::Bytes| async {
-            let body: Vec<u8> = body_buffer.into_iter().collect();
-
-            serde_json::from_slice(&body).map_err(|err| {
-                tracing::debug!("Request JSON deserialize error: {}", err);
-                Rejection::from(Problem::InvalidJson {
-                    category: (&err).into(),
-                })
-            })
-        })
-}
-
-#[allow(dead_code)]
-pub fn ok_or_internal_error<T, E>(r: Result<T, E>) -> AppResult<T> {
-    r.map_err(|_| INTERNAL_SERVER_ERROR)
-}
-
-#[allow(dead_code)]
-pub fn some_or_internal_error<T>(r: Option<T>) -> AppResult<T> {
-    r.ok_or_else(|| INTERNAL_SERVER_ERROR)
+pub fn some_or_internal_error<T>(r: Option<T>) -> Result<T, Problem> {
+    r.ok_or(INTERNAL_SERVER_ERROR)
 }
 
 #[allow(dead_code)]
 pub fn some_or_not_found<T>(r: Option<T>) -> Result<T, Problem> {
-    r.ok_or_else(|| NOT_FOUND)
+    r.ok_or(NOT_FOUND)
 }
 
 /**
@@ -87,7 +44,7 @@ pub fn permission_or_forbidden<P>(
     actor: &P::Actor,
     object: &P::Object,
     permission: P,
-) -> AppResult<()>
+) -> Result<(), Problem>
 where
     P: Permission,
 {
@@ -112,11 +69,14 @@ pub async fn fut_kit_permission_or_forbidden<'a>(
     user_id: Option<crate::models::UserId>,
     kit_serial: String,
     action: crate::authorization::KitAction,
-) -> AppResult<(
-    Option<crate::models::User>,
-    Option<crate::models::KitMembership>,
-    crate::models::Kit,
-)> {
+) -> Result<
+    (
+        Option<crate::models::User>,
+        Option<crate::models::KitMembership>,
+        crate::models::Kit,
+    ),
+    Problem,
+> {
     use diesel::Connection;
 
     let conn = pg.get().await?;
@@ -173,7 +133,7 @@ pub async fn fut_user_permission_or_forbidden(
     actor_user_id: Option<crate::models::UserId>,
     object_username: String,
     action: crate::authorization::UserAction,
-) -> AppResult<(Option<crate::models::User>, crate::models::User)> {
+) -> Result<(Option<crate::models::User>, crate::models::User), Problem> {
     use diesel::Connection;
 
     let conn = pg.get().await?;
@@ -213,136 +173,5 @@ where
     match f(&val) {
         Some(error) => Err(error),
         None => Ok(val),
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::problem::{JsonDeserializeErrorCategory, Problem};
-    use serde::Deserialize;
-
-    #[derive(Debug, Deserialize)]
-    struct TestStruct {
-        value: String,
-    }
-
-    #[test]
-    fn flatten() {
-        assert_eq!(
-            super::flatten_result::<_, std::convert::Infallible>(Ok(Ok(42))),
-            Ok(42)
-        );
-        assert_eq!(
-            super::flatten_result::<std::convert::Infallible, _>(Ok(Err("oops"))),
-            Err("oops")
-        );
-        assert_eq!(
-            super::flatten_result::<std::convert::Infallible, _>(Err("oops")),
-            Err("oops")
-        );
-    }
-
-    #[test]
-    fn deserialize_json() {
-        futures::executor::block_on(async {
-            let value: TestStruct = warp::test::request()
-                .header("Accept", "application/json")
-                .body(r#"{"value":"It all adds up to normality."}"#)
-                .filter(&super::deserialize())
-                .await
-                .unwrap();
-            assert_eq!(value.value, "It all adds up to normality.");
-        })
-    }
-
-    #[test]
-    fn reject_content_length_limit() {
-        futures::executor::block_on(async {
-            // Construct a large request.
-            let body = format!(
-                "{}{}{}",
-                r#"{"value":""#,
-                vec!['.'; 1024 * 64 - 12 + 1]
-                    .into_iter()
-                    .collect::<String>(),
-                r#""}"#
-            );
-            // Should reject requests with too large Content-Length.
-            let response = warp::test::request()
-                .header("Accept", "application/json")
-                .body(body)
-                .filter(&super::deserialize::<TestStruct>())
-                .await;
-            assert!(match response {
-                Err(rejection) => {
-                    match rejection.find::<Problem>() {
-                        Some(Problem::PayloadTooLarge { .. }) => true,
-                        _ => false,
-                    }
-                }
-                _ => false,
-            });
-        })
-    }
-
-    #[test]
-    fn reject_syntactically_incorrect_json() {
-        futures::executor::block_on(async {
-            let response = warp::test::request()
-                .header("Accept", "application/json")
-                .body(r#"{"value"."It does not add up to normality."}"#)
-                .filter(&super::deserialize::<TestStruct>())
-                .await;
-            assert!(match response {
-                Err(rejection) => {
-                    match rejection.find::<Problem>() {
-                        Some(Problem::InvalidJson {
-                            category: JsonDeserializeErrorCategory::Syntactic,
-                        }) => true,
-                        _ => false,
-                    }
-                }
-                _ => false,
-            });
-
-            let response = warp::test::request()
-                .header("Accept", "application/json")
-                .body(r#"{"value":"It does not add up to normality.}"#)
-                .filter(&super::deserialize::<TestStruct>())
-                .await;
-            assert!(match response {
-                Err(rejection) => {
-                    match rejection.find::<Problem>() {
-                        Some(Problem::InvalidJson {
-                            category: JsonDeserializeErrorCategory::PrematureEnd,
-                        }) => true,
-                        _ => false,
-                    }
-                }
-                _ => false,
-            });
-        })
-    }
-
-    #[test]
-    fn reject_semantically_incorrect_json() {
-        futures::executor::block_on(async {
-            let response = warp::test::request()
-                .header("Accept", "application/json")
-                .body(r#"{"value":42}"#)
-                .filter(&super::deserialize::<TestStruct>())
-                .await;
-            assert!(match response {
-                Err(rejection) => {
-                    match rejection.find::<Problem>() {
-                        Some(Problem::InvalidJson {
-                            category: JsonDeserializeErrorCategory::Semantic,
-                        }) => true,
-                        _ => false,
-                    }
-                }
-                _ => false,
-            });
-        })
     }
 }

@@ -101,7 +101,7 @@ pub fn hash_kit_password(password: &str) -> String {
     const PBKDF2_ITERATIONS: u32 = 15_000;
 
     let salt = random_string::string(SALT_LENGTH);
-    let hash = pbkdf2(password, &salt.as_bytes(), PBKDF2_ITERATIONS);
+    let hash = pbkdf2(password, salt.as_bytes(), PBKDF2_ITERATIONS);
 
     kit_hash_format(PBKDF2_ITERATIONS, &salt, &hash)
 }

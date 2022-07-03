@@ -1,11 +1,9 @@
-use std::convert::TryFrom;
 use std::{cell::RefCell, collections::HashMap};
 use tokio_postgres::types::Type;
 use tokio_postgres::{Client, Statement};
 
 use astroplant_mqtt::{AggregateMeasurement, RawMeasurement};
 
-type KitSerial = String;
 type PeripheralId = i32;
 type KitId = i32;
 type ConfigId = i32;

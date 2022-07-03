@@ -42,7 +42,7 @@ async fn upload_media(
             models::Peripheral::by_id(&conn, models::PeripheralId(peripheral))
         })
         .await?
-        .ok_or_else(|| problem::NOT_FOUND)?;
+        .ok_or(problem::NOT_FOUND)?;
 
         if let Err(err) = object_store
             .put(&kit_serial, &object_name, data, r#type.clone())
@@ -163,7 +163,7 @@ impl astroplant_mqtt::ServerRpcHandler for Handler_ {
             let quantity_types = models::QuantityType::all(&conn)
                 .map_err(|_| RpcError::Other)?
                 .into_iter()
-                .map(|quantity_type| views::QuantityType::from(quantity_type))
+                .map(views::QuantityType::from)
                 .map(|quantity_type| serde_json::to_value(quantity_type).unwrap())
                 .collect();
 
@@ -211,7 +211,7 @@ pub fn run(
         while let Some(msg) = stream.next().await {
             match msg {
                 Ok(Message::RawMeasurement(measurement)) => {
-                    if let Err(_) = raw_measurement_sender.send(measurement).await {
+                    if (raw_measurement_sender.send(measurement).await).is_err() {
                         break;
                     }
                 }

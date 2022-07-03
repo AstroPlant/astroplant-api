@@ -95,7 +95,8 @@ impl Error {
 }
 
 /// A raw measurement made by a kit.
-#[derive(Debug)]
+#[derive(serde::Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct RawMeasurement {
     pub id: uuid::Uuid,
     pub kit_serial: String,
@@ -106,7 +107,8 @@ pub struct RawMeasurement {
 }
 
 /// An aggregate of raw measurements made by a kit.
-#[derive(Debug)]
+#[derive(serde::Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct AggregateMeasurement {
     pub id: uuid::Uuid,
     pub kit_serial: String,

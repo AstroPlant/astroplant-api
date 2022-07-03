@@ -1,7 +1,5 @@
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
-use futures::future::TryFutureExt;
-use warp::{Filter, Rejection};
 
 use crate::helpers;
 use crate::problem::{AppResult, INTERNAL_SERVER_ERROR};
@@ -25,11 +23,5 @@ impl PgPool {
     pub async fn get(self) -> AppResult<PgPooled> {
         // TODO: check whether PgPool::get actually needs to be run in a threadpool
         helpers::threadpool(move || self.0.get().map_err(|_| INTERNAL_SERVER_ERROR)).await
-    }
-
-    /// Create a filter to get a PostgreSQL connection from a PostgreSQL connection pool.
-    #[allow(dead_code)]
-    pub fn filter(self) -> impl Filter<Extract = (PgPooled,), Error = Rejection> + Clone {
-        warp::any().and_then(move || self.clone().get().err_into::<Rejection>())
     }
 }

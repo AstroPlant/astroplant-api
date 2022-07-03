@@ -4,14 +4,24 @@ extern crate diesel;
 #[macro_use]
 extern crate strum_macros;
 
+use axum::http::Method;
+use axum::{
+    extract::ws::WebSocketUpgrade,
+    handler::Handler,
+    http::{header, Uri},
+    response::IntoResponse,
+    routing::{delete, get, patch, post},
+    Extension, Router,
+};
+use futures::StreamExt;
 use once_cell::sync::OnceCell;
-use warp::{self, http::Method, path, Filter, Rejection, Reply};
+use tower_http::cors::CorsLayer;
 
 mod cursors;
 mod database;
+mod extract;
 mod utils;
 
-mod authentication;
 mod authorization;
 mod helpers;
 mod problem;
@@ -24,10 +34,13 @@ mod response;
 mod views;
 
 mod mqtt;
-mod websocket;
 
-use problem::{AppResult, DescriptiveProblem, Problem};
-use response::{Response, ResponseBuilder, ResponseValue};
+use controllers::{
+    kit, kit_configuration, kit_rpc, me, measurement, media, peripheral_definition, permission,
+    quantity_type, user,
+};
+
+use problem::{GenericProblem, Problem};
 
 static VERSION: &str = env!("CARGO_PKG_VERSION");
 static DEFAULT_DATABASE_URL: &str = "postgres://astroplant:astroplant@localhost/astroplant";
@@ -55,169 +68,148 @@ async fn main() {
     );
 
     // Start MQTT.
-    let (raw_measurement_receiver, kits_rpc) = mqtt::run(pg.clone(), object_store.clone());
+    let (mut raw_measurement_receiver, kits_rpc) = mqtt::run(pg.clone(), object_store.clone());
 
     // Start WebSockets.
-    let (ws_endpoint, publisher) = astroplant_websocket::run();
-    tokio::runtime::Handle::current().spawn(websocket::run(publisher, raw_measurement_receiver));
+    let (ws_publisher, ws_handler) = astroplant_websocket::create();
 
-    let rate_limit = rate_limit::leaky_bucket();
-
-    let rest_endpoints = ((path!("version").map(|| Ok(ResponseBuilder::ok().body(VERSION))))
-        .or(path!("time")
-            .map(|| Ok(ResponseBuilder::ok().body(chrono::Utc::now().to_rfc3339())))
-            .boxed())
-        .unify()
-        .or(path!("kits" / ..).and(controllers::kit::router(pg.clone())))
-        .unify()
-        .or(controllers::kit_configuration::router(pg.clone()))
-        .unify()
-        .or(path!("kit-rpc" / ..).and(controllers::kit_rpc::router(kits_rpc, pg.clone())))
-        .unify()
-        .or(path!("users" / ..).and(controllers::user::router(pg.clone())))
-        .unify()
-        .or(path!("me" / ..).and(controllers::me::router(pg.clone())))
-        .unify()
-        .or(path!("peripheral-definitions" / ..)
-            .and(controllers::peripheral_definition::router(pg.clone())))
-        .unify()
-        .or(path!("quantity-types" / ..).and(controllers::quantity_type::router(pg.clone())))
-        .unify()
-        .or(path!("permissions" / ..).and(controllers::permission::router(pg.clone())))
-        .unify()
-        .or(controllers::measurement::router(pg.clone()))
-        .unify()
-        .or(controllers::media::router(pg.clone(), object_store.clone()))
-        .unify())
-    .and(warp::header("Accept"))
-    .map(|response: AppResult<Response>, _accept: String| {
-        // TODO: utilize Accept header, e.g. returning XML when requested.
-        let mut http_response_builder = warp::http::response::Builder::new();
-        match response {
-            Ok(response) => {
-                http_response_builder = http_response_builder.status(response.status_code());
-
-                for (header, value) in response.headers() {
-                    http_response_builder =
-                        http_response_builder.header(header.as_bytes(), value.clone());
-                }
-
-                match response.value() {
-                    Some(ResponseValue::Serializable(value)) => http_response_builder
-                        .header("Content-Type", "application/json")
-                        .body(warp::hyper::Body::from(serde_json::to_vec(&value).unwrap()))
-                        .unwrap(),
-                    Some(ResponseValue::Data { media_type, data }) => http_response_builder
-                        .header("Content-Type", media_type)
-                        .body(warp::hyper::Body::from(data))
-                        // FIXME potentially dangerous unwrap
-                        .unwrap(),
-                    Some(ResponseValue::Stream {
-                        media_type,
-                        mut stream,
-                    }) => {
-                        use futures::stream::StreamExt;
-
-                        let (mut sender, body) = warp::hyper::Body::channel();
-
-                        tokio::spawn(async move {
-                            while let Some(r) = stream.next().await {
-                                match r {
-                                    Ok(data) => {
-                                        if let Err(_) = sender.send_data(data).await {
-                                            break;
-                                        }
-                                    }
-                                    Err(_) => {
-                                        sender.abort();
-                                        break;
-                                    }
-                                }
-                            }
-                        });
-
-                        http_response_builder
-                            .header("Content-Type", media_type)
-                            .body(body)
-                            // FIXME potentially dangerous unwrap
-                            .unwrap()
-                    }
-                    None => http_response_builder
-                        .body(warp::hyper::Body::empty())
-                        .unwrap(),
-                }
-            }
-            Err(problem) => {
-                let descriptive_problem = DescriptiveProblem::from(&problem);
-
-                http_response_builder
-                    .status(problem.to_status_code())
-                    .body(warp::hyper::Body::from(
-                        serde_json::to_vec(&descriptive_problem).unwrap(),
-                    ))
-                    .unwrap()
-            }
+    tokio::spawn(async move {
+        while let Some(raw_measurement) = raw_measurement_receiver.next().await {
+            ws_publisher.publish_raw_measurement(raw_measurement).await;
         }
-    })
-    .with(warp::log("astroplant_api::api"))
-    // TODO: this wrapper might be better placed per-endpoint, to have accurate allowed metods
-    .with(
-        warp::cors()
-            .allow_any_origin()
-            .allow_methods(vec![
-                Method::GET,
-                Method::POST,
-                Method::PUT,
-                Method::PATCH,
-                Method::DELETE,
-                Method::OPTIONS,
-            ])
-            .allow_headers(vec!["Content-Type", "Authorization"])
-            .expose_headers(vec!["Link"])
-            .build(),
-    );
+    });
 
-    let all = rate_limit
-        .and(ws_endpoint.or(rest_endpoints))
-        .recover(|rejection| async { handle_rejection(rejection) });
+    // TODO: implement rate limiting
+    // let _rate_limit = rate_limit::leaky_bucket();
 
-    warp::serve(all).run(([0, 0, 0, 0], 8080)).await;
+    let app = Router::new()
+        .route("/ws", get(websocket_handler).layer(Extension(ws_handler)))
+        .route(
+            "/media/:media_id/content",
+            get(media::download_media).layer(Extension(object_store)),
+        )
+        .route("/kits", get(kit::kits))
+        .route("/kits", post(kit::create_kit))
+        .route("/kits/:kit_serial", get(kit::kit_by_serial))
+        .route("/kits/:kit_serial/password", post(kit::reset_password))
+        .route("/kits/:kit_serial", patch(kit::patch_kit))
+        .route(
+            "/kits/:kit_serial/configurations",
+            get(kit_configuration::configurations_by_kit_serial),
+        )
+        .route(
+            "/kits/:kit_serial/configurations",
+            post(kit_configuration::create_configuration),
+        )
+        .route(
+            "/kits/:kit_serial/aggregate-measurements",
+            get(measurement::kit_aggregate_measurements),
+        )
+        .route("/kits/:kit_serial/media", get(media::kit_media))
+        .route(
+            "/kit-configurations/:kit_configuration_id",
+            patch(kit_configuration::patch_configuration),
+        )
+        .route(
+            "/kit-configurations/:kit_configuration_id/peripherals",
+            post(kit_configuration::add_peripheral_to_configuration),
+        )
+        .nest(
+            "/kit-rpc",
+            Router::new()
+                .route("/:kit_serial/version", get(kit_rpc::version))
+                .route("/:kit_serial/uptime", get(kit_rpc::uptime))
+                .route(
+                    "/:kit_serial/peripheral-command",
+                    post(kit_rpc::peripheral_command),
+                )
+                .layer(Extension(kits_rpc)),
+        )
+        .route(
+            "/peripherals/:peripheral_id",
+            patch(kit_configuration::patch_peripheral),
+        )
+        .route(
+            "/peripherals/:peripheral_id",
+            delete(kit_configuration::delete_peripheral),
+        )
+        .route("/me", get(me::me))
+        .route("/me/auth", post(me::authenticate_by_credentials))
+        .route("/me/refresh", post(me::access_token_from_refresh_token))
+        .route("/users/:username", get(user::user_by_username))
+        .route("/users/:username", patch(user::patch_user))
+        .route(
+            "/users/:username/kit-memberships",
+            get(user::list_kit_memberships),
+        )
+        .route("/users", post(user::create_user))
+        .route(
+            "/peripheral-definitions",
+            get(peripheral_definition::peripheral_definitions),
+        )
+        .route("/permissions", get(permission::user_kit_permissions))
+        .route(
+            "/time",
+            get(|| async { response::ResponseBuilder::ok().body(chrono::Utc::now().to_rfc3339()) }),
+        )
+        .route("/quantity-types", get(quantity_type::quantity_types))
+        .layer(Extension(pg))
+        .fallback(fallback.into_service())
+        .layer(tower_http::compression::CompressionLayer::new())
+        .layer(
+            // TODO: this layer might be better placed per-endpoint, to have accurate allowed methods
+            CorsLayer::new()
+                .allow_origin(tower_http::cors::Any)
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::PUT,
+                    Method::PATCH,
+                    Method::DELETE,
+                    Method::OPTIONS,
+                ])
+                .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
+                .expose_headers([header::LINK, header::HeaderName::from_static("x-next")]),
+        );
+
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 8080));
+
+    tracing::info!("listening on {}", addr);
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
 }
 
-/// Convert rejections into replies.
-fn handle_rejection(rejection: Rejection) -> Result<impl Reply, Rejection> {
-    let reply = if let Some(problem) = rejection.find::<Problem>() {
-        // This rejection originated in this implementation.
+/// 404 handler
+async fn fallback(_uri_: Uri) -> impl IntoResponse {
+    Problem::Generic(GenericProblem::NotFound).into_response()
+}
 
-        let descriptive_problem = DescriptiveProblem::from(problem);
-
-        warp::reply::with_status(
-            serde_json::to_string(&descriptive_problem).unwrap(),
-            problem.to_status_code(),
-        )
-    } else {
-        // This rejection originated in Warp.
-
-        let problem = if rejection.is_not_found() {
-            problem::NOT_FOUND
-        } else if rejection.find::<warp::reject::InvalidQuery>().is_some() {
-            problem::BAD_REQUEST
-        } else {
-            problem::INTERNAL_SERVER_ERROR
-        };
-        let descriptive_problem = DescriptiveProblem::from(&problem);
-
-        warp::reply::with_status(
-            serde_json::to_string(&descriptive_problem).unwrap(),
-            problem.to_status_code(),
-        )
-    };
-
-    Ok(warp::reply::with_header(
-        reply,
-        "Content-Type",
-        "application/problem+json",
-    ))
+async fn websocket_handler(
+    Extension(pg): Extension<database::PgPool>,
+    Extension(ws_handle): Extension<astroplant_websocket::SocketHandler>,
+    ws: WebSocketUpgrade,
+    user_id: Option<models::UserId>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |ws| async move {
+        ws_handle
+            .handle(ws, move |kit_serial| {
+                let pg = pg.clone();
+                let user_id = user_id;
+                async move {
+                    helpers::fut_kit_permission_or_forbidden(
+                        pg,
+                        user_id,
+                        kit_serial,
+                        authorization::KitAction::SubscribeRealTimeMeasurements,
+                    )
+                    .await
+                    .is_ok()
+                }
+            })
+            .await;
+    })
 }
 
 /// Initialize the token signer.

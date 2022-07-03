@@ -184,9 +184,6 @@ impl SocketHandler {
         let connection_id = self
             .next_connection_id
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let span = tracing::span!(tracing::Level::DEBUG, "websocket connection", connection_id);
-        let _enter = span.enter();
-        tracing::debug!("WebSocket connection {} established", connection_id);
 
         let server = rpc_impl::RpcServerImpl {
             raw_measurement_listeners: self.raw_measurement_listeners.clone(),

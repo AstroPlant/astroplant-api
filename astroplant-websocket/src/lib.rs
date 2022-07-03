@@ -1,7 +1,3 @@
-use std::collections::HashMap;
-
-use std::sync::Arc;
-
 use astroplant_mqtt::RawMeasurement;
 use axum::extract::ws::{Message as WsMessage, WebSocket};
 use futures::sink::SinkExt;
@@ -14,7 +10,13 @@ use jsonrpsee::types::params::Params;
 use jsonrpsee::types::request::Request;
 use jsonrpsee::ws_server::RandomIntegerIdProvider;
 use jsonrpsee::RpcModule;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
+
+// Note this implementation uses std::sync Mutex and RwLock. These are more performant than Tokio's
+// async counterparts, but should not be held across await points.
 
 mod rpc_impl {
     use jsonrpsee::core::server::rpc_module::PendingSubscription;
@@ -30,6 +32,8 @@ mod rpc_impl {
     pub(crate) struct RpcServerImpl<F> {
         pub(crate) raw_measurement_listeners:
             std::sync::Arc<std::sync::RwLock<crate::RawMeasurementListeners>>,
+        pub(crate) raw_measurement_cache:
+            std::sync::Arc<std::sync::Mutex<crate::RawMeasurementCache>>,
         pub(crate) auth_check: F,
     }
 
@@ -42,6 +46,7 @@ mod rpc_impl {
         fn sub(&self, pending: PendingSubscription, kit_serial: String) {
             let auth_check_fut = (self.auth_check)(kit_serial.clone());
             let raw_measurement_listeners = self.raw_measurement_listeners.clone();
+            let raw_measurement_cache = self.raw_measurement_cache.clone();
 
             tokio::spawn(async move {
                 if !auth_check_fut.await {
@@ -54,6 +59,14 @@ mod rpc_impl {
                 }
 
                 let mut sink = pending.accept().unwrap();
+
+                // Dump all cached measurements on the sink.
+                match raw_measurement_cache.lock().unwrap().get(&kit_serial) {
+                    Some(measurements) => measurements.values().for_each(|(_, measurement)| {
+                        let _ = sink.send(measurement);
+                    }),
+                    None => {}
+                }
 
                 let receiver = raw_measurement_listeners
                     .read()
@@ -124,27 +137,65 @@ mod rpc_impl {
 pub fn create() -> (Publisher, SocketHandler) {
     let publisher = Publisher {
         raw_measurement_listeners: Default::default(),
+        raw_measurement_cache: Default::default(),
     };
 
     let socket_handler = SocketHandler {
         id_provider: RandomIntegerIdProvider,
         raw_measurement_listeners: publisher.raw_measurement_listeners.clone(),
+        raw_measurement_cache: publisher.raw_measurement_cache.clone(),
         next_connection_id: Default::default(),
     };
+
+    let raw_measurement_cache = publisher.raw_measurement_cache.clone();
+
+    // Spawn a task to flush the raw measurement cache every so often.
+    tokio::spawn(keep_raw_measurement_cache_clean(raw_measurement_cache));
 
     (publisher, socket_handler)
 }
 
+async fn keep_raw_measurement_cache_clean(raw_measurement_cache: Arc<std::sync::Mutex<RawMeasurementCache>>) {
+    const CHECK_INTERVAL: Duration = Duration::from_secs(5 * 60);
+    const RETENTION_PERIOD: Duration = Duration::from_secs(30 * 60);
+
+    let mut interval = tokio::time::interval(CHECK_INTERVAL);
+    loop {
+        interval.tick().await;
+        let now = Instant::now();
+        let mut raw_measurement_cache = raw_measurement_cache.lock().unwrap();
+        raw_measurement_cache.retain(|_, for_kit| {
+            for_kit.retain(|_, (added, _)| now.duration_since(*added) < RETENTION_PERIOD);
+            for_kit.len() > 0
+        });
+    }
+}
+
 // Raw measurements are broadcast per kit serial.
 type RawMeasurementListeners = HashMap<String, broadcast::Sender<RawMeasurement>>;
+type RawMeasurementCache = HashMap<String, HashMap<(i32, i32), (Instant, RawMeasurement)>>;
 
 #[derive(Clone)]
 pub struct Publisher {
+    /// Holds a raw measurement broadcast handle for each kit serial.
     raw_measurement_listeners: Arc<std::sync::RwLock<RawMeasurementListeners>>,
+    /// Holds the newest raw measurement (in terms of arrival time) for each kit serial and
+    /// (peripheral, quantity type) tuple.
+    raw_measurement_cache: Arc<std::sync::Mutex<RawMeasurementCache>>,
 }
 
 impl Publisher {
     pub async fn publish_raw_measurement(&self, raw_measurement: RawMeasurement) {
+        self.raw_measurement_cache
+            .lock()
+            .unwrap()
+            .entry(raw_measurement.kit_serial.clone())
+            .or_default()
+            .insert(
+                (raw_measurement.peripheral, raw_measurement.quantity_type),
+                (Instant::now(), raw_measurement.clone()),
+            );
+
         let listeners = self.raw_measurement_listeners.read().unwrap();
         if let Some(sender) = listeners.get(&raw_measurement.kit_serial) {
             // Returns an error if all receivers are dropped, the last-dropped receiver will handle
@@ -168,6 +219,7 @@ struct SocketState<'a, F> {
 pub struct SocketHandler {
     id_provider: RandomIntegerIdProvider,
     raw_measurement_listeners: Arc<std::sync::RwLock<RawMeasurementListeners>>,
+    raw_measurement_cache: Arc<std::sync::Mutex<RawMeasurementCache>>,
     next_connection_id: Arc<std::sync::atomic::AtomicUsize>,
 }
 
@@ -187,6 +239,7 @@ impl SocketHandler {
 
         let server = rpc_impl::RpcServerImpl {
             raw_measurement_listeners: self.raw_measurement_listeners.clone(),
+            raw_measurement_cache: self.raw_measurement_cache.clone(),
             auth_check,
         };
 

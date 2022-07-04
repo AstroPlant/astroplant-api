@@ -13,7 +13,7 @@ use jsonrpsee::RpcModule;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, oneshot};
 
 // Note this implementation uses std::sync Mutex and RwLock. These are more performant than Tokio's
 // async counterparts, but should not be held across await points.
@@ -155,7 +155,9 @@ pub fn create() -> (Publisher, SocketHandler) {
     (publisher, socket_handler)
 }
 
-async fn keep_raw_measurement_cache_clean(raw_measurement_cache: Arc<std::sync::Mutex<RawMeasurementCache>>) {
+async fn keep_raw_measurement_cache_clean(
+    raw_measurement_cache: Arc<std::sync::Mutex<RawMeasurementCache>>,
+) {
     const CHECK_INTERVAL: Duration = Duration::from_secs(5 * 60);
     const RETENTION_PERIOD: Duration = Duration::from_secs(30 * 60);
 
@@ -245,16 +247,29 @@ impl SocketHandler {
 
         let (mut sink, stream) = socket.split();
         let (tx, mut rx) = mpsc::unbounded();
+        let (close_tx, mut close_rx) = oneshot::channel();
+
+        // Spawn a task proxying RPC responses to the WebSocket sink.
         tokio::spawn(async move {
-            while let Some(msg) = rx.next().await {
-                if sink.send(WsMessage::Text(msg)).await.is_err() {
-                    break;
+            loop {
+                tokio::select! {
+                    Some(msg) = rx.next() => {
+                        if sink.send(WsMessage::Text(msg)).await.is_err() {
+                            break;
+                        }
+                    }
+                    _ = &mut close_rx => {
+                        break;
+                    }
                 }
             }
+
+            let _ = sink.close().await;
+
             tracing::debug!(
-                "Receiver stopped listening to WebSocket connection {}",
+                "The sink was closed for WebSocket connection {}",
                 connection_id
-            )
+            );
         });
 
         let state = SocketState {
@@ -280,6 +295,9 @@ impl SocketHandler {
             "We stopped listening to WebSocket connection {}",
             connection_id
         );
+
+        // Notify the sink proxying task that the WebSocket was closed.
+        let _ = close_tx.send(());
     }
 
     async fn handle_ws_message<F, Fut>(&self, state: &SocketState<'_, F>, message: &str)

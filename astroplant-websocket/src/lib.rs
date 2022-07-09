@@ -337,7 +337,7 @@ async fn send_all<S>(
 ) where
     S: futures::Sink<WsMessage> + Unpin,
 {
-    const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(20);
+    const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(4 * 60);
 
     let mut heartbeat = tokio::time::interval(HEARTBEAT_INTERVAL);
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);

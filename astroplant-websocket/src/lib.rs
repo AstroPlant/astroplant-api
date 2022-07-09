@@ -323,8 +323,13 @@ impl SocketHandler {
     }
 }
 
-/// Sink all messages produced by the RPC module to the websocket.
-/// Stop when the websocket is closed, or when `close_rx` is signalled.
+/// Sink all messages produced by the RPC module to the websocket. Stop when the websocket is
+/// closed, or when `close_rx` is signalled.
+///
+/// This adds a heartbeat to the websocket, sending a ping whenever we haven't sent any other
+/// message for a few minutes. We do this as we'd like to keep connections open even when they're
+/// idle: users might be changing their kit configurations, with no measurements sent for a long
+/// time. When new measurements come in, the user should receive them immediately.
 async fn send_all<S>(
     ws_sink: &mut S,
     mut rpc_rx: mpsc::UnboundedReceiver<String>,
@@ -346,6 +351,7 @@ async fn send_all<S>(
                 heartbeat.reset();
             }
             _ = heartbeat.tick() => {
+                // WebSocket heartbeat when we haven't sent any data for a while.
                 // Generate some data we expect to receive back from the client.
                 let time = SystemTime::now()
                     .duration_since(UNIX_EPOCH)

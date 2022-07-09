@@ -12,7 +12,7 @@ use jsonrpsee::ws_server::RandomIntegerIdProvider;
 use jsonrpsee::RpcModule;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{broadcast, oneshot};
 
 // Note this implementation uses std::sync Mutex and RwLock. These are more performant than Tokio's
@@ -245,26 +245,12 @@ impl SocketHandler {
         };
 
         let (mut sink, stream) = socket.split();
-        let (tx, mut rx) = mpsc::unbounded();
-        let (close_tx, mut close_rx) = oneshot::channel();
+        let (tx, rx) = mpsc::unbounded();
+        let (close_tx, close_rx) = oneshot::channel();
 
         // Spawn a task proxying RPC responses to the WebSocket sink.
         tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    Some(msg) = rx.next() => {
-                        if sink.send(WsMessage::Text(msg)).await.is_err() {
-                            break;
-                        }
-                    }
-                    _ = &mut close_rx => {
-                        break;
-                    }
-                }
-            }
-
-            let _ = sink.close().await;
-
+            send_all(&mut sink, rx, close_rx).await;
             tracing::debug!(
                 "The sink was closed for WebSocket connection {}",
                 connection_id
@@ -335,4 +321,48 @@ impl SocketHandler {
             }
         }
     }
+}
+
+/// Sink all messages produced by the RPC module to the websocket.
+/// Stop when the websocket is closed, or when `close_rx` is signalled.
+async fn send_all<S>(
+    ws_sink: &mut S,
+    mut rpc_rx: mpsc::UnboundedReceiver<String>,
+    mut close_rx: oneshot::Receiver<()>,
+) where
+    S: futures::Sink<WsMessage> + Unpin,
+{
+    const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(20);
+
+    let mut heartbeat = tokio::time::interval(HEARTBEAT_INTERVAL);
+    heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+    loop {
+        tokio::select! {
+            Some(msg) = rpc_rx.next() => {
+                if ws_sink.send(WsMessage::Text(msg)).await.is_err() {
+                    break;
+                }
+                heartbeat.reset();
+            }
+            _ = heartbeat.tick() => {
+                // Generate some data we expect to receive back from the client.
+                let time = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or(Duration::from_secs(42));
+
+                if ws_sink
+                    .send(WsMessage::Ping(Vec::from(time.as_millis().to_ne_bytes())))
+                    .await
+                    .is_err() {
+                    break;
+                };
+            }
+            _ = &mut close_rx => {
+                break;
+            }
+        }
+    }
+
+    let _ = ws_sink.close().await;
 }

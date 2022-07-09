@@ -214,7 +214,6 @@ struct SocketState<'a, F> {
     bounded_subscriptions: BoundedSubscriptions,
     rpc_module: RpcModule<rpc_impl::RpcServerImpl<F>>,
     method_sink: MethodSink,
-    // _phantom: PhantomData<Fut>,
 }
 
 #[derive(Clone)]
@@ -278,7 +277,6 @@ impl SocketHandler {
             bounded_subscriptions: BoundedSubscriptions::new(8),
             rpc_module: server.into_rpc(),
             method_sink: MethodSink::new(tx),
-            // _phantom: PhantomData,
         };
 
         let mut stream = Box::pin(stream);

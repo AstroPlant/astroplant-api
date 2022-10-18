@@ -28,7 +28,7 @@
             rust-analyzer
             rustc
             rustfmt
-            pkgconfig
+            pkg-config
             openssl
             capnproto
             postgresql

@@ -232,7 +232,11 @@ pub async fn archive(
     ));
 
     let api = tokio_util::io::ReaderStream::new(api);
+
+    // Get the datetime string, but remove colons (these are not always safe in filenames).
+    let mut now_string = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    now_string.retain(|c| c != ':');
     Ok(ResponseBuilder::ok()
-        .attachment_filename(&format!("archive-{}-{}.zip", kit_serial, now))
+        .attachment_filename(&format!("{}_{}.zip", kit_serial, now_string))
         .stream("application/zip".to_string(), api.boxed()))
 }

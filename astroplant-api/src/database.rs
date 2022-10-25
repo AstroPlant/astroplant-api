@@ -11,7 +11,7 @@ pub type PgPooled = PooledConnection<ConnectionManager<PgConnection>>;
 pub struct PgPool(Pool<ConnectionManager<PgConnection>>);
 
 impl PgPool {
-    pub fn new(url: String, connection_timeout: std::time::Duration) -> Self {
+    pub fn new(url: &str, connection_timeout: std::time::Duration) -> Self {
         let manager = ConnectionManager::<PgConnection>::new(url);
         let pool = Pool::builder()
             .connection_timeout(connection_timeout)

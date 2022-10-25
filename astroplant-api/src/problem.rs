@@ -109,6 +109,15 @@ impl From<diesel::result::Error> for Problem {
     }
 }
 
+impl From<sqlx::Error> for Problem {
+    fn from(sqlx_error: sqlx::Error) -> Problem {
+        match sqlx_error {
+            sqlx::Error::RowNotFound => NOT_FOUND,
+            _ => INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 // Note: this attribute is a bit hacky, as DescriptiveProblem also defines a title field. But it
 // works as expected (i.e., when Serde serializes a DescriptiveProblem with its title field set to

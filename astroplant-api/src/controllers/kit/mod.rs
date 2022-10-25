@@ -8,6 +8,9 @@ use crate::response::{Response, ResponseBuilder};
 use crate::utils::deserialize_some;
 use crate::{helpers, models, views};
 
+mod archive;
+pub use archive::archive;
+
 #[derive(Deserialize)]
 pub struct CursorPage {
     after: Option<i32>,

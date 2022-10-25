@@ -52,15 +52,20 @@ static DEFAULT_S3_ENDPOINT: &str = "http://localhost:9000";
 static TOKEN_SIGNER: OnceCell<astroplant_auth::token::TokenSigner> = OnceCell::new();
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()>{
     tracing_subscriber::fmt::init();
 
     init_token_signer();
 
-    let pg = database::PgPool::new(
-        std::env::var("DATABASE_URL").unwrap_or(DEFAULT_DATABASE_URL.to_owned()),
-        std::time::Duration::from_secs(5),
-    );
+    // FIXME: SQLx was added async streaming support, so currently we're using two SQL engines. It
+    // would be a good idea to choose one.
+    let database_url = std::env::var("DATABASE_URL").unwrap_or(DEFAULT_DATABASE_URL.to_owned());
+    let pg = database::PgPool::new(&database_url, std::time::Duration::from_secs(5));
+
+    let sqlx_pg = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await?;
 
     let object_store = astroplant_object::ObjectStore::s3(
         std::env::var("AWS_S3_REGION").unwrap_or(DEFAULT_S3_REGION.to_owned()),
@@ -106,6 +111,7 @@ async fn main() {
             get(measurement::kit_aggregate_measurements),
         )
         .route("/kits/:kit_serial/media", get(media::kit_media))
+        .route("/kits/:kit_serial/archive", get(kit::archive))
         .route(
             "/kit-configurations/:kit_configuration_id",
             patch(kit_configuration::patch_configuration),
@@ -154,6 +160,7 @@ async fn main() {
         )
         .route("/quantity-types", get(quantity_type::quantity_types))
         .layer(Extension(pg))
+        .layer(Extension(sqlx_pg))
         .fallback(fallback.into_service())
         .layer(tower_http::compression::CompressionLayer::new())
         .layer(
@@ -179,6 +186,8 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .unwrap();
+
+    Ok(())
 }
 
 /// 404 handler

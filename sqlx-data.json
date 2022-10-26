@@ -1,0 +1,85 @@
+{
+  "db": "PostgreSQL",
+  "811308a6cc3d08acd0abd513f30a8692b776a9d8a9fd41b4549a41fc67352516": {
+    "describe": {
+      "columns": [
+        {
+          "name": "datetime_start",
+          "ordinal": 0,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "datetime_end",
+          "ordinal": 1,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "peripheral_id",
+          "ordinal": 2,
+          "type_info": "Int4"
+        },
+        {
+          "name": "kit_configuration_id",
+          "ordinal": 3,
+          "type_info": "Int4"
+        },
+        {
+          "name": "quantity_type_id",
+          "ordinal": 4,
+          "type_info": "Int4"
+        },
+        {
+          "name": "values",
+          "ordinal": 5,
+          "type_info": "Json"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Int4",
+          "Bool",
+          "Int4",
+          "Bool",
+          "Timestamptz",
+          "Bool",
+          "Timestamptz"
+        ]
+      }
+    },
+    "query": "\nSELECT datetime_start,datetime_end,peripheral_id, kit_configuration_id, quantity_type_id, values\nFROM aggregate_measurements\nWHERE kit_id=$1\nAND ($2 OR kit_configuration_id=$3)\nAND ($4 OR datetime_start>=$5)\nAND ($6 OR datetime_end<=$7)\n        "
+  },
+  "c1fc24b361f60e36236f988ad59fb2aae13d39c3409c9596ba163ce50a40fa09": {
+    "describe": {
+      "columns": [
+        {
+          "name": "key",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Int4",
+          "Bool",
+          "Int4",
+          "Bool",
+          "Timestamptz",
+          "Bool",
+          "Timestamptz"
+        ]
+      }
+    },
+    "query": "\nSELECT DISTINCT json_object_keys(values) as key\nFROM aggregate_measurements\nWHERE kit_id=$1\nAND ($2 OR kit_configuration_id=$3)\nAND ($4 OR datetime_start>=$5)\nAND ($6 OR datetime_end<=$7)\n            "
+  }
+}

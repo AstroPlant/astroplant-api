@@ -290,6 +290,26 @@ paths:
           description: The serial of the kit to download a data archive of measurements for.
           schema:
             type: string
+        - name: configuration
+          in: query
+          required: false
+          description: An ID of a kit configuration to filter on. If not given, does not filter on kit configurations.
+          schema:
+            type: number
+        - name: from
+          in: query
+          required: false
+          description: A lower bound on date and time of measurements to include in the archive. If not given, does not filter on date and time.
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: An upper bound on date and time of measurements to include in the archive. If not given, does not filter on date and time.
+          schema:
+            type: string
+            format: date-time
       responses:
         '200':
           description: The data archive content.

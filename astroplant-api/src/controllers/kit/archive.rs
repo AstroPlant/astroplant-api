@@ -17,7 +17,7 @@ use crate::{helpers, models, views};
 pub struct Query {
     from: Option<chrono::DateTime<chrono::Utc>>,
     to: Option<chrono::DateTime<chrono::Utc>>,
-    configuration_id: Option<i32>,
+    configuration: Option<i32>,
 }
 
 async fn write_aggregates<W: tokio::io::AsyncWrite + Unpin>(
@@ -41,8 +41,8 @@ AND ($4 OR datetime_start>=$5)
 AND ($6 OR datetime_end<=$7)
             ",
         kit.id,
-        filter.configuration_id.is_none(),
-        filter.configuration_id,
+        filter.configuration.is_none(),
+        filter.configuration,
         filter.from.is_none(),
         filter.from,
         filter.to.is_none(),
@@ -82,8 +82,8 @@ AND ($4 OR datetime_start>=$5)
 AND ($6 OR datetime_end<=$7)
         ",
         kit.id,
-        filter.configuration_id.is_none(),
-        filter.configuration_id,
+        filter.configuration.is_none(),
+        filter.configuration,
         filter.from.is_none(),
         filter.from,
         filter.to.is_none(),

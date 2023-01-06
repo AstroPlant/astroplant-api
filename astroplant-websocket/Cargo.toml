@@ -16,4 +16,4 @@ jsonrpsee = { version = "0.14.0", features = ["server", "macros"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 futures = { version = "0.3", features = ["compat"] }
-tokio = "1.0"
+tokio = "1.20"

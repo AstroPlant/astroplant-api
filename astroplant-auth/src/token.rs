@@ -1,7 +1,10 @@
 //! TODO: add ability to revoke refresh tokens.
 
+use std::convert::TryFrom;
+use std::time::Duration;
+
 use jsonwebtoken::{DecodingKey, EncodingKey};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 enum TokenType {
@@ -31,6 +34,12 @@ pub struct Claims {
     exp: usize,
     token_type: TokenType,
     state: AuthenticationState,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ArbitraryTokenClaims<T> {
+    exp: usize,
+    data: T,
 }
 
 pub struct TokenSigner {
@@ -99,6 +108,39 @@ impl TokenSigner {
             TokenType::Access => Ok(claims.state),
             _ => Err(Error::Other),
         }
+    }
+
+    /// Sign a token with arbitrary data.
+    ///
+    /// TODO: Currently you must make sure the token data is completely unambiguous (the type
+    /// signature is not encoded in the token). Perhaps there should be a global enum of allowed
+    /// token types.
+    pub fn create_arbitrary_token(&self, token: impl Serialize, validity_time: Duration) -> String {
+        let now: usize = chrono::Utc::now().timestamp() as usize;
+        let exp = now
+            .checked_add(
+                usize::try_from(validity_time.as_secs()).expect("duration that fits in a usize"),
+            )
+            .expect("token expiry overflowed");
+
+        let header = jsonwebtoken::Header::default();
+
+        let wrapped_token = ArbitraryTokenClaims { exp, data: token };
+
+        jsonwebtoken::encode(&header, &wrapped_token, &self.encoding_key).unwrap()
+    }
+
+    pub fn decode_arbitrary_token<T: DeserializeOwned>(&self, token: &str) -> Result<T, Error> {
+        let validation = jsonwebtoken::Validation::default();
+
+        let wrapped_token =
+            jsonwebtoken::decode::<ArbitraryTokenClaims<T>>(token, &self.decoding_key, &validation)
+                .map_err(|e| match e.kind() {
+                    jsonwebtoken::errors::ErrorKind::ExpiredSignature => Error::Expired,
+                    _ => Error::Other,
+                })
+                .map(|t| t.claims)?;
+        Ok(wrapped_token.data)
     }
 }
 

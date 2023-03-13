@@ -2,22 +2,29 @@ use axum::extract::Path;
 use axum::Extension;
 use futures::{StreamExt, TryStreamExt};
 use itertools::Itertools;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPool as SqlxPgPool;
 use std::collections::HashMap;
 use tokio::io::AsyncWriteExt;
 
 use crate::database::PgPool;
-use crate::problem::Problem;
+use crate::problem::{self, Problem};
 use crate::response::{Response, ResponseBuilder};
 use crate::{helpers, models, views};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Query {
+    token: String,
     from: Option<chrono::DateTime<chrono::Utc>>,
     to: Option<chrono::DateTime<chrono::Utc>>,
     configuration: Option<i32>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct DownloadToken {
+    action: String,
+    kit_serial: String,
 }
 
 async fn write_aggregates<W: tokio::io::AsyncWrite + Unpin>(
@@ -203,13 +210,15 @@ async fn write_zip<W: tokio::io::AsyncWrite + Unpin>(
     Ok(())
 }
 
-/// Handles the `GET /kits/{kitSerial}/archive` route.
-pub async fn archive(
+/// Handles the `POST /kits/{kitSerial}/archive` route. This authenticates and authorizes the
+/// client for an authorized download (necessary to download data of non-public kits). The client
+/// is given a short-lived token that allows it to initiate a download by passing that token as a
+/// query parameter. For simplicity we use the same scheme for public kits, that way the download
+/// handler simply always checks the token.
+pub async fn archive_authorize(
     user_id: Option<models::UserId>,
     Path(kit_serial): Path<String>,
-    crate::extract::Query(query): crate::extract::Query<Query>,
     Extension(pg): Extension<PgPool>,
-    Extension(sqlx_pg): Extension<SqlxPgPool>,
 ) -> Result<Response, Problem> {
     let (_, _, kit) = helpers::fut_kit_permission_or_forbidden(
         pg.clone(),
@@ -218,6 +227,42 @@ pub async fn archive(
         crate::authorization::KitAction::View,
     )
     .await?;
+
+    let token = DownloadToken {
+        action: "kit-archive-download".to_owned(),
+        kit_serial: kit.serial,
+    };
+
+    let token_signer = crate::TOKEN_SIGNER.get().unwrap();
+    let token = token_signer.create_arbitrary_token(token, std::time::Duration::from_secs(30));
+
+    let response = ResponseBuilder::ok();
+    Ok(response.body(token))
+}
+
+/// Handles the `GET /kits/{kitSerial}/archive` route.
+pub async fn archive(
+    Path(kit_serial): Path<String>,
+    crate::extract::Query(query): crate::extract::Query<Query>,
+    Extension(pg): Extension<PgPool>,
+    Extension(sqlx_pg): Extension<SqlxPgPool>,
+) -> Result<Response, Problem> {
+    let token_signer = crate::TOKEN_SIGNER.get().unwrap();
+    let token: DownloadToken = token_signer
+        .decode_arbitrary_token(&query.token)
+        .map_err(|_| problem::FORBIDDEN)?;
+
+    if token.action != "kit-archive-download" || token.kit_serial != kit_serial {
+        return Err(problem::FORBIDDEN);
+    }
+    drop(kit_serial);
+
+    let conn = pg.clone().get().await?;
+    let s = token.kit_serial.clone();
+    let kit =
+        crate::helpers::threadpool(move || crate::models::Kit::by_serial(&conn, s).ok().flatten())
+            .await
+            .ok_or(problem::NOT_FOUND)?;
 
     let (archive, api) = tokio::io::duplex(2048);
 
@@ -237,6 +282,6 @@ pub async fn archive(
     let mut now_string = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     now_string.retain(|c| c != ':');
     Ok(ResponseBuilder::ok()
-        .attachment_filename(&format!("{}_{}.zip", kit_serial, now_string))
+        .attachment_filename(&format!("{}_{}.zip", token.kit_serial, now_string))
         .stream("application/zip".to_string(), api.boxed()))
 }

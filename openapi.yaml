@@ -276,9 +276,9 @@ paths:
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
   "/kits/{kitSerial}/archive":
-    get:
-      summary: Download a data archive of kit measurements.
-      operationId: getArchiveContent
+    post:
+      summary: Request permission to download a data archive of kit measurements.
+      operationId: authorizeArchiveDownload
       security:
         - bearerAuth: []
       tags:
@@ -290,6 +290,33 @@ paths:
           description: The serial of the kit to download a data archive of measurements for.
           schema:
             type: string
+      responses:
+        '200':
+          description: A short-lived token.
+          content:
+            "*": {}
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+    get:
+      summary: Download a data archive of kit measurements.
+      operationId: getArchiveContent
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: path
+          required: true
+          description: The serial of the kit to download a data archive of measurements for.
+          schema:
+            type: string
+        - name: token
+          in: query
+          required: true
+          description: A token given by a POST request to '/kits/{kitSerial}/archive' prior to this request.
         - name: configuration
           in: query
           required: false

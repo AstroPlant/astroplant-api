@@ -9,7 +9,7 @@ use crate::utils::deserialize_some;
 use crate::{helpers, models, views};
 
 mod archive;
-pub use archive::archive;
+pub use archive::{archive, archive_authorize};
 
 #[derive(Deserialize)]
 pub struct CursorPage {

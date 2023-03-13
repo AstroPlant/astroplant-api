@@ -52,7 +52,7 @@ static DEFAULT_S3_ENDPOINT: &str = "http://localhost:9000";
 static TOKEN_SIGNER: OnceCell<astroplant_auth::token::TokenSigner> = OnceCell::new();
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()>{
+async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     init_token_signer();
@@ -112,6 +112,7 @@ async fn main() -> anyhow::Result<()>{
         )
         .route("/kits/:kit_serial/media", get(media::kit_media))
         .route("/kits/:kit_serial/archive", get(kit::archive))
+        .route("/kits/:kit_serial/archive", post(kit::archive_authorize))
         .route(
             "/kit-configurations/:kit_configuration_id",
             patch(kit_configuration::patch_configuration),

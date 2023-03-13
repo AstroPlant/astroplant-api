@@ -65,7 +65,9 @@ impl TokenSigner {
         let header = jsonwebtoken::Header::default();
 
         let token = Claims {
-            exp: now + validity_time,
+            exp: now
+                .checked_add(validity_time)
+                .expect("token expiry overflowed"),
             token_type,
             state,
         };

@@ -1,7 +1,6 @@
 //! TODO: add ability to revoke refresh tokens.
 
-use std::convert::TryFrom;
-use std::time::Duration;
+use std::convert::TryInto;
 
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -57,17 +56,21 @@ impl TokenSigner {
 
     fn create_token(
         &self,
-        validity_time: usize,
+        validity_time: chrono::Duration,
         token_type: TokenType,
         state: AuthenticationState,
     ) -> String {
-        let now: usize = chrono::Utc::now().timestamp() as usize;
+        let exp: usize = chrono::Utc::now()
+            .checked_add_signed(validity_time)
+            .expect("token expiry overflowed")
+            .timestamp()
+            .try_into()
+            .expect("timestamp is negative");
+
         let header = jsonwebtoken::Header::default();
 
         let token = Claims {
-            exp: now
-                .checked_add(validity_time)
-                .expect("token expiry overflowed"),
+            exp,
             token_type,
             state,
         };
@@ -87,18 +90,20 @@ impl TokenSigner {
     }
 
     pub fn create_refresh_token(&self, state: AuthenticationState) -> String {
-        const VALIDITY_TIME: usize = 60 * 60 * 24 * 365;
+        // Can be made const once https://github.com/chronotope/chrono/pull/638 is merged
+        let validity_time = chrono::Duration::days(365);
 
-        self.create_token(VALIDITY_TIME, TokenType::Refresh, state)
+        self.create_token(validity_time, TokenType::Refresh, state)
     }
 
     pub fn access_token_from_refresh_token(&self, token: &str) -> Result<String, Error> {
-        const VALIDITY_TIME: usize = 60 * 15;
+        // Can be made const once https://github.com/chronotope/chrono/pull/638 is merged
+        let validity_time = chrono::Duration::minutes(15);
 
         let claims = self.decode_token(token)?;
         match claims.token_type {
             TokenType::Refresh => {
-                Ok(self.create_token(VALIDITY_TIME, TokenType::Access, claims.state))
+                Ok(self.create_token(validity_time, TokenType::Access, claims.state))
             }
             _ => Err(Error::Other),
         }
@@ -117,13 +122,17 @@ impl TokenSigner {
     /// TODO: Currently you must make sure the token data is completely unambiguous (the type
     /// signature is not encoded in the token). Perhaps there should be a global enum of allowed
     /// token types.
-    pub fn create_arbitrary_token(&self, token: impl Serialize, validity_time: Duration) -> String {
-        let now: usize = chrono::Utc::now().timestamp() as usize;
-        let exp = now
-            .checked_add(
-                usize::try_from(validity_time.as_secs()).expect("duration that fits in a usize"),
-            )
-            .expect("token expiry overflowed");
+    pub fn create_arbitrary_token(
+        &self,
+        token: impl Serialize,
+        validity_time: chrono::Duration,
+    ) -> String {
+        let exp: usize = chrono::Utc::now()
+            .checked_add_signed(validity_time)
+            .expect("token expiry overflowed")
+            .timestamp()
+            .try_into()
+            .expect("timestamp is negative");
 
         let header = jsonwebtoken::Header::default();
 

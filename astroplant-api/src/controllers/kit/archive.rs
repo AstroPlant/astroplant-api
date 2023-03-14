@@ -234,7 +234,7 @@ pub async fn archive_authorize(
     };
 
     let token_signer = crate::TOKEN_SIGNER.get().unwrap();
-    let token = token_signer.create_arbitrary_token(token, std::time::Duration::from_secs(30));
+    let token = token_signer.create_arbitrary_token(token, chrono::Duration::seconds(30));
 
     let response = ResponseBuilder::ok();
     Ok(response.body(token))

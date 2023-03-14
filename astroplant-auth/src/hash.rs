@@ -108,13 +108,15 @@ pub fn hash_kit_password(password: &str) -> String {
 
 /// Perform pbkdf2.
 fn pbkdf2(password: &str, salt: &[u8], iterations: u32) -> [u8; 32] {
-    use crypto::{hmac::Hmac, sha2::Sha256};
-    let mut mac = Hmac::new(Sha256::new(), password.as_bytes());
+    use hmac::Hmac;
+    use pbkdf2::pbkdf2;
+    use sha2::Sha256;
 
     // The 256-bit derived key.
     let mut dk = [0u8; 32];
 
-    crypto::pbkdf2::pbkdf2(&mut mac, salt, iterations, &mut dk);
+    pbkdf2::<Hmac<Sha256>>(password.as_bytes(), salt, iterations, &mut dk)
+        .expect("HMAC can be initialized with any key length");
 
     dk
 }

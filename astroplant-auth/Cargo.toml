@@ -6,9 +6,12 @@ edition = "2018"
 
 [dependencies]
 chrono = "0.4"
-rust-crypto = "0.2.36"
 rand = "0.7"
 base64 = "0.10"
 serde = { version = "1.0.97", features = ["derive"] }
 jsonwebtoken = "8.1"
 random-string = { path = "../random-string" }
+
+sha2 = "0.10.0"
+hmac = "0.12.0"
+pbkdf2 = "0.12.0"

@@ -39,7 +39,7 @@ impl Permission for KitAction {
         use KitUser::*;
         match user {
             Anonymous | User(..) => match self {
-                View | SubscribeRealTimeMeasurements => kit.privacy_show_on_map,
+                View | SubscribeRealTimeMeasurements => kit.privacy_public_dashboard,
                 _ => false,
             },
             UserWithMembership(_user, membership) => match self {

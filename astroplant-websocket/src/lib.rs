@@ -292,7 +292,7 @@ impl SocketHandler {
         if let Ok(req) = serde_json::from_str::<Request>(message) {
             tracing::event!(
                 tracing::Level::DEBUG,
-                "recv method call {}",
+                "recv method call {method}",
                 method = req.method
             );
 

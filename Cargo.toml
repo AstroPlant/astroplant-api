@@ -11,3 +11,4 @@ members = [
   "astroplant-websocket",
   "random-string",
 ]
+default-members = ["astroplant-api"]

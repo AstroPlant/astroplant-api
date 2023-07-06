@@ -180,7 +180,8 @@ async fn main() -> anyhow::Result<()> {
                 .expose_headers([header::LINK, header::HeaderName::from_static("x-next")]),
         );
 
-    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 8080));
+    // FIXME: make the listen address configurable
+    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 8080));
 
     tracing::info!("listening on {}", addr);
     axum::Server::bind(&addr)

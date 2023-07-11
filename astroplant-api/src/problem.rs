@@ -83,7 +83,7 @@ impl IntoResponse for Problem {
                 header::CONTENT_TYPE,
                 HeaderValue::from_static("application/problem+json"),
             )],
-            Json(self),
+            Json(DescriptiveProblem::from(&self)),
         )
             .into_response()
     }

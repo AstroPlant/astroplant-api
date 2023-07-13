@@ -1344,7 +1344,7 @@ components:
       required:
         - id
         - kitId
-        - configurationId
+        - kitConfigurationId
         - peripheralDefinitionId
         - name
         - configuration
@@ -1355,7 +1355,7 @@ components:
         kitId:
           type: integer
           format: int32
-        configurationId:
+        kitConfigurationId:
           type: integer
           format: int32
         peripheralDefinitionId:

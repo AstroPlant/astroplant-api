@@ -1,12 +1,16 @@
 use axum::extract::Path;
 use axum::Extension;
+use diesel::{Connection, QueryResult};
 use serde::Deserialize;
 
 use crate::database::PgPool;
+use crate::models::{Kit, KitConfigurationId, Peripheral};
 use crate::problem::{self, Problem};
 use crate::response::{Response, ResponseBuilder};
 use crate::utils::deserialize_some;
 use crate::{authorization, helpers, models, views};
+
+use super::get_models_from_kit_configuration_id;
 
 /// Handles the `GET /kits/{kitSerial}/configurations` route.
 pub async fn configurations_by_kit_serial(
@@ -53,8 +57,87 @@ pub async fn configurations_by_kit_serial(
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct PostQuery {
+    /// Clone the given resource.
+    source: i32,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct Configuration {
     description: Option<String>,
+}
+
+/// Create a new, empty configuration, optionally with a description.
+async fn create_new_configuration(
+    pg: PgPool,
+    kit: &Kit,
+    configuration: Configuration,
+) -> Result<Response, Problem> {
+    let conn = pg.get().await?;
+    let new_configuration =
+        models::NewKitConfiguration::new(kit.get_id(), configuration.description);
+    let created_configuration =
+        helpers::threadpool(move || new_configuration.create(&conn)).await?;
+    Ok(ResponseBuilder::ok().body(views::KitConfiguration::from(created_configuration)))
+}
+
+/// Clone an existing configuration to a new one.
+async fn clone_configuration(
+    pg: PgPool,
+    user_id: Option<models::UserId>,
+    kit: &Kit,
+    id: KitConfigurationId,
+) -> Result<Response, Problem> {
+    let (from_kit, from_kit_configuration) =
+        get_models_from_kit_configuration_id(pg.clone(), id).await?;
+    let from_kit_configuration_id = from_kit_configuration.get_id();
+
+    // To clone a config, we must be allowed to view the kit it belongs to.
+    if kit.id != from_kit.id {
+        let (_user, _membership, _kit) = helpers::fut_kit_permission_or_forbidden(
+            pg.clone(),
+            user_id,
+            from_kit.serial,
+            authorization::KitAction::View,
+        )
+        .await?;
+    }
+
+    let description = format!(
+        "Copy of #{}{}",
+        from_kit_configuration.id,
+        from_kit_configuration
+            .description
+            .map(|d| format!(" - {}", d))
+            .unwrap_or_else(|| "".to_owned())
+    );
+
+    let new_configuration = models::NewKitConfiguration {
+        kit_id: kit.get_id().0,
+        description: Some(description),
+        controller_symbol_location: from_kit_configuration.controller_symbol_location,
+        controller_symbol: from_kit_configuration.controller_symbol,
+        control_rules: from_kit_configuration.control_rules,
+    };
+    let kit_id = kit.get_id();
+
+    let conn = pg.get().await?;
+    let created_configuration: QueryResult<_> = helpers::threadpool(move || {
+        conn.transaction(|| {
+            let created_configuration = new_configuration.create(&conn)?;
+            Peripheral::clone_all_to_new_configuration(
+                &conn,
+                from_kit_configuration_id,
+                kit_id,
+                created_configuration.get_id(),
+            )?;
+            Ok(created_configuration)
+        })
+    })
+    .await;
+
+    Ok(ResponseBuilder::ok().body(views::KitConfiguration::from(created_configuration?)))
 }
 
 /// Handles the `POST /kits/{kitSerial}/configurations` route.
@@ -62,7 +145,8 @@ pub async fn create_configuration(
     Extension(pg): Extension<PgPool>,
     user_id: Option<models::UserId>,
     Path(kit_serial): Path<String>,
-    crate::extract::Json(configuration): crate::extract::Json<Configuration>,
+    configuration: Option<crate::extract::Json<Configuration>>,
+    query: Option<crate::extract::Query<PostQuery>>,
 ) -> Result<Response, Problem> {
     let (_user, _membership, kit) = helpers::fut_kit_permission_or_forbidden(
         pg.clone(),
@@ -72,12 +156,18 @@ pub async fn create_configuration(
     )
     .await?;
 
-    let conn = pg.get().await?;
-    let new_configuration =
-        models::NewKitConfiguration::new(kit.get_id(), configuration.description);
-    let created_configuration =
-        helpers::threadpool(move || new_configuration.create(&conn)).await?;
-    Ok(ResponseBuilder::ok().body(views::KitConfiguration::from(created_configuration)))
+    if !(configuration.is_some() ^ query.is_some()) {
+        // Either a post body or a configuration must be set, but not both.
+        return Err(problem::BAD_REQUEST);
+    }
+
+    if let Some(crate::extract::Json(configuration)) = configuration {
+        create_new_configuration(pg, &kit, configuration).await
+    } else if let Some(crate::extract::Query(query)) = query {
+        clone_configuration(pg, user_id, &kit, KitConfigurationId(query.source)).await
+    } else {
+        unreachable!()
+    }
 }
 
 #[derive(Deserialize, Debug)]

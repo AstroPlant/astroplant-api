@@ -1,7 +1,9 @@
 use crate::schema::{peripheral_definitions, peripherals};
 
+use diesel::dsl::sql;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
+use diesel::sql_types::Integer;
 use diesel::{Identifiable, QueryResult, Queryable};
 use validator::Validate;
 
@@ -101,6 +103,34 @@ impl Peripheral {
         Peripheral::belonging_to(&kit_configuration_id)
             .inner_join(peripheral_definitions::table)
             .load(conn)
+    }
+
+    pub fn clone_all_to_new_configuration(
+        conn: &PgConnection,
+        from_kit_configuration: KitConfigurationId,
+        to_kit: KitId,
+        to_kit_configuration: KitConfigurationId,
+    ) -> QueryResult<()> {
+        let peripherals = peripherals::table
+            .filter(peripherals::kit_configuration_id.eq_all(from_kit_configuration.0))
+            .select((
+                sql::<Integer>(&to_kit.0.to_string()),
+                sql::<Integer>(&to_kit_configuration.0.to_string()),
+                peripherals::peripheral_definition_id,
+                peripherals::name,
+                peripherals::configuration,
+            ));
+        diesel::insert_into(peripherals::table)
+            .values(peripherals)
+            .into_columns((
+                peripherals::kit_id,
+                peripherals::kit_configuration_id,
+                peripherals::peripheral_definition_id,
+                peripherals::name,
+                peripherals::configuration,
+            ))
+            .execute(conn)?;
+        Ok(())
     }
 
     pub fn get_id(&self) -> PeripheralId {

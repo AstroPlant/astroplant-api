@@ -430,7 +430,8 @@ paths:
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
     post:
-      summary: Create a new configuration.
+      summary: Create a new configuration. Either the `source` query parameter
+        or the request body must be set (but not both).
       operationId: createConfiguration
       security:
         - bearerAuth: []
@@ -443,9 +444,18 @@ paths:
           description: The serial of the kit to create a configuration for.
           schema:
             type: string
+        - name: source
+          in: query
+          required: false
+          description: The id of the source configuration to clone. If this is
+            set, the request body must not be set. The id is allowed to be of a
+            configuration of a kit other than specified in `kitSerial`, but the
+            agent making the request must have View permission on the kit to
+            clone from.
       requestBody:
-        description: The configuration to create.
-        required: true
+        description: The configuration to create. If this is set, the `source`
+          query parameter must not be set.
+        required: false
         content:
           application/json:
             schema:

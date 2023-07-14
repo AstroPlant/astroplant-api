@@ -11,16 +11,6 @@ use crate::problem::{self, AppResult};
 
 use crate::{authorization, helpers, models};
 
-// pub fn router(pg: PgPool) -> BoxedFilter<(AppResult<Response>,)> {
-//     //impl Filter<Extract = (Response,), Error = Rejection> + Clone {
-//     tracing::trace!("Setting up kit configurations and peripherals router.");
-//
-//     kit_configuration::router(pg.clone())
-//         .or(peripheral::router(pg))
-//         .unify()
-//         .boxed()
-// }
-
 async fn get_models_from_kit_configuration_id(
     pg: PgPool,
     kit_configuration_id: models::KitConfigurationId,

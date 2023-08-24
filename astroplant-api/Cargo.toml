@@ -3,6 +3,7 @@ name = "astroplant-api"
 version = "1.0.0-alpha.1"
 authors = ["Thomas Churchman <thomas@kepow.org>"]
 edition = "2018"
+default-run = "astroplant-api"
 
 [dependencies]
 anyhow = "1.0"

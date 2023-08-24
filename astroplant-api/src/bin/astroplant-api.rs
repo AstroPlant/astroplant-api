@@ -1,55 +1,25 @@
-#[macro_use]
-extern crate diesel;
-
-#[macro_use]
-extern crate strum_macros;
-
-use axum::http::Method;
 use axum::{
     extract::ws::WebSocketUpgrade,
     handler::Handler,
+    http::Method,
     http::{header, Uri},
     response::IntoResponse,
     routing::{delete, get, patch, post},
     Extension, Router,
 };
 use futures::StreamExt;
-use once_cell::sync::OnceCell;
 use tower_http::cors::CorsLayer;
 
-mod cursors;
-mod database;
-mod extract;
-mod utils;
-
-mod authorization;
-mod helpers;
-mod problem;
-mod rate_limit;
-mod schema;
-
-mod controllers;
-mod models;
-mod response;
-mod views;
-
-mod mqtt;
-
-use controllers::{
-    kit, kit_configuration, kit_rpc, me, measurement, media, peripheral_definition, permission,
-    quantity_type, user,
+use astroplant_api::{
+    authorization,
+    controllers::{
+        kit, kit_configuration, kit_rpc, me, measurement, media, peripheral_definition, permission,
+        quantity_type, user,
+    },
+    database, helpers, init_token_signer, models, mqtt,
+    problem::{GenericProblem, Problem},
+    response, DEFAULT_DATABASE_URL, DEFAULT_S3_ENDPOINT, DEFAULT_S3_REGION,
 };
-
-use problem::{GenericProblem, Problem};
-
-static VERSION: &str = env!("CARGO_PKG_VERSION");
-static DEFAULT_DATABASE_URL: &str = "postgres://astroplant:astroplant@localhost/astroplant";
-static DEFAULT_MQTT_HOST: &str = "localhost";
-const DEFAULT_MQTT_PORT: u16 = 1883;
-static DEFAULT_S3_REGION: &str = "us-east-1";
-static DEFAULT_S3_ENDPOINT: &str = "http://localhost:9000";
-
-static TOKEN_SIGNER: OnceCell<astroplant_auth::token::TokenSigner> = OnceCell::new();
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -221,27 +191,4 @@ async fn websocket_handler(
             })
             .await;
     })
-}
-
-/// Initialize the token signer.
-///
-/// # Panics
-/// This function is only callable once; it panics if called multiple times.
-fn init_token_signer() {
-    let key_file_path =
-        std::env::var("TOKEN_SIGNER_KEY").unwrap_or("./token_signer.key".to_owned());
-    tracing::debug!("Using token signer key file {}", key_file_path);
-
-    let token_signer_key: Vec<u8> = std::fs::read(&key_file_path).unwrap();
-    tracing::trace!(
-        "Using token signer key of {} bits",
-        token_signer_key.len() * 8
-    );
-
-    if TOKEN_SIGNER
-        .set(astroplant_auth::token::TokenSigner::new(token_signer_key))
-        .is_err()
-    {
-        panic!("Token signer initialization called more than once.")
-    }
 }

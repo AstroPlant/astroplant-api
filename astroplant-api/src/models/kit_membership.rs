@@ -29,7 +29,10 @@ impl KitMembership {
         KitMembership::belonging_to(kit).load(conn)
     }
 
-    pub fn memberships_of_user_id(conn: &mut PgConnection, user_id: UserId) -> QueryResult<Vec<Self>> {
+    pub fn memberships_of_user_id(
+        conn: &mut PgConnection,
+        user_id: UserId,
+    ) -> QueryResult<Vec<Self>> {
         KitMembership::belonging_to(&user_id).load(conn)
     }
 

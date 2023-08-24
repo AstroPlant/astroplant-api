@@ -56,7 +56,10 @@ impl KitConfiguration {
         KitConfiguration::belonging_to(kit).load(conn)
     }
 
-    pub fn configurations_of_kit_id(conn: &mut PgConnection, kit_id: KitId) -> QueryResult<Vec<Self>> {
+    pub fn configurations_of_kit_id(
+        conn: &mut PgConnection,
+        kit_id: KitId,
+    ) -> QueryResult<Vec<Self>> {
         KitConfiguration::belonging_to(&kit_id).load(conn)
     }
 

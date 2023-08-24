@@ -49,7 +49,10 @@ pub struct UpdatePeripheral {
 }
 
 impl Peripheral {
-    pub fn by_id(conn: &mut PgConnection, peripheral_id: PeripheralId) -> QueryResult<Option<Self>> {
+    pub fn by_id(
+        conn: &mut PgConnection,
+        peripheral_id: PeripheralId,
+    ) -> QueryResult<Option<Self>> {
         peripherals::table
             .find(&peripheral_id.0)
             .first(conn)

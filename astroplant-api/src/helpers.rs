@@ -107,13 +107,23 @@ pub async fn fut_kit_permission_or_forbidden<'a>(
     .await?
     .and_then(some_or_not_found)
     .and_then(|(user, membership, kit)| {
-        // TODO clone should not be necessary.
-        let kit_user = match (user.clone(), membership.clone()) {
+        // First user and membership are packed into a KitUser (as that's what
+        // `permission_or_forbidden` expects), then its unpacked again.
+        //
+        // Perhaps KitUser could have either owned or borrowed types.
+        let kit_user = match (user, membership) {
             (None, _) => KitUser::Anonymous,
             (Some(user), None) => KitUser::User(user),
             (Some(user), Some(kit_membership)) => KitUser::UserWithMembership(user, kit_membership),
         };
-        permission_or_forbidden(&kit_user, &kit, action).map(|_| (user, membership, kit))
+        permission_or_forbidden(&kit_user, &kit, action).map(move |_| {
+            let (user, membership) = match kit_user {
+                KitUser::Anonymous => (None, None),
+                KitUser::User(user) => (Some(user), None),
+                KitUser::UserWithMembership(user, membership) => (Some(user), Some(membership)),
+            };
+            (user, membership, kit)
+        })
     })
 }
 

@@ -6,8 +6,8 @@ use diesel::{Connection, Identifiable, QueryResult, Queryable};
 use validator::{Validate, ValidationError};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable)]
-#[table_name = "users"]
-pub struct UserId(#[column_name = "id"] pub i32);
+#[diesel(table_name = users)]
+pub struct UserId(#[diesel(column_name = id)] pub i32);
 
 #[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable)]
 pub struct User {
@@ -45,7 +45,7 @@ impl User {
 }
 
 #[derive(Clone, Debug, PartialEq, Queryable, Identifiable, AsChangeset, Validate)]
-#[table_name = "users"]
+#[diesel(table_name = users)]
 pub struct UpdateUser {
     pub id: i32,
     // None means don't update, Some(None) means set to null.
@@ -75,7 +75,7 @@ impl UpdateUser {
 }
 
 #[derive(Insertable, Debug, Default, Validate)]
-#[table_name = "users"]
+#[diesel(table_name = users)]
 pub struct NewUser {
     #[validate(length(min = 1), custom = "validate_username")]
     #[validate(length(min = 1, max = 40))]

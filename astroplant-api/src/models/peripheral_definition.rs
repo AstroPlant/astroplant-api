@@ -5,11 +5,11 @@ use diesel::prelude::*;
 use diesel::{Identifiable, QueryResult, Queryable};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable)]
-#[table_name = "peripheral_definitions"]
-pub struct PeripheralDefinitionId(#[column_name = "id"] pub i32);
+#[diesel(table_name = peripheral_definitions)]
+pub struct PeripheralDefinitionId(#[diesel(column_name = id)] pub i32);
 
 #[derive(Clone, Debug, PartialEq, Queryable, Identifiable)]
-#[table_name = "peripheral_definitions"]
+#[diesel(table_name = peripheral_definitions)]
 pub struct PeripheralDefinition {
     pub id: i32,
     pub name: String,

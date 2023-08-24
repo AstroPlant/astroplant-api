@@ -5,11 +5,11 @@ use diesel::prelude::*;
 use diesel::{Identifiable, QueryResult, Queryable};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable)]
-#[table_name = "quantity_types"]
-pub struct QuantityTypeId(#[column_name = "id"] pub i32);
+#[diesel(table_name = quantity_types)]
+pub struct QuantityTypeId(#[diesel(column_name = id)] pub i32);
 
 #[derive(Clone, Debug, PartialEq, Queryable, Identifiable)]
-#[table_name = "quantity_types"]
+#[diesel(table_name = quantity_types)]
 pub struct QuantityType {
     pub id: i32,
     pub physical_quantity: String,

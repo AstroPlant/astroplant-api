@@ -16,17 +16,19 @@ use super::{
 };
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable)]
-#[table_name = "media"]
-pub struct MediaId(#[column_name = "id"] pub Uuid);
+#[diesel(table_name = media)]
+pub struct MediaId(#[diesel(column_name = id)] pub Uuid);
 
 #[derive(Clone, Debug, PartialEq, Queryable, Identifiable, Associations, Validate)]
-#[belongs_to(parent = "Kit", foreign_key = "kit_id")]
-#[belongs_to(parent = "KitId", foreign_key = "kit_id")]
-#[belongs_to(parent = "KitConfiguration", foreign_key = "kit_configuration_id")]
-#[belongs_to(parent = "KitConfigurationId", foreign_key = "kit_configuration_id")]
-#[belongs_to(parent = "Peripheral", foreign_key = "peripheral_id")]
-#[belongs_to(parent = "PeripheralId", foreign_key = "peripheral_id")]
-#[table_name = "media"]
+#[diesel(
+    table_name = media,
+    belongs_to(Kit, foreign_key = kit_id),
+    belongs_to(KitId, foreign_key = kit_id),
+    belongs_to(KitConfiguration, foreign_key = kit_configuration_id),
+    belongs_to(KitConfigurationId, foreign_key = kit_configuration_id),
+    belongs_to(Peripheral, foreign_key = peripheral_id),
+    belongs_to(PeripheralId, foreign_key = peripheral_id),
+)]
 pub struct Media {
     pub id: Uuid,
     pub peripheral_id: i32,
@@ -95,7 +97,7 @@ impl Media {
 }
 
 #[derive(Clone, Debug, PartialEq, Insertable, Validate)]
-#[table_name = "media"]
+#[diesel(table_name = media)]
 pub struct NewMedia {
     pub id: Uuid,
     pub peripheral_id: i32,

@@ -8,14 +8,13 @@ use super::{PeripheralDefinition, PeripheralDefinitionId};
 use super::{QuantityType, QuantityTypeId};
 
 #[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable, Associations)]
-#[belongs_to(parent = "QuantityType")]
-#[belongs_to(parent = "PeripheralDefinition")]
-#[belongs_to(parent = "QuantityTypeId", foreign_key = "quantity_type_id")]
-#[belongs_to(
-    parent = "PeripheralDefinitionId",
-    foreign_key = "peripheral_definition_id"
+#[diesel(
+    table_name = peripheral_definition_expected_quantity_types,
+    belongs_to(QuantityType),
+    belongs_to(PeripheralDefinition),
+    belongs_to(QuantityTypeId, foreign_key = quantity_type_id),
+    belongs_to(PeripheralDefinitionId, foreign_key = peripheral_definition_id),
 )]
-#[table_name = "peripheral_definition_expected_quantity_types"]
 pub struct PeripheralDefinitionExpectedQuantityType {
     pub id: i32,
     pub quantity_type_id: i32,

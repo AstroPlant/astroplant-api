@@ -15,23 +15,19 @@ use super::{
 };
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable)]
-#[table_name = "peripherals"]
-pub struct PeripheralId(#[column_name = "id"] pub i32);
+#[diesel(table_name = peripherals)]
+pub struct PeripheralId(#[diesel(column_name = id)] pub i32);
 
 #[derive(Clone, Debug, PartialEq, Queryable, Identifiable, Associations, AsChangeset, Validate)]
-#[belongs_to(parent = "Kit", foreign_key = "kit_id")]
-#[belongs_to(parent = "KitId", foreign_key = "kit_id")]
-#[belongs_to(parent = "KitConfiguration", foreign_key = "kit_configuration_id")]
-#[belongs_to(parent = "KitConfigurationId", foreign_key = "kit_configuration_id")]
-#[belongs_to(
-    parent = "PeripheralDefinition",
-    foreign_key = "peripheral_definition_id"
+#[diesel(
+    table_name = peripherals,
+    belongs_to(Kit, foreign_key = kit_id),
+    belongs_to(KitId, foreign_key = kit_id),
+    belongs_to(KitConfiguration, foreign_key = kit_configuration_id),
+    belongs_to(KitConfigurationId, foreign_key = kit_configuration_id),
+    belongs_to(PeripheralDefinition, foreign_key = peripheral_definition_id),
+    belongs_to(PeripheralDefinitionId, foreign_key = peripheral_definition_id),
 )]
-#[belongs_to(
-    parent = "PeripheralDefinitionId",
-    foreign_key = "peripheral_definition_id"
-)]
-#[table_name = "peripherals"]
 pub struct Peripheral {
     pub id: i32,
     pub kit_id: i32,
@@ -43,7 +39,7 @@ pub struct Peripheral {
 }
 
 #[derive(Clone, Debug, PartialEq, Queryable, Identifiable, AsChangeset, Validate)]
-#[table_name = "peripherals"]
+#[diesel(table_name = peripherals)]
 pub struct UpdatePeripheral {
     pub id: i32,
     // None means don't update.
@@ -157,7 +153,7 @@ impl UpdatePeripheral {
 }
 
 #[derive(Clone, Debug, PartialEq, Insertable, Validate)]
-#[table_name = "peripherals"]
+#[diesel(table_name = peripherals)]
 pub struct NewPeripheral {
     pub kit_id: i32,
     pub kit_configuration_id: i32,

@@ -9,10 +9,12 @@ use super::{Kit, KitId};
 use super::{User, UserId};
 
 #[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable, Associations)]
-#[belongs_to(parent = "User")]
-#[belongs_to(parent = "UserId", foreign_key = "user_id")]
-#[belongs_to(parent = "Kit")]
-#[table_name = "kit_memberships"]
+#[diesel(
+    table_name = kit_memberships,
+    belongs_to(User),
+    belongs_to(UserId, foreign_key = user_id),
+    belongs_to(Kit),
+)]
 pub struct KitMembership {
     pub id: i32,
     pub user_id: i32,
@@ -69,7 +71,7 @@ impl KitMembership {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Insertable)]
-#[table_name = "kit_memberships"]
+#[diesel(table_name = kit_memberships)]
 pub struct NewKitMembership {
     pub user_id: i32,
     pub kit_id: i32,

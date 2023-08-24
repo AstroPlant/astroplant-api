@@ -7,11 +7,11 @@ use diesel::{Identifiable, QueryResult, Queryable};
 use validator::Validate;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable)]
-#[table_name = "kits"]
-pub struct KitId(#[column_name = "id"] pub i32);
+#[diesel(table_name = kits)]
+pub struct KitId(#[diesel(column_name = id)] pub i32);
 
 #[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable)]
-#[table_name = "kits"]
+#[diesel(table_name = kits)]
 pub struct Kit {
     pub id: i32,
     pub serial: String,
@@ -62,7 +62,7 @@ impl Kit {
 }
 
 #[derive(Clone, Debug, PartialEq, Queryable, Identifiable, AsChangeset)]
-#[table_name = "kits"]
+#[diesel(table_name = kits)]
 pub struct UpdateKit {
     pub id: i32,
     pub password_hash: Option<String>,
@@ -101,7 +101,7 @@ impl UpdateKit {
 }
 
 #[derive(Insertable, Debug, Default, Validate)]
-#[table_name = "kits"]
+#[diesel(table_name = kits)]
 pub struct NewKit {
     pub serial: String,
     pub password_hash: String,

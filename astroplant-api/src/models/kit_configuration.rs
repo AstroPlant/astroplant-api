@@ -8,13 +8,15 @@ use serde_json::json;
 use super::{Kit, KitId};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable)]
-#[table_name = "kit_configurations"]
-pub struct KitConfigurationId(#[column_name = "id"] pub i32);
+#[diesel(table_name = kit_configurations)]
+pub struct KitConfigurationId(#[diesel(column_name = id)] pub i32);
 
 #[derive(Clone, Debug, PartialEq, Queryable, Identifiable, Associations)]
-#[belongs_to(parent = "Kit", foreign_key = "kit_id")]
-#[belongs_to(parent = "KitId", foreign_key = "kit_id")]
-#[table_name = "kit_configurations"]
+#[diesel(
+    table_name = kit_configurations,
+    belongs_to(Kit, foreign_key = kit_id),
+    belongs_to(KitId, foreign_key = kit_id)
+)]
 pub struct KitConfiguration {
     pub id: i32,
     pub kit_id: i32,
@@ -27,7 +29,7 @@ pub struct KitConfiguration {
 }
 
 #[derive(Clone, Debug, PartialEq, Queryable, Identifiable, AsChangeset)]
-#[table_name = "kit_configurations"]
+#[diesel(table_name = kit_configurations)]
 pub struct UpdateKitConfiguration {
     pub id: i32,
     // None means don't update, Some(None) means set to null.
@@ -113,7 +115,7 @@ impl UpdateKitConfiguration {
 }
 
 #[derive(Clone, Debug, PartialEq, Insertable)]
-#[table_name = "kit_configurations"]
+#[diesel(table_name = kit_configurations)]
 pub struct NewKitConfiguration {
     pub kit_id: i32,
     pub description: Option<String>,

@@ -24,7 +24,7 @@ pub struct PeripheralDefinitionExpectedQuantityType {
 
 impl PeripheralDefinitionExpectedQuantityType {
     pub fn of_peripheral_definitions(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         peripheral_definitions: &[PeripheralDefinition],
     ) -> QueryResult<Vec<Vec<Self>>> {
         PeripheralDefinitionExpectedQuantityType::belonging_to(peripheral_definitions)

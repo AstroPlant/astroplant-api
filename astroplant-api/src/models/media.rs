@@ -40,12 +40,12 @@ pub struct Media {
 }
 
 impl Media {
-    pub fn by_id(conn: &PgConnection, media_id: MediaId) -> QueryResult<Option<Self>> {
+    pub fn by_id(conn: &mut PgConnection, media_id: MediaId) -> QueryResult<Option<Self>> {
         media::table.find(&media_id.0).first(conn).optional()
     }
 
     pub fn page(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         kit_id: KitId,
         configuration_id: Option<i32>,
         peripheral_id: Option<i32>,
@@ -135,7 +135,7 @@ impl NewMedia {
         }
     }
 
-    pub fn create(&self, conn: &PgConnection) -> QueryResult<Media> {
+    pub fn create(&self, conn: &mut PgConnection) -> QueryResult<Media> {
         use crate::schema::media::dsl::*;
 
         diesel::insert_into(media)

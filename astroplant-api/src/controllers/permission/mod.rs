@@ -25,23 +25,23 @@ pub async fn user_kit_permissions(
     use crate::authorization::KitAction;
     use strum::IntoEnumIterator;
 
-    let conn = pg.get().await?;
+    let mut conn = pg.get().await?;
     let (user, membership, kit) = helpers::threadpool(move || {
-        conn.transaction(|| {
+        conn.transaction(|conn| {
             let user = if let Some(user_id) = user_id {
-                models::User::by_id(&conn, user_id)?
+                models::User::by_id(conn, user_id)?
             } else {
                 None
             };
 
-            let kit = models::Kit::by_serial(&conn, kit_serial)?;
+            let kit = models::Kit::by_serial(conn, kit_serial)?;
             if kit.is_none() {
                 return Ok(None);
             }
             let kit = kit.unwrap();
 
             let membership = if let Some(user_id) = user_id {
-                models::KitMembership::by_user_id_and_kit_id(&conn, user_id, kit.get_id())?
+                models::KitMembership::by_user_id_and_kit_id(conn, user_id, kit.get_id())?
             } else {
                 None
             };

@@ -42,7 +42,7 @@ pub struct AggregateMeasurement {
 
 impl AggregateMeasurement {
     pub fn by_id(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         aggregate_measurement_id: AggregateMeasurementId,
     ) -> QueryResult<Option<Self>> {
         aggregate_measurements::table
@@ -52,7 +52,7 @@ impl AggregateMeasurement {
     }
 
     pub fn page(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         kit_id: KitId,
         configuration_id: Option<i32>,
         peripheral_id: Option<i32>,

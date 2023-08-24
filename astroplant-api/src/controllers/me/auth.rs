@@ -27,10 +27,10 @@ pub async fn authenticate_by_credentials(
         access_token: String,
     }
 
-    let conn = pg.get().await?;
+    let mut conn = pg.get().await?;
 
     let (user, password) = helpers::threadpool(move || {
-        let user_by_username = models::User::by_username(&conn, &authentication_details.username)?;
+        let user_by_username = models::User::by_username(&mut conn, &authentication_details.username)?;
         Ok::<_, Problem>((user_by_username, authentication_details.0.password))
     })
     .await?;

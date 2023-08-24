@@ -23,23 +23,23 @@ pub struct PeripheralDefinition {
 }
 
 impl PeripheralDefinition {
-    pub fn by_id(conn: &PgConnection, id: i32) -> QueryResult<Self> {
+    pub fn by_id(conn: &mut PgConnection, id: i32) -> QueryResult<Self> {
         peripheral_definitions::table.find(id).first(conn)
     }
 
-    pub fn by_ids(conn: &PgConnection, ids: Vec<i32>) -> QueryResult<Vec<Self>> {
+    pub fn by_ids(conn: &mut PgConnection, ids: Vec<i32>) -> QueryResult<Vec<Self>> {
         use peripheral_definitions::dsl;
         peripheral_definitions::table
             .filter(dsl::id.eq(diesel::dsl::any(ids)))
             .load(conn)
     }
 
-    pub fn all(conn: &PgConnection) -> QueryResult<Vec<Self>> {
+    pub fn all(conn: &mut PgConnection) -> QueryResult<Vec<Self>> {
         peripheral_definitions::table.load(conn)
     }
 
     pub fn cursor_page(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         after: Option<i32>,
         limit: i64,
     ) -> QueryResult<Vec<Self>> {

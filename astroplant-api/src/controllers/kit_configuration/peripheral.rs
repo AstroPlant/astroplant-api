@@ -87,11 +87,11 @@ pub async fn add_peripheral_to_configuration(
         return Err(invalid_parameters.into_problem());
     }
 
-    let conn = pg.get().await?;
+    let mut conn = pg.get().await?;
     let created_peripheral = helpers::threadpool(move || {
-        conn.transaction(|| {
+        conn.transaction(|conn| {
             let definition =
-                match models::PeripheralDefinition::by_id(&conn, peripheral_definition_id)
+                match models::PeripheralDefinition::by_id(conn, peripheral_definition_id)
                     .optional()?
                 {
                     Some(definition) => definition,
@@ -104,7 +104,7 @@ pub async fn add_peripheral_to_configuration(
 
             check_configuration(&new_peripheral.configuration, &definition)?;
 
-            Ok(new_peripheral.create(&conn)?)
+            Ok(new_peripheral.create(conn)?)
         })
     })
     .await?;
@@ -158,11 +158,11 @@ pub async fn patch_peripheral(
         return Err(invalid_parameters.into_problem());
     }
 
-    let conn = pg.get().await?;
+    let mut conn = pg.get().await?;
     let updated_peripheral = helpers::threadpool(move || {
-        conn.transaction(|| {
+        conn.transaction(|conn| {
             let definition = match models::PeripheralDefinition::by_id(
-                &conn,
+                conn,
                 peripheral.peripheral_definition_id,
             )
             .optional()?
@@ -177,7 +177,7 @@ pub async fn patch_peripheral(
                 }
             }
 
-            Ok(patched_peripheral.update(&conn)?)
+            Ok(patched_peripheral.update(conn)?)
         })
     })
     .await?;
@@ -209,9 +209,9 @@ pub async fn delete_peripheral(
             .into_problem());
     }
 
-    let conn = pg.get().await?;
+    let mut conn = pg.get().await?;
     helpers::threadpool(move || {
-        peripheral.delete(&conn)?;
+        peripheral.delete(&mut conn)?;
         Ok(ResponseBuilder::ok().empty())
     })
     .await

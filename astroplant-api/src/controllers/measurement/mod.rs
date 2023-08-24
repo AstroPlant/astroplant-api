@@ -38,11 +38,11 @@ pub async fn kit_aggregate_measurements(
     )
     .await?;
 
-    let conn = pg.get().await?;
+    let mut conn = pg.get().await?;
     let mut response = ResponseBuilder::ok();
     let aggregate_measurements = helpers::threadpool(move || {
         models::AggregateMeasurement::page(
-            &conn,
+            &mut conn,
             kit.get_id(),
             query.configuration,
             query.peripheral,

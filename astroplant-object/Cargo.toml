@@ -5,7 +5,7 @@ authors = ["Thomas Churchman <thomas@kepow.org>"]
 edition = "2018"
 
 [dependencies]
-uuid = "0.8"
+uuid = "1"
 futures = "0.3"
 tokio = { version = "1", features = [ "io-util", "fs" ] }
 bytes = "1"

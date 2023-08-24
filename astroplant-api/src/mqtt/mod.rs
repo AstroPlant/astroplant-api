@@ -25,7 +25,7 @@ async fn upload_media(
         } = media;
 
         // TODO: handle errors.
-        let object_name = id.to_hyphenated().to_string();
+        let object_name = id.hyphenated().to_string();
         let size = i64::try_from(data.len()).map_err(|_| problem::INTERNAL_SERVER_ERROR)?;
 
         tracing::trace!(
@@ -37,9 +37,9 @@ async fn upload_media(
             size,
         );
 
-        let conn = pg_pool.clone().get().await?;
+        let mut conn = pg_pool.clone().get().await?;
         let peripheral = helpers::threadpool(move || {
-            models::Peripheral::by_id(&conn, models::PeripheralId(peripheral))
+            models::Peripheral::by_id(&mut conn, models::PeripheralId(peripheral))
         })
         .await?
         .ok_or(problem::NOT_FOUND)?;
@@ -59,7 +59,7 @@ async fn upload_media(
                 );
         };
 
-        let conn = pg_pool.get().await?;
+        let mut conn = pg_pool.get().await?;
         if let Err(_) = helpers::threadpool(move || {
             let new = models::NewMedia::new(
                 id,
@@ -72,7 +72,7 @@ async fn upload_media(
                 metadata,
                 size,
             );
-            new.create(&conn)
+            new.create(&mut conn)
         })
         .await
         {
@@ -105,7 +105,7 @@ impl astroplant_mqtt::ServerRpcHandler for Handler_ {
     ) -> Result<Option<serde_json::Value>, RpcError> {
         tracing::trace!("RPC: handling getActiveConfiguration request");
 
-        let conn = self
+        let mut conn = self
             .pg_pool
             .clone()
             .get()
@@ -113,12 +113,12 @@ impl astroplant_mqtt::ServerRpcHandler for Handler_ {
             .map_err(|_| RpcError::Other)?;
         let configuration: Option<_> = helpers::threadpool(move || {
             let kit =
-                match models::Kit::by_serial(&conn, kit_serial).map_err(|_| RpcError::Other)? {
+                match models::Kit::by_serial(&mut conn, kit_serial).map_err(|_| RpcError::Other)? {
                     Some(kit) => kit,
                     None => return Ok(None),
                 };
             let configuration =
-                match models::KitConfiguration::active_configuration_of_kit(&conn, &kit)
+                match models::KitConfiguration::active_configuration_of_kit(&mut conn, &kit)
                     .map_err(|_| RpcError::Other)?
                 {
                     Some(configuration) => configuration,
@@ -126,7 +126,7 @@ impl astroplant_mqtt::ServerRpcHandler for Handler_ {
                 };
             let peripherals_with_definitions =
                 models::Peripheral::peripherals_with_definitions_of_kit_configuration(
-                    &conn,
+                    &mut conn,
                     &configuration,
                 )
                 .map_err(|_| RpcError::Other)?;
@@ -152,7 +152,7 @@ impl astroplant_mqtt::ServerRpcHandler for Handler_ {
     async fn get_quantity_types(&self) -> Result<Vec<serde_json::Value>, RpcError> {
         tracing::trace!("RPC: handling getQuantityTypes request");
 
-        let conn = self
+        let mut conn = self
             .pg_pool
             .clone()
             .get()
@@ -160,7 +160,7 @@ impl astroplant_mqtt::ServerRpcHandler for Handler_ {
             .map_err(|_| RpcError::Other)?;
 
         let quantity_types: Vec<_> = helpers::threadpool(move || {
-            let quantity_types = models::QuantityType::all(&conn)
+            let quantity_types = models::QuantityType::all(&mut conn)
                 .map_err(|_| RpcError::Other)?
                 .into_iter()
                 .map(views::QuantityType::from)

@@ -25,23 +25,23 @@ pub struct Kit {
 }
 
 impl Kit {
-    pub fn by_id(conn: &PgConnection, id: KitId) -> QueryResult<Option<Kit>> {
+    pub fn by_id(conn: &mut PgConnection, id: KitId) -> QueryResult<Option<Kit>> {
         kits::table.find(id.0).first(conn).optional()
     }
 
-    pub fn by_serial(conn: &PgConnection, serial: String) -> QueryResult<Option<Kit>> {
+    pub fn by_serial(conn: &mut PgConnection, serial: String) -> QueryResult<Option<Kit>> {
         kits::table
             .filter(kits::columns::serial.eq(serial))
             .first(conn)
             .optional()
     }
 
-    pub fn all(conn: &PgConnection) -> QueryResult<Vec<Kit>> {
+    pub fn all(conn: &mut PgConnection) -> QueryResult<Vec<Kit>> {
         kits::table.load(conn)
     }
 
     pub fn cursor_page(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         after: Option<i32>,
         limit: i64,
     ) -> QueryResult<Vec<Kit>> {
@@ -95,7 +95,7 @@ impl UpdateKit {
         (self, password)
     }
 
-    pub fn update(&self, conn: &PgConnection) -> QueryResult<Kit> {
+    pub fn update(&self, conn: &mut PgConnection) -> QueryResult<Kit> {
         self.save_changes(conn)
     }
 }
@@ -151,7 +151,7 @@ impl NewKit {
         (new_kit, password)
     }
 
-    pub fn create(&self, conn: &PgConnection) -> QueryResult<Kit> {
+    pub fn create(&self, conn: &mut PgConnection) -> QueryResult<Kit> {
         use crate::schema::kits::dsl::*;
         diesel::insert_into(kits)
             .values(self)

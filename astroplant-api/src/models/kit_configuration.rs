@@ -41,7 +41,7 @@ pub struct UpdateKitConfiguration {
 
 impl KitConfiguration {
     pub fn by_id(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         configuration_id: KitConfigurationId,
     ) -> QueryResult<Option<Self>> {
         kit_configurations::table
@@ -50,23 +50,23 @@ impl KitConfiguration {
             .optional()
     }
 
-    pub fn configurations_of_kit(conn: &PgConnection, kit: &Kit) -> QueryResult<Vec<Self>> {
+    pub fn configurations_of_kit(conn: &mut PgConnection, kit: &Kit) -> QueryResult<Vec<Self>> {
         KitConfiguration::belonging_to(kit).load(conn)
     }
 
-    pub fn configurations_of_kit_id(conn: &PgConnection, kit_id: KitId) -> QueryResult<Vec<Self>> {
+    pub fn configurations_of_kit_id(conn: &mut PgConnection, kit_id: KitId) -> QueryResult<Vec<Self>> {
         KitConfiguration::belonging_to(&kit_id).load(conn)
     }
 
     pub fn active_configuration_of_kit(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         kit: &Kit,
     ) -> QueryResult<Option<Self>> {
         Self::active_configuration_of_kit_id(conn, KitId(kit.id))
     }
 
     pub fn active_configuration_of_kit_id(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         kit_id: KitId,
     ) -> QueryResult<Option<Self>> {
         use kit_configurations::dsl;
@@ -81,7 +81,7 @@ impl KitConfiguration {
      * Deactive all of the kit's configurations.
      * Returns the amount of deactivated configurations.
      */
-    pub fn deactivate_all_of_kit(conn: &PgConnection, kit: &Kit) -> QueryResult<usize> {
+    pub fn deactivate_all_of_kit(conn: &mut PgConnection, kit: &Kit) -> QueryResult<usize> {
         Self::deactivate_all_of_kit_id(conn, kit.get_id())
     }
 
@@ -89,7 +89,7 @@ impl KitConfiguration {
      * Deactive all of the kit's configurations.
      * Returns the amount of deactivated configurations.
      */
-    pub fn deactivate_all_of_kit_id(conn: &PgConnection, kit_id: KitId) -> QueryResult<usize> {
+    pub fn deactivate_all_of_kit_id(conn: &mut PgConnection, kit_id: KitId) -> QueryResult<usize> {
         use crate::schema::kit_configurations::dsl;
 
         diesel::update(dsl::kit_configurations.filter(dsl::kit_id.eq(&kit_id.0)))
@@ -107,7 +107,7 @@ impl KitConfiguration {
 }
 
 impl UpdateKitConfiguration {
-    pub fn update(&self, conn: &PgConnection) -> QueryResult<KitConfiguration> {
+    pub fn update(&self, conn: &mut PgConnection) -> QueryResult<KitConfiguration> {
         self.save_changes(conn)
     }
 }
@@ -133,7 +133,7 @@ impl NewKitConfiguration {
         }
     }
 
-    pub fn create(&self, conn: &PgConnection) -> QueryResult<KitConfiguration> {
+    pub fn create(&self, conn: &mut PgConnection) -> QueryResult<KitConfiguration> {
         use crate::schema::kit_configurations::dsl::*;
 
         diesel::insert_into(kit_configurations)

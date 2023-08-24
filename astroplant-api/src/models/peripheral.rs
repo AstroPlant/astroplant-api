@@ -53,41 +53,41 @@ pub struct UpdatePeripheral {
 }
 
 impl Peripheral {
-    pub fn by_id(conn: &PgConnection, peripheral_id: PeripheralId) -> QueryResult<Option<Self>> {
+    pub fn by_id(conn: &mut PgConnection, peripheral_id: PeripheralId) -> QueryResult<Option<Self>> {
         peripherals::table
             .find(&peripheral_id.0)
             .first(conn)
             .optional()
     }
 
-    pub fn delete(&self, conn: &PgConnection) -> QueryResult<bool> {
+    pub fn delete(&self, conn: &mut PgConnection) -> QueryResult<bool> {
         diesel::delete(self).execute(conn).map(|r| r > 0)
     }
 
-    pub fn peripherals_of_kit(conn: &PgConnection, kit: &Kit) -> QueryResult<Vec<Self>> {
+    pub fn peripherals_of_kit(conn: &mut PgConnection, kit: &Kit) -> QueryResult<Vec<Self>> {
         Peripheral::belonging_to(kit).load(conn)
     }
 
-    pub fn peripherals_of_kit_id(conn: &PgConnection, kit_id: KitId) -> QueryResult<Vec<Self>> {
+    pub fn peripherals_of_kit_id(conn: &mut PgConnection, kit_id: KitId) -> QueryResult<Vec<Self>> {
         Peripheral::belonging_to(&kit_id).load(conn)
     }
 
     pub fn peripherals_of_kit_configuration(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         kit_configuration: &KitConfiguration,
     ) -> QueryResult<Vec<Self>> {
         Peripheral::belonging_to(kit_configuration).load(conn)
     }
 
     pub fn peripherals_of_kit_configuration_id(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         kit_configuration_id: KitConfigurationId,
     ) -> QueryResult<Vec<Self>> {
         Peripheral::belonging_to(&kit_configuration_id).load(conn)
     }
 
     pub fn peripherals_with_definitions_of_kit_configuration(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         kit_configuration: &KitConfiguration,
     ) -> QueryResult<Vec<(Self, PeripheralDefinition)>> {
         Peripheral::peripherals_with_definitions_of_kit_configuration_id(
@@ -97,7 +97,7 @@ impl Peripheral {
     }
 
     pub fn peripherals_with_definitions_of_kit_configuration_id(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         kit_configuration_id: KitConfigurationId,
     ) -> QueryResult<Vec<(Self, PeripheralDefinition)>> {
         Peripheral::belonging_to(&kit_configuration_id)
@@ -106,7 +106,7 @@ impl Peripheral {
     }
 
     pub fn clone_all_to_new_configuration(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         from_kit_configuration: KitConfigurationId,
         to_kit: KitId,
         to_kit_configuration: KitConfigurationId,
@@ -151,7 +151,7 @@ impl Peripheral {
 }
 
 impl UpdatePeripheral {
-    pub fn update(&self, conn: &PgConnection) -> QueryResult<Peripheral> {
+    pub fn update(&self, conn: &mut PgConnection) -> QueryResult<Peripheral> {
         self.save_changes(conn)
     }
 }
@@ -184,7 +184,7 @@ impl NewPeripheral {
         }
     }
 
-    pub fn create(&self, conn: &PgConnection) -> QueryResult<Peripheral> {
+    pub fn create(&self, conn: &mut PgConnection) -> QueryResult<Peripheral> {
         use crate::schema::peripherals::dsl::*;
 
         diesel::insert_into(peripherals)

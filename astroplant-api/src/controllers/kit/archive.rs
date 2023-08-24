@@ -141,10 +141,10 @@ async fn write_configs<W: tokio::io::AsyncWrite + Unpin>(
     pg: PgPool,
     kit: &models::Kit,
 ) -> anyhow::Result<()> {
-    let conn = pg.get().await?;
+    let mut conn = pg.get().await?;
 
-    let kit_configurations = models::KitConfiguration::configurations_of_kit(&conn, &kit)?;
-    let kit_peripherals = models::Peripheral::peripherals_of_kit(&conn, &kit)?;
+    let kit_configurations = models::KitConfiguration::configurations_of_kit(&mut conn, &kit)?;
+    let kit_peripherals = models::Peripheral::peripherals_of_kit(&mut conn, &kit)?;
     let mut kit_peripherals: HashMap<i32, Vec<views::Peripheral>> = kit_peripherals
         .into_iter()
         .map(|p| (p.kit_configuration_id, views::Peripheral::from(p)))
@@ -257,10 +257,10 @@ pub async fn archive(
     }
     drop(kit_serial);
 
-    let conn = pg.clone().get().await?;
+    let mut conn = pg.clone().get().await?;
     let s = token.kit_serial.clone();
     let kit =
-        crate::helpers::threadpool(move || crate::models::Kit::by_serial(&conn, s).ok().flatten())
+        crate::helpers::threadpool(move || crate::models::Kit::by_serial(&mut conn, s).ok().flatten())
             .await
             .ok_or(problem::NOT_FOUND)?;
 

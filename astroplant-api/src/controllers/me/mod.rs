@@ -12,8 +12,8 @@ pub async fn me(
     Extension(pg): Extension<PgPool>,
     user_id: crate::extract::UserId,
 ) -> Result<Response, Problem> {
-    let conn = pg.get().await?;
-    let user = helpers::threadpool_result(move || models::User::by_id(&conn, user_id)).await?;
+    let mut conn = pg.get().await?;
+    let user = helpers::threadpool_result(move || models::User::by_id(&mut conn, user_id)).await?;
     let user = helpers::some_or_internal_error(user)?;
     Ok(ResponseBuilder::ok().body(views::FullUser::from(user)))
 }

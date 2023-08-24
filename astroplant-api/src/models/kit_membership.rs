@@ -23,16 +23,16 @@ pub struct KitMembership {
 }
 
 impl KitMembership {
-    pub fn memberships_of_kit(conn: &PgConnection, kit: &Kit) -> QueryResult<Vec<Self>> {
+    pub fn memberships_of_kit(conn: &mut PgConnection, kit: &Kit) -> QueryResult<Vec<Self>> {
         KitMembership::belonging_to(kit).load(conn)
     }
 
-    pub fn memberships_of_user_id(conn: &PgConnection, user_id: UserId) -> QueryResult<Vec<Self>> {
+    pub fn memberships_of_user_id(conn: &mut PgConnection, user_id: UserId) -> QueryResult<Vec<Self>> {
         KitMembership::belonging_to(&user_id).load(conn)
     }
 
     pub fn memberships_with_kit_of_user_id(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         user_id: UserId,
     ) -> QueryResult<Vec<(Kit, Self)>> {
         // TODO: benchmark; this join might be less efficient than performing two queries with
@@ -43,12 +43,12 @@ impl KitMembership {
             .get_results(conn)
     }
 
-    pub fn memberships_of_user(conn: &PgConnection, user: &User) -> QueryResult<Vec<Self>> {
+    pub fn memberships_of_user(conn: &mut PgConnection, user: &User) -> QueryResult<Vec<Self>> {
         KitMembership::belonging_to(user).load(conn)
     }
 
     pub fn by_user_id_and_kit_id(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         user_id: UserId,
         kit_id: KitId,
     ) -> QueryResult<Option<Self>> {
@@ -60,7 +60,7 @@ impl KitMembership {
     }
 
     pub fn by_user_and_kit(
-        conn: &PgConnection,
+        conn: &mut PgConnection,
         user: &User,
         kit: &Kit,
     ) -> QueryResult<Option<Self>> {
@@ -89,7 +89,7 @@ impl NewKitMembership {
         }
     }
 
-    pub fn create(&self, conn: &PgConnection) -> QueryResult<KitMembership> {
+    pub fn create(&self, conn: &mut PgConnection) -> QueryResult<KitMembership> {
         use crate::schema::kit_memberships::dsl::*;
 
         diesel::insert_into(kit_memberships)

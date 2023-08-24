@@ -38,11 +38,11 @@ pub async fn kit_media(
     )
     .await?;
 
-    let conn = pg.get().await?;
+    let mut conn = pg.get().await?;
     let mut response = ResponseBuilder::ok();
     let media = helpers::threadpool(move || {
         models::Media::page(
-            &conn,
+            &mut conn,
             kit.get_id(),
             query.configuration,
             query.peripheral,
@@ -79,10 +79,10 @@ pub async fn download_media(
     let media_id = models::MediaId(media_id);
 
     // Check user authorization and make sure the configuration has never been activated.
-    let conn = pg.clone().get().await?;
+    let mut conn = pg.clone().get().await?;
     let (media, kit) = helpers::threadpool(move || {
-        let media = models::Media::by_id(&conn, media_id)?.ok_or(NOT_FOUND)?;
-        let kit = models::Kit::by_id(&conn, media.get_kit_id())?.ok_or(NOT_FOUND)?;
+        let media = models::Media::by_id(&mut conn, media_id)?.ok_or(NOT_FOUND)?;
+        let kit = models::Kit::by_id(&mut conn, media.get_kit_id())?.ok_or(NOT_FOUND)?;
 
         Ok::<_, Problem>((media, kit))
     })
@@ -98,7 +98,7 @@ pub async fn download_media(
     .await?;
 
     let stream = object_store
-        .get(&kit.serial, &media.id.to_hyphenated().to_string())
+        .get(&kit.serial, &media.id.hyphenated().to_string())
         .await
         .unwrap();
 

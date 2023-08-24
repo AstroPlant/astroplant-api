@@ -79,11 +79,11 @@ pub async fn fut_kit_permission_or_forbidden<'a>(
 > {
     use diesel::Connection;
 
-    let conn = pg.get().await?;
+    let mut conn = pg.get().await?;
     threadpool(move || {
-        conn.transaction(|| {
+        conn.transaction(|conn| {
             let user = if let Some(user_id) = user_id {
-                match crate::models::User::by_id(&conn, user_id)? {
+                match crate::models::User::by_id(conn, user_id)? {
                     Some(user) => Some(user),
                     // User id set but user is not found.
                     None => return Ok(None),
@@ -92,13 +92,13 @@ pub async fn fut_kit_permission_or_forbidden<'a>(
                 None
             };
 
-            let kit = match crate::models::Kit::by_serial(&conn, kit_serial)? {
+            let kit = match crate::models::Kit::by_serial(conn, kit_serial)? {
                 Some(kit) => kit,
                 None => return Ok(None),
             };
 
             let membership = if let Some(user_id) = user_id {
-                crate::models::KitMembership::by_user_id_and_kit_id(&conn, user_id, kit.get_id())?
+                crate::models::KitMembership::by_user_id_and_kit_id(conn, user_id, kit.get_id())?
             } else {
                 None
             };
@@ -136,11 +136,11 @@ pub async fn fut_user_permission_or_forbidden(
 ) -> Result<(Option<crate::models::User>, crate::models::User), Problem> {
     use diesel::Connection;
 
-    let conn = pg.get().await?;
+    let mut conn = pg.get().await?;
     threadpool(move || {
-        conn.transaction(|| {
+        conn.transaction(|conn| {
             let actor_user = if let Some(actor_user_id) = actor_user_id {
-                match crate::models::User::by_id(&conn, actor_user_id)? {
+                match crate::models::User::by_id(conn, actor_user_id)? {
                     Some(user) => Some(user),
                     // User id set but user is not found.
                     None => return Ok(None),
@@ -149,7 +149,7 @@ pub async fn fut_user_permission_or_forbidden(
                 None
             };
 
-            let object_user = match crate::models::User::by_username(&conn, &object_username)? {
+            let object_user = match crate::models::User::by_username(conn, &object_username)? {
                 Some(user) => user,
                 None => return Ok(None),
             };

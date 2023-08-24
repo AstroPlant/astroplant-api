@@ -28,13 +28,13 @@ async fn get_definitions_and_expected_quantity_types(
     ),
     Problem,
 > {
-    let conn = pg.get().await?;
+    let mut conn = pg.get().await?;
     helpers::threadpool_result(move || {
-        models::PeripheralDefinition::cursor_page(&conn, query_params.after, 100).and_then(
+        models::PeripheralDefinition::cursor_page(&mut conn, query_params.after, 2).and_then(
             |definitions| {
                 if query_params.with_expected_quantity_types {
                     models::PeripheralDefinitionExpectedQuantityType::of_peripheral_definitions(
-                        &conn,
+                        &mut conn,
                         &definitions,
                     )
                     .map(|quantity_types| (definitions, Some(quantity_types)))

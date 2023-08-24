@@ -16,10 +16,10 @@ pub async fn quantity_types(
     Extension(pg): Extension<PgPool>,
     crate::extract::Query(cursor): crate::extract::Query<CursorPage>,
 ) -> Result<Response, Problem> {
-    let conn = pg.get().await?;
+    let mut conn = pg.get().await?;
     let quantity_types = helpers::threadpool(move || {
         Ok::<_, Problem>(
-            models::QuantityType::cursor_page(&conn, cursor.after, 100)?
+            models::QuantityType::cursor_page(&mut conn, cursor.after, 2)?
                 .into_iter()
                 .map(views::QuantityType::from)
                 .collect::<Vec<_>>(),

@@ -18,7 +18,6 @@ pub async fn configurations_by_kit_serial(
     user_id: Option<models::UserId>,
     Path(kit_serial): Path<String>,
 ) -> Result<Response, Problem> {
-    use diesel::Connection;
     use itertools::Itertools;
     use std::collections::HashMap;
 
@@ -190,8 +189,6 @@ pub async fn patch_configuration(
     Path(kit_configuration_id): Path<i32>,
     crate::extract::Json(kit_configuration_patch): crate::extract::Json<KitConfigurationPatch>,
 ) -> Result<Response, Problem> {
-    use diesel::Connection;
-
     let kit_configuration_id = models::KitConfigurationId(kit_configuration_id);
 
     let (kit, kit_configuration) =

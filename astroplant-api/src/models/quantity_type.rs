@@ -25,7 +25,7 @@ impl QuantityType {
     pub fn by_ids(conn: &mut PgConnection, ids: Vec<i32>) -> QueryResult<Vec<Self>> {
         use quantity_types::dsl;
         quantity_types::table
-            .filter(dsl::id.eq(diesel::dsl::any(ids)))
+            .filter(dsl::id.eq_any(ids))
             .load(conn)
     }
 

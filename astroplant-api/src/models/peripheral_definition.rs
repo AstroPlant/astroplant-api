@@ -30,7 +30,7 @@ impl PeripheralDefinition {
     pub fn by_ids(conn: &mut PgConnection, ids: Vec<i32>) -> QueryResult<Vec<Self>> {
         use peripheral_definitions::dsl;
         peripheral_definitions::table
-            .filter(dsl::id.eq(diesel::dsl::any(ids)))
+            .filter(dsl::id.eq_any(ids))
             .load(conn)
     }
 

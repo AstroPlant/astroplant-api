@@ -54,7 +54,6 @@ pub async fn add_peripheral_to_configuration(
     crate::extract::Json(peripheral): crate::extract::Json<Peripheral>,
 ) -> Result<Response, Problem> {
     use diesel::prelude::*;
-    use diesel::Connection;
 
     let kit_configuration_id = models::KitConfigurationId(kit_configuration_id);
 
@@ -126,7 +125,6 @@ pub async fn patch_peripheral(
     crate::extract::Json(peripheral_patch): crate::extract::Json<PeripheralPatch>,
 ) -> Result<Response, Problem> {
     use diesel::prelude::*;
-    use diesel::Connection;
 
     let peripheral_id = models::PeripheralId(peripheral_id);
 

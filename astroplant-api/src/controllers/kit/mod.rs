@@ -21,12 +21,13 @@ pub async fn kits(
     Extension(pg): Extension<PgPool>,
     cursor: crate::extract::Query<CursorPage>,
 ) -> Result<Response, Problem> {
-    let mut conn = pg.get().await?;
-    let kits = helpers::threadpool(move || {
-        models::Kit::cursor_page(&mut conn, cursor.after, 100)
-            .map(|kits| kits.into_iter().map(views::Kit::from).collect::<Vec<_>>())
-    })
-    .await?;
+    let conn = pg.get().await?;
+    let kits = conn
+        .interact_flatten_err(move |conn| {
+            models::Kit::cursor_page(conn, cursor.after, 100)
+                .map(|kits| kits.into_iter().map(views::Kit::from).collect::<Vec<_>>())
+        })
+        .await?;
 
     let next_page_uri = kits.last().map(|last| format!("/kits?after={}", last.id));
 
@@ -65,13 +66,15 @@ pub async fn reset_password(
         crate::authorization::KitAction::ResetPassword,
     )
     .await?;
-    let mut conn = pg.get().await?;
-    let password = helpers::threadpool(move || {
-        let (update_kit, password) = models::UpdateKit::unchanged_for_id(kit.id).reset_password();
-        update_kit.update(&mut conn)?;
-        Ok::<_, Problem>(password)
-    })
-    .await?;
+    let conn = pg.get().await?;
+    let password = conn
+        .interact(move |conn| {
+            let (update_kit, password) =
+                models::UpdateKit::unchanged_for_id(kit.id).reset_password();
+            update_kit.update(conn)?;
+            Ok::<_, Problem>(password)
+        })
+        .await?;
     Ok(ResponseBuilder::ok().body(password))
 }
 
@@ -117,8 +120,8 @@ pub async fn create_kit(
         return Err(problem::Problem::InvalidParameters { invalid_parameters });
     };
 
-    let mut conn = pg.get().await?;
-    helpers::threadpool(move || {
+    let conn = pg.get().await?;
+    conn.interact(move |conn| {
         conn.transaction(|conn| {
             let created_kit: models::Kit = new_kit.create(conn)?;
             let kit_serial = created_kit.serial;
@@ -135,7 +138,7 @@ pub async fn create_kit(
             Ok(response)
         })
     })
-    .await
+    .await?
 }
 
 #[derive(Deserialize, Debug)]
@@ -183,10 +186,10 @@ pub async fn patch_kit(
         password_hash: None,
     };
 
-    let mut conn = pg.get().await?;
-    helpers::threadpool(move || {
-        let patched_kit = update_kit.update(&mut conn)?;
+    let conn = pg.get().await?;
+    conn.interact(move |conn| {
+        let patched_kit = update_kit.update(conn)?;
         Ok(ResponseBuilder::ok().body(views::Kit::from(patched_kit)))
     })
-    .await
+    .await?
 }

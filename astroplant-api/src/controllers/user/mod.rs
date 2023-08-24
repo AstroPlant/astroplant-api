@@ -57,31 +57,32 @@ pub async fn patch_user(
         use_email_address_for_gravatar: user_patch.use_email_address_for_gravatar,
     };
 
-    let mut conn = pg.get().await?;
-    let patched_user = helpers::threadpool_result(move || {
-        if let Some(email_address) = &update_user.email_address {
-            if let Some(user_by_email_address) =
-                models::User::by_email_address(&mut conn, email_address)?
-            {
-                if user_by_email_address.id != user.id {
-                    let mut invalid_parameters = problem::InvalidParameters::new();
-                    invalid_parameters.add(
-                        "emailAddress",
-                        problem::InvalidParameterReason::AlreadyExists,
-                    );
-                    return Err(problem::Problem::InvalidParameters { invalid_parameters });
+    let conn = pg.get().await?;
+    let patched_user = conn
+        .interact_flatten_err(move |conn| {
+            if let Some(email_address) = &update_user.email_address {
+                if let Some(user_by_email_address) =
+                    models::User::by_email_address(conn, email_address)?
+                {
+                    if user_by_email_address.id != user.id {
+                        let mut invalid_parameters = problem::InvalidParameters::new();
+                        invalid_parameters.add(
+                            "emailAddress",
+                            problem::InvalidParameterReason::AlreadyExists,
+                        );
+                        return Err(problem::Problem::InvalidParameters { invalid_parameters });
+                    }
                 }
             }
-        }
 
-        if let Err(validation_errors) = update_user.validate() {
-            let invalid_parameters = problem::InvalidParameters::from(validation_errors);
-            return Err(problem::Problem::InvalidParameters { invalid_parameters });
-        }
+            if let Err(validation_errors) = update_user.validate() {
+                let invalid_parameters = problem::InvalidParameters::from(validation_errors);
+                return Err(problem::Problem::InvalidParameters { invalid_parameters });
+            }
 
-        Ok::<_, Problem>(update_user.update(&mut conn)?)
-    })
-    .await?;
+            Ok::<_, Problem>(update_user.update(conn)?)
+        })
+        .await?;
 
     Ok(ResponseBuilder::ok().body(views::User::from(patched_user)))
 }
@@ -101,11 +102,12 @@ pub async fn list_kit_memberships(
     .await?;
 
     let username = user.username.clone();
-    let mut conn = pg.get().await?;
-    let kit_memberships = helpers::threadpool_result(move || {
-        models::KitMembership::memberships_with_kit_of_user_id(&mut conn, user.get_id())
-    })
-    .await?;
+    let conn = pg.get().await?;
+    let kit_memberships = conn
+        .interact(move |conn| {
+            models::KitMembership::memberships_with_kit_of_user_id(conn, user.get_id())
+        })
+        .await??;
 
     let v: Vec<views::KitMembership<String, views::Kit>> = kit_memberships
         .into_iter()
@@ -135,8 +137,8 @@ pub async fn create_user(
     let username = user.username.clone();
     tracing::trace!("Got request to create user with username: {}", username);
 
-    let mut conn = pg.get().await?;
-    helpers::threadpool(move || {
+    let conn = pg.get().await?;
+    conn.interact_flatten_err(move |conn| {
         conn.transaction(|conn| {
             let user_by_username = models::User::by_username(conn, &user.username)?;
             let user_by_email_address = models::User::by_email_address(conn, &user.email_address)?;

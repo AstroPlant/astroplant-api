@@ -4,9 +4,9 @@ use serde::Deserialize;
 
 use crate::authorization::{KitUser, Permission};
 use crate::database::PgPool;
+use crate::models;
 use crate::problem::{self, Problem};
 use crate::response::{Response, ResponseBuilder};
-use crate::{helpers, models};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,32 +25,33 @@ pub async fn user_kit_permissions(
     use crate::authorization::KitAction;
     use strum::IntoEnumIterator;
 
-    let mut conn = pg.get().await?;
-    let (user, membership, kit) = helpers::threadpool(move || {
-        conn.transaction(|conn| {
-            let user = if let Some(user_id) = user_id {
-                models::User::by_id(conn, user_id)?
-            } else {
-                None
-            };
+    let conn = pg.get().await?;
+    let (user, membership, kit) = conn
+        .interact_flatten_err(move |conn| {
+            conn.transaction(|conn| {
+                let user = if let Some(user_id) = user_id {
+                    models::User::by_id(conn, user_id)?
+                } else {
+                    None
+                };
 
-            let kit = models::Kit::by_serial(conn, kit_serial)?;
-            if kit.is_none() {
-                return Ok(None);
-            }
-            let kit = kit.unwrap();
+                let kit = models::Kit::by_serial(conn, kit_serial)?;
+                if kit.is_none() {
+                    return Ok(None);
+                }
+                let kit = kit.unwrap();
 
-            let membership = if let Some(user_id) = user_id {
-                models::KitMembership::by_user_id_and_kit_id(conn, user_id, kit.get_id())?
-            } else {
-                None
-            };
+                let membership = if let Some(user_id) = user_id {
+                    models::KitMembership::by_user_id_and_kit_id(conn, user_id, kit.get_id())?
+                } else {
+                    None
+                };
 
-            Ok::<_, Problem>(Some((user, membership, kit)))
+                Ok::<_, Problem>(Some((user, membership, kit)))
+            })
         })
-    })
-    .await?
-    .ok_or(problem::NOT_FOUND)?;
+        .await?
+        .ok_or(problem::NOT_FOUND)?;
 
     let kit_user = match (user, membership) {
         (None, _) => KitUser::Anonymous,

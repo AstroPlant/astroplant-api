@@ -38,18 +38,19 @@ pub async fn kit_media(
     )
     .await?;
 
-    let mut conn = pg.get().await?;
+    let conn = pg.get().await?;
     let mut response = ResponseBuilder::ok();
-    let media = helpers::threadpool(move || {
-        models::Media::page(
-            &mut conn,
-            kit.get_id(),
-            query.configuration,
-            query.peripheral,
-            cursor,
-        )
-    })
-    .await?;
+    let media = conn
+        .interact_flatten_err(move |conn| {
+            models::Media::page(
+                conn,
+                kit.get_id(),
+                query.configuration,
+                query.peripheral,
+                cursor,
+            )
+        })
+        .await?;
 
     if let Some(next_cursor) = cursors::Media::next_from_page(&media) {
         out_query.cursor = Some(next_cursor.into());
@@ -79,14 +80,15 @@ pub async fn download_media(
     let media_id = models::MediaId(media_id);
 
     // Check user authorization and make sure the configuration has never been activated.
-    let mut conn = pg.clone().get().await?;
-    let (media, kit) = helpers::threadpool(move || {
-        let media = models::Media::by_id(&mut conn, media_id)?.ok_or(NOT_FOUND)?;
-        let kit = models::Kit::by_id(&mut conn, media.get_kit_id())?.ok_or(NOT_FOUND)?;
+    let conn = pg.clone().get().await?;
+    let (media, kit) = conn
+        .interact_flatten_err(move |conn| {
+            let media = models::Media::by_id(conn, media_id)?.ok_or(NOT_FOUND)?;
+            let kit = models::Kit::by_id(conn, media.get_kit_id())?.ok_or(NOT_FOUND)?;
 
-        Ok::<_, Problem>((media, kit))
-    })
-    .await?;
+            Ok::<_, Problem>((media, kit))
+        })
+        .await?;
 
     // FIXME: this unnecessarily queries for the kit: we already have it.
     helpers::fut_kit_permission_or_forbidden(

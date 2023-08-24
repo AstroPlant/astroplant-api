@@ -141,10 +141,18 @@ async fn write_configs<W: tokio::io::AsyncWrite + Unpin>(
     pg: PgPool,
     kit: &models::Kit,
 ) -> anyhow::Result<()> {
-    let mut conn = pg.get().await?;
+    let conn = pg.get().await?;
 
-    let kit_configurations = models::KitConfiguration::configurations_of_kit(&mut conn, &kit)?;
-    let kit_peripherals = models::Peripheral::peripherals_of_kit(&mut conn, &kit)?;
+    let kit_id = kit.get_id();
+    let (kit_configurations, kit_peripherals) = conn
+        .interact_flatten_err(move |conn| {
+            let kit_configurations =
+                models::KitConfiguration::configurations_of_kit_id(conn, kit_id)?;
+            let kit_peripherals = models::Peripheral::peripherals_of_kit_id(conn, kit_id)?;
+            Ok::<_, Problem>((kit_configurations, kit_peripherals))
+        })
+        .await?;
+
     let mut kit_peripherals: HashMap<i32, Vec<views::Peripheral>> = kit_peripherals
         .into_iter()
         .map(|p| (p.kit_configuration_id, views::Peripheral::from(p)))
@@ -257,12 +265,12 @@ pub async fn archive(
     }
     drop(kit_serial);
 
-    let mut conn = pg.clone().get().await?;
+    let conn = pg.clone().get().await?;
     let s = token.kit_serial.clone();
-    let kit =
-        crate::helpers::threadpool(move || crate::models::Kit::by_serial(&mut conn, s).ok().flatten())
-            .await
-            .ok_or(problem::NOT_FOUND)?;
+    let kit = conn
+        .interact(move |conn| crate::models::Kit::by_serial(conn, s).ok().flatten())
+        .await?
+        .ok_or(problem::NOT_FOUND)?;
 
     let (archive, api) = tokio::io::duplex(2048);
 

@@ -15,33 +15,33 @@ async fn get_models_from_kit_configuration_id(
     pg: PgPool,
     kit_configuration_id: models::KitConfigurationId,
 ) -> AppResult<(models::Kit, models::KitConfiguration)> {
-    let mut conn = pg.get().await?;
-    helpers::threadpool(move || {
-        let kit_configuration = models::KitConfiguration::by_id(&mut conn, kit_configuration_id)?
+    let conn = pg.get().await?;
+    conn.interact(move |conn| {
+        let kit_configuration = models::KitConfiguration::by_id(conn, kit_configuration_id)?
             .ok_or(problem::NOT_FOUND)?;
-        let kit = models::Kit::by_id(&mut conn, kit_configuration.get_kit_id())?
+        let kit = models::Kit::by_id(conn, kit_configuration.get_kit_id())?
             .ok_or(problem::INTERNAL_SERVER_ERROR)?;
         Ok((kit, kit_configuration))
     })
-    .await
+    .await?
 }
 
 async fn get_models_from_peripheral_id(
     pg: PgPool,
     peripheral_id: models::PeripheralId,
 ) -> AppResult<(models::Kit, models::KitConfiguration, models::Peripheral)> {
-    let mut conn = pg.get().await?;
-    helpers::threadpool(move || {
+    let conn = pg.get().await?;
+    conn.interact(move |conn| {
         let peripheral =
-            models::Peripheral::by_id(&mut conn, peripheral_id)?.ok_or(problem::NOT_FOUND)?;
-        let kit = models::Kit::by_id(&mut conn, peripheral.get_kit_id())?
+            models::Peripheral::by_id(conn, peripheral_id)?.ok_or(problem::NOT_FOUND)?;
+        let kit = models::Kit::by_id(conn, peripheral.get_kit_id())?
             .ok_or(problem::INTERNAL_SERVER_ERROR)?;
         let configuration =
-            models::KitConfiguration::by_id(&mut conn, peripheral.get_kit_configuration_id())?
+            models::KitConfiguration::by_id(conn, peripheral.get_kit_configuration_id())?
                 .ok_or(problem::INTERNAL_SERVER_ERROR)?;
         Ok((kit, configuration, peripheral))
     })
-    .await
+    .await?
 }
 
 async fn authorize(

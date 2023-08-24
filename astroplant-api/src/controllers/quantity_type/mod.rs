@@ -4,7 +4,7 @@ use serde::Deserialize;
 use crate::database::PgPool;
 use crate::problem::Problem;
 use crate::response::{Response, ResponseBuilder};
-use crate::{helpers, models, views};
+use crate::{models, views};
 
 #[derive(Deserialize)]
 pub struct CursorPage {
@@ -16,16 +16,17 @@ pub async fn quantity_types(
     Extension(pg): Extension<PgPool>,
     crate::extract::Query(cursor): crate::extract::Query<CursorPage>,
 ) -> Result<Response, Problem> {
-    let mut conn = pg.get().await?;
-    let quantity_types = helpers::threadpool(move || {
-        Ok::<_, Problem>(
-            models::QuantityType::cursor_page(&mut conn, cursor.after, 2)?
-                .into_iter()
-                .map(views::QuantityType::from)
-                .collect::<Vec<_>>(),
-        )
-    })
-    .await?;
+    let conn = pg.get().await?;
+    let quantity_types = conn
+        .interact_flatten_err(move |conn| {
+            Ok::<_, Problem>(
+                models::QuantityType::cursor_page(conn, cursor.after, 2)?
+                    .into_iter()
+                    .map(views::QuantityType::from)
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .await?;
     let next_page_uri = quantity_types
         .last()
         .map(|last| format!("/quantity-types?after={}", last.id));

@@ -29,8 +29,8 @@ pub async fn configurations_by_kit_serial(
     )
     .await?;
 
-    let mut conn = pg.get().await?;
-    helpers::threadpool(move || {
+    let conn = pg.get().await?;
+    conn.interact(move |conn| {
         conn.transaction(|conn| {
             let kit_configurations = models::KitConfiguration::configurations_of_kit(conn, &kit)?;
             let kit_peripherals = models::Peripheral::peripherals_of_kit(conn, &kit)?;
@@ -51,7 +51,7 @@ pub async fn configurations_by_kit_serial(
             Ok(ResponseBuilder::ok().body(kit_configurations_with_peripherals))
         })
     })
-    .await
+    .await?
 }
 
 #[derive(Deserialize, Debug)]
@@ -73,11 +73,12 @@ async fn create_new_configuration(
     kit: &Kit,
     configuration: Configuration,
 ) -> Result<Response, Problem> {
-    let mut conn = pg.get().await?;
+    let conn = pg.get().await?;
     let new_configuration =
         models::NewKitConfiguration::new(kit.get_id(), configuration.description);
-    let created_configuration =
-        helpers::threadpool(move || new_configuration.create(&mut conn)).await?;
+    let created_configuration = conn
+        .interact_flatten_err(move |conn| new_configuration.create(conn))
+        .await?;
     Ok(ResponseBuilder::ok().body(views::KitConfiguration::from(created_configuration)))
 }
 
@@ -121,20 +122,21 @@ async fn clone_configuration(
     };
     let kit_id = kit.get_id();
 
-    let mut conn = pg.get().await?;
-    let created_configuration: QueryResult<_> = helpers::threadpool(move || {
-        conn.transaction(|conn| {
-            let created_configuration = new_configuration.create(conn)?;
-            Peripheral::clone_all_to_new_configuration(
-                conn,
-                from_kit_configuration_id,
-                kit_id,
-                created_configuration.get_id(),
-            )?;
-            Ok(created_configuration)
+    let conn = pg.get().await?;
+    let created_configuration: QueryResult<_> = conn
+        .interact(move |conn| {
+            conn.transaction(|conn| {
+                let created_configuration = new_configuration.create(conn)?;
+                Peripheral::clone_all_to_new_configuration(
+                    conn,
+                    from_kit_configuration_id,
+                    kit_id,
+                    created_configuration.get_id(),
+                )?;
+                Ok(created_configuration)
+            })
         })
-    })
-    .await;
+        .await?;
 
     Ok(ResponseBuilder::ok().body(views::KitConfiguration::from(created_configuration?)))
 }
@@ -225,18 +227,19 @@ pub async fn patch_configuration(
         },
     };
 
-    let mut conn = pg.get().await?;
-    let patched_configuration = helpers::threadpool(move || {
-        conn.transaction(|conn| {
-            if let Some(active) = patch.active {
-                if active != kit_configuration.active {
-                    models::KitConfiguration::deactivate_all_of_kit(conn, &kit)?;
+    let conn = pg.get().await?;
+    let patched_configuration = conn
+        .interact_flatten_err(move |conn| {
+            conn.transaction(|conn| {
+                if let Some(active) = patch.active {
+                    if active != kit_configuration.active {
+                        models::KitConfiguration::deactivate_all_of_kit(conn, &kit)?;
+                    }
                 }
-            }
-            Ok::<_, Problem>(patch.update(conn)?)
+                Ok::<_, Problem>(patch.update(conn)?)
+            })
         })
-    })
-    .await?;
+        .await?;
 
     Ok(ResponseBuilder::ok().body(views::KitConfiguration::from(patched_configuration)))
 }

@@ -38,19 +38,20 @@ pub async fn kit_aggregate_measurements(
     )
     .await?;
 
-    let mut conn = pg.get().await?;
+    let conn = pg.get().await?;
     let mut response = ResponseBuilder::ok();
-    let aggregate_measurements = helpers::threadpool(move || {
-        models::AggregateMeasurement::page(
-            &mut conn,
-            kit.get_id(),
-            query.configuration,
-            query.peripheral,
-            query.quantity_type,
-            cursor,
-        )
-    })
-    .await?;
+    let aggregate_measurements = conn
+        .interact_flatten_err(move |conn| {
+            models::AggregateMeasurement::page(
+                conn,
+                kit.get_id(),
+                query.configuration,
+                query.peripheral,
+                query.quantity_type,
+                cursor,
+            )
+        })
+        .await?;
 
     if let Some(next_cursor) =
         cursors::AggregateMeasurements::next_from_page(&aggregate_measurements)

@@ -14,6 +14,7 @@ use std::fmt::{self, Display};
 
 pub const NOT_FOUND: Problem = Problem::Generic(GenericProblem::NotFound);
 pub const INTERNAL_SERVER_ERROR: Problem = Problem::Generic(GenericProblem::InternalServerError);
+pub const SERVICE_UNAVAILABLE: Problem = Problem::Generic(GenericProblem::ServiceUnavailable);
 pub const FORBIDDEN: Problem = Problem::Generic(GenericProblem::Forbidden);
 pub const BAD_REQUEST: Problem = Problem::Generic(GenericProblem::BadRequest);
 
@@ -62,6 +63,7 @@ impl Problem {
         match self {
             Generic(NotFound) => StatusCode::NOT_FOUND,
             Generic(InternalServerError) => StatusCode::INTERNAL_SERVER_ERROR,
+            Generic(ServiceUnavailable) => StatusCode::SERVICE_UNAVAILABLE,
             Generic(Forbidden) => StatusCode::FORBIDDEN,
             Generic(MethodNotAllowed) => StatusCode::METHOD_NOT_ALLOWED,
             Generic(BadRequest) => StatusCode::BAD_REQUEST,
@@ -118,6 +120,21 @@ impl From<sqlx::Error> for Problem {
     }
 }
 
+impl From<deadpool_diesel::PoolError> for Problem {
+    fn from(pool_error: deadpool_diesel::PoolError) -> Problem {
+        match pool_error {
+            deadpool_diesel::PoolError::Timeout(_) => SERVICE_UNAVAILABLE,
+            _ => INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
+impl From<deadpool_diesel::InteractError> for Problem {
+    fn from(_: deadpool_diesel::InteractError) -> Problem {
+        INTERNAL_SERVER_ERROR
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 // Note: this attribute is a bit hacky, as DescriptiveProblem also defines a title field. But it
 // works as expected (i.e., when Serde serializes a DescriptiveProblem with its title field set to
@@ -133,6 +150,9 @@ pub enum GenericProblem {
 
     #[serde(rename = "Internal Server Error")]
     InternalServerError,
+
+    #[serde(rename = "Service Unavailable")]
+    ServiceUnavailable,
 
     #[serde(rename = "Forbidden")]
     Forbidden,

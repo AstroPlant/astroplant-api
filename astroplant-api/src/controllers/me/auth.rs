@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 use astroplant_auth::{hash, token};
 
 use crate::database::PgPool;
+use crate::models;
 use crate::problem::{self, Problem};
 use crate::response::{Response, ResponseBuilder};
-use crate::{helpers, models};
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -27,13 +27,15 @@ pub async fn authenticate_by_credentials(
         access_token: String,
     }
 
-    let mut conn = pg.get().await?;
+    let conn = pg.get().await?;
 
-    let (user, password) = helpers::threadpool(move || {
-        let user_by_username = models::User::by_username(&mut conn, &authentication_details.username)?;
-        Ok::<_, Problem>((user_by_username, authentication_details.0.password))
-    })
-    .await?;
+    let (user, password) = conn
+        .interact_flatten_err(move |conn| {
+            let user_by_username =
+                models::User::by_username(conn, &authentication_details.username)?;
+            Ok::<_, Problem>((user_by_username, authentication_details.0.password))
+        })
+        .await?;
 
     match user {
         Some(user) => {

@@ -7,7 +7,7 @@ use validator::Validate;
 use crate::database::PgPool;
 use crate::problem::{self, AppResult, Problem};
 use crate::response::{Response, ResponseBuilder};
-use crate::{authorization, helpers, models, views};
+use crate::{authorization, models, views};
 
 fn check_configuration(
     configuration: &serde_json::Value,
@@ -86,27 +86,28 @@ pub async fn add_peripheral_to_configuration(
         return Err(invalid_parameters.into_problem());
     }
 
-    let mut conn = pg.get().await?;
-    let created_peripheral = helpers::threadpool(move || {
-        conn.transaction(|conn| {
-            let definition =
-                match models::PeripheralDefinition::by_id(conn, peripheral_definition_id)
-                    .optional()?
-                {
-                    Some(definition) => definition,
-                    None => {
-                        return Err(problem::InvalidParameterReason::NotFound
-                            .singleton("peripheralDefinitionId")
-                            .into_problem())
-                    }
-                };
+    let conn = pg.get().await?;
+    let created_peripheral = conn
+        .interact_flatten_err(move |conn| {
+            conn.transaction(|conn| {
+                let definition =
+                    match models::PeripheralDefinition::by_id(conn, peripheral_definition_id)
+                        .optional()?
+                    {
+                        Some(definition) => definition,
+                        None => {
+                            return Err(problem::InvalidParameterReason::NotFound
+                                .singleton("peripheralDefinitionId")
+                                .into_problem())
+                        }
+                    };
 
-            check_configuration(&new_peripheral.configuration, &definition)?;
+                check_configuration(&new_peripheral.configuration, &definition)?;
 
-            Ok(new_peripheral.create(conn)?)
+                Ok(new_peripheral.create(conn)?)
+            })
         })
-    })
-    .await?;
+        .await?;
     Ok(ResponseBuilder::ok().body(views::Peripheral::from(created_peripheral)))
 }
 
@@ -156,29 +157,30 @@ pub async fn patch_peripheral(
         return Err(invalid_parameters.into_problem());
     }
 
-    let mut conn = pg.get().await?;
-    let updated_peripheral = helpers::threadpool(move || {
-        conn.transaction(|conn| {
-            let definition = match models::PeripheralDefinition::by_id(
-                conn,
-                peripheral.peripheral_definition_id,
-            )
-            .optional()?
-            {
-                Some(definition) => definition,
-                None => return Err(problem::INTERNAL_SERVER_ERROR),
-            };
+    let conn = pg.get().await?;
+    let updated_peripheral = conn
+        .interact_flatten_err(move |conn| {
+            conn.transaction(|conn| {
+                let definition = match models::PeripheralDefinition::by_id(
+                    conn,
+                    peripheral.peripheral_definition_id,
+                )
+                .optional()?
+                {
+                    Some(definition) => definition,
+                    None => return Err(problem::INTERNAL_SERVER_ERROR),
+                };
 
-            if let Some(configuration) = patched_peripheral.configuration.as_ref() {
-                if let Err(problem) = check_configuration(configuration, &definition) {
-                    return Err(problem);
+                if let Some(configuration) = patched_peripheral.configuration.as_ref() {
+                    if let Err(problem) = check_configuration(configuration, &definition) {
+                        return Err(problem);
+                    }
                 }
-            }
 
-            Ok(patched_peripheral.update(conn)?)
+                Ok(patched_peripheral.update(conn)?)
+            })
         })
-    })
-    .await?;
+        .await?;
     Ok(ResponseBuilder::ok().body(views::Peripheral::from(updated_peripheral)))
 }
 
@@ -207,10 +209,10 @@ pub async fn delete_peripheral(
             .into_problem());
     }
 
-    let mut conn = pg.get().await?;
-    helpers::threadpool(move || {
-        peripheral.delete(&mut conn)?;
+    let conn = pg.get().await?;
+    conn.interact(move |conn| {
+        peripheral.delete(conn)?;
         Ok(ResponseBuilder::ok().empty())
     })
-    .await
+    .await?
 }

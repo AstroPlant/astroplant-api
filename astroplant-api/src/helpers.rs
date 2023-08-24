@@ -1,5 +1,3 @@
-use futures::future::TryFutureExt;
-
 use crate::authorization::{KitUser, Permission};
 use crate::database::PgPool;
 use crate::problem::{Problem, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND};
@@ -79,8 +77,8 @@ pub async fn fut_kit_permission_or_forbidden<'a>(
 > {
     use diesel::Connection;
 
-    let mut conn = pg.get().await?;
-    threadpool(move || {
+    let conn = pg.get().await?;
+    conn.interact(move |conn| {
         conn.transaction(|conn| {
             let user = if let Some(user_id) = user_id {
                 match crate::models::User::by_id(conn, user_id)? {
@@ -106,8 +104,9 @@ pub async fn fut_kit_permission_or_forbidden<'a>(
             Ok(Some((user, membership, kit)))
         })
     })
-    .and_then(|v| async { some_or_not_found(v) })
-    .and_then(|(user, membership, kit)| async move {
+    .await?
+    .and_then(some_or_not_found)
+    .and_then(|(user, membership, kit)| {
         // TODO clone should not be necessary.
         let kit_user = match (user.clone(), membership.clone()) {
             (None, _) => KitUser::Anonymous,
@@ -116,7 +115,6 @@ pub async fn fut_kit_permission_or_forbidden<'a>(
         };
         permission_or_forbidden(&kit_user, &kit, action).map(|_| (user, membership, kit))
     })
-    .await
 }
 
 /**
@@ -136,8 +134,8 @@ pub async fn fut_user_permission_or_forbidden(
 ) -> Result<(Option<crate::models::User>, crate::models::User), Problem> {
     use diesel::Connection;
 
-    let mut conn = pg.get().await?;
-    threadpool(move || {
+    let conn = pg.get().await?;
+    conn.interact(move |conn| {
         conn.transaction(|conn| {
             let actor_user = if let Some(actor_user_id) = actor_user_id {
                 match crate::models::User::by_id(conn, actor_user_id)? {
@@ -157,12 +155,12 @@ pub async fn fut_user_permission_or_forbidden(
             Ok(Some((actor_user, object_user)))
         })
     })
-    .and_then(|v| async { some_or_not_found(v) })
-    .and_then(|(target_user, object_user)| async move {
+    .await?
+    .and_then(some_or_not_found)
+    .and_then(|(target_user, object_user)| {
         permission_or_forbidden(&target_user, &object_user, action)
             .map(|_| (target_user, object_user))
     })
-    .await
 }
 
 #[allow(dead_code)]

@@ -18,7 +18,7 @@ use astroplant_api::{
     },
     database, helpers, init_token_signer, models, mqtt,
     problem::{GenericProblem, Problem},
-    response, DEFAULT_DATABASE_URL, DEFAULT_S3_ENDPOINT, DEFAULT_S3_REGION,
+    response, DEFAULT_S3_ENDPOINT, DEFAULT_S3_REGION,
 };
 
 #[tokio::main]
@@ -29,13 +29,8 @@ async fn main() -> anyhow::Result<()> {
 
     // FIXME: SQLx was added async streaming support, so currently we're using two SQL engines. It
     // would be a good idea to choose one.
-    let database_url = std::env::var("DATABASE_URL").unwrap_or(DEFAULT_DATABASE_URL.to_owned());
-    let pg = database::PgPool::new(&database_url, std::time::Duration::from_secs(5));
-
-    let sqlx_pg = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
-        .await?;
+    let pg = database::PgPool::new(std::time::Duration::from_secs(5));
+    let sqlx_pg = database::new_sqlx_pool().await?;
 
     let object_store = astroplant_object::ObjectStore::s3(
         std::env::var("AWS_S3_REGION").unwrap_or(DEFAULT_S3_REGION.to_owned()),

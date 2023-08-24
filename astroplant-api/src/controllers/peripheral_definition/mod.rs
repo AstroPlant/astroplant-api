@@ -4,7 +4,7 @@ use serde::Deserialize;
 use crate::database::PgPool;
 use crate::problem::Problem;
 use crate::response::{Response, ResponseBuilder};
-use crate::{helpers, models, views};
+use crate::{models, views};
 
 fn def_false() -> bool {
     false
@@ -28,13 +28,13 @@ async fn get_definitions_and_expected_quantity_types(
     ),
     Problem,
 > {
-    let mut conn = pg.get().await?;
-    helpers::threadpool_result(move || {
-        models::PeripheralDefinition::cursor_page(&mut conn, query_params.after, 2).and_then(
+    let conn = pg.get().await?;
+    conn.interact_flatten_err(move |conn| {
+        models::PeripheralDefinition::cursor_page(conn, query_params.after, 2).and_then(
             |definitions| {
                 if query_params.with_expected_quantity_types {
                     models::PeripheralDefinitionExpectedQuantityType::of_peripheral_definitions(
-                        &mut conn,
+                        conn,
                         &definitions,
                     )
                     .map(|quantity_types| (definitions, Some(quantity_types)))

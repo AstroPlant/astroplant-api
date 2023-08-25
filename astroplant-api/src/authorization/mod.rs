@@ -8,6 +8,32 @@ pub trait Permission {
     fn permitted(self, actor: &Self::Actor, object: &Self::Object) -> bool;
 }
 
+// Perhaps an "evidence" based permission system could work (with fewer chances for bugs).
+// Helps prevent boolean blindness, but boilerplate-y to implement.
+//
+// ```
+// pub trait Permission_<Subject, Object> {
+//     type Evidence<'obj>;
+//
+//     /// If the subject is permitted to act on the object, a value of a type enabling that
+//     /// behavior is returned.
+//     fn permitted<'obj>(
+//         self,
+//         subject: &Subject,
+//         object: &'obj mut Object,
+//     ) -> Result<Self::Evidence<'obj>, ()>;
+// }
+//
+// mod kit_actions {
+//     pub(crate) struct ResetPassword;
+// }
+//
+// impl Permission_<KitUser, Kit> for kit_actions::ResetPassword {
+//     type Evidence<'obj> = KitResetPasswordHandle<'obj>;
+//     // ...
+// }
+// ```
+
 #[derive(Serialize, Copy, Clone, Debug, EnumIter)]
 #[serde(rename_all = "camelCase")]
 pub enum KitAction {

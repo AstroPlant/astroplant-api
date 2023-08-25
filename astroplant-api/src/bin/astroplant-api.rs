@@ -23,7 +23,7 @@ use astroplant_api::{
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
+    astroplant_api::utils::tracing::init();
 
     init_token_signer();
 

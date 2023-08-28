@@ -1,13 +1,15 @@
 use clap::Parser;
 
 use astroplant_api::admin::{
-    self, insert_astroplant_definitions::ExistingPeripheralDefinitionStrategy,
+    self, insert_astroplant_definitions::ExistingPeripheralDefinitionStrategy, migrate,
 };
 
 /// AstroPlant backend administration tools.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 enum Command {
+    /// Migrate the database schema
+    Migrate,
     /// Insert the AstroPlant-specific data definitions into the database. This includes quantity
     /// types and peripheral definitions.
     InsertAstroplantDefinitions(InsertAstroplantDefinitionsOpts),
@@ -32,6 +34,9 @@ fn main() -> anyhow::Result<()> {
     tracing::debug!("Connected to database");
 
     match command {
+        Command::Migrate => {
+            migrate::run(&mut conn)?;
+        }
         Command::InsertAstroplantDefinitions(opts) => {
             let existing_peripheral_definition_strategy =
                 if opts.update_existing_peripheral_definitions {

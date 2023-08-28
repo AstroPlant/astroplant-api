@@ -13,7 +13,9 @@ pub use kit_configuration::{
 };
 
 mod peripheral_definition;
-pub use peripheral_definition::{PeripheralDefinition, PeripheralDefinitionId};
+pub use peripheral_definition::{
+    NewPeripheralDefinition, PeripheralDefinition, PeripheralDefinitionId,
+};
 
 mod quantity_type;
 pub use quantity_type::{QuantityType, QuantityTypeId};

@@ -6,6 +6,8 @@ extern crate strum_macros;
 
 use once_cell::sync::OnceCell;
 
+pub mod admin;
+
 pub mod cursors;
 pub mod database;
 pub mod extract;

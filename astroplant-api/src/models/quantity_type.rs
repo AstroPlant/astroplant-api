@@ -8,7 +8,7 @@ use diesel::{Identifiable, QueryResult, Queryable};
 #[diesel(table_name = quantity_types)]
 pub struct QuantityTypeId(#[diesel(column_name = id)] pub i32);
 
-#[derive(Clone, Debug, PartialEq, Queryable, Identifiable)]
+#[derive(Clone, Debug, PartialEq, Queryable, Identifiable, Selectable)]
 #[diesel(table_name = quantity_types)]
 pub struct QuantityType {
     pub id: i32,

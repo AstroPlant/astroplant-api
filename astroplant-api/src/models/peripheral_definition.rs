@@ -4,7 +4,7 @@ use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::{Identifiable, QueryResult, Queryable};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable, Queryable)]
 #[diesel(table_name = peripheral_definitions)]
 pub struct PeripheralDefinitionId(#[diesel(column_name = id)] pub i32);
 
@@ -12,6 +12,19 @@ pub struct PeripheralDefinitionId(#[diesel(column_name = id)] pub i32);
 #[diesel(table_name = peripheral_definitions)]
 pub struct PeripheralDefinition {
     pub id: i32,
+    pub name: String,
+    pub description: Option<String>,
+    pub brand: Option<String>,
+    pub model: Option<String>,
+    pub symbol_location: String,
+    pub symbol: String,
+    pub configuration_schema: serde_json::Value,
+    pub command_schema: Option<serde_json::Value>,
+}
+
+#[derive(Clone, Debug, PartialEq, Insertable, AsChangeset)]
+#[diesel(table_name = peripheral_definitions)]
+pub struct NewPeripheralDefinition {
     pub name: String,
     pub description: Option<String>,
     pub brand: Option<String>,

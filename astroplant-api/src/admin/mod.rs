@@ -1,0 +1,3 @@
+pub mod insert_astroplant_definitions;
+
+pub use insert_astroplant_definitions::insert_astroplant_definitions;

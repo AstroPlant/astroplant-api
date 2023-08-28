@@ -68,7 +68,7 @@ pub async fn reset_password(
     .await?;
     let conn = pg.get().await?;
     let password = conn
-        .interact(move |conn| {
+        .interact_flatten_err(move |conn| {
             let (update_kit, password) =
                 models::UpdateKit::unchanged_for_id(kit.id).reset_password();
             update_kit.update(conn)?;

@@ -12,6 +12,7 @@ COPY astroplant-mqtt ./astroplant-mqtt
 COPY astroplant-mqtt-ingest ./astroplant-mqtt-ingest
 COPY astroplant-object ./astroplant-object
 COPY astroplant-websocket ./astroplant-websocket
+COPY migrations ./migrations
 COPY random-string ./random-string
 
 RUN cargo build --release --package astroplant-api

@@ -13,7 +13,7 @@ astroplant-object = { path = "../astroplant-object" }
 astroplant-websocket = { path = "../astroplant-websocket" }
 async-trait = "0.1"
 axum = { version = "0.5", features = ["headers", "ws"] }
-bigdecimal = "0.3.1"
+bigdecimal = "0.4.0"
 bytes = "1"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version ="4.3", features = ["derive"] }

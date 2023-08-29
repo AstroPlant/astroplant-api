@@ -10,9 +10,9 @@ chrono = "0.4"
 futures = "0.3"
 serde_json = "1.0"
 tokio = { version = "1.0", features = [] }
-tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-uuid-0_8", "with-chrono-0_4"] }
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-uuid-1", "with-chrono-0_4"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-uuid = "0.8"
+uuid = "1.4"
 
 astroplant-mqtt = { path = "../astroplant-mqtt" }

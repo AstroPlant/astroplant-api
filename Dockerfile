@@ -22,6 +22,7 @@ FROM debian:bullseye-slim
 
 RUN apt-get update && apt-get install libpq5 -y
 COPY --from=builder /usr/src/astroplant-api/target/release/astroplant-api /usr/local/bin/astroplant-api
+COPY --from=builder /usr/src/astroplant-api/target/release/astroplant-admin /usr/local/bin/astroplant-admin
 COPY --from=builder /usr/src/astroplant-api/target/release/astroplant-mqtt-ingest /usr/local/bin/astroplant-mqtt-ingest
 RUN head -n 256 /dev/urandom > /token_signer.key
 

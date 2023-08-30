@@ -16,8 +16,7 @@ axum = { version = "0.5", features = ["headers", "ws"] }
 bigdecimal = "0.4.0"
 bytes = "1"
 chrono = { version = "0.4", features = ["serde"] }
-# Support rustc 1.69
-clap = { version ="4.3.24, <4.4", features = ["derive"] }
+clap = { version ="4.3", features = ["derive"] }
 deadpool-diesel = { version = "0.4.1", features = ["postgres"] }
 diesel = { version = "2.1.0", features = ["postgres", "numeric", "chrono", "serde_json", "uuid"] }
 diesel_migrations = "2.1.0"

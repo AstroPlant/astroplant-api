@@ -1,0 +1,1 @@
+DROP TABLE queue_media_pending_deletion;

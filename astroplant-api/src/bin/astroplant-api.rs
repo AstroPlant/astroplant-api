@@ -86,6 +86,10 @@ async fn main() -> anyhow::Result<()> {
             "/kit-configurations/:kit_configuration_id/peripherals",
             post(kit_configuration::add_peripheral_to_configuration),
         )
+        .route(
+            "/kit-configurations/:kit_configuration_id",
+            delete(kit_configuration::delete_configuration),
+        )
         .nest(
             "/kit-rpc",
             Router::new()

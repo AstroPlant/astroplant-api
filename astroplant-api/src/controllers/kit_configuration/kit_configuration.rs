@@ -8,7 +8,7 @@ use crate::models::{Kit, KitConfigurationId, Peripheral};
 use crate::problem::{self, Problem};
 use crate::response::{Response, ResponseBuilder};
 use crate::utils::deserialize_some;
-use crate::{authorization, helpers, models, views};
+use crate::{authorization, helpers, models, schema, views};
 
 use super::get_models_from_kit_configuration_id;
 
@@ -242,4 +242,59 @@ pub async fn patch_configuration(
         .await?;
 
     Ok(ResponseBuilder::ok().body(views::KitConfiguration::from(patched_configuration)))
+}
+
+/// Handles the `DELETE /kit-configurations/{kitConfigurationId}` route.
+///
+/// All peripherals, raw measurements, and aggregate measurements belonging to this configuration
+/// are deleted. Media belonging to this configuration are orphaned and placed in the
+/// media-pending-deletion queue.
+pub async fn delete_configuration(
+    Extension(pg): Extension<PgPool>,
+    user_id: Option<models::UserId>,
+    Path(kit_configuration_id): Path<i32>,
+) -> Result<Response, Problem> {
+    let kit_configuration_id = models::KitConfigurationId(kit_configuration_id);
+
+    let (kit, _kit_configuration) =
+        super::get_models_from_kit_configuration_id(pg.clone(), kit_configuration_id).await?;
+    super::authorize(
+        pg.clone(),
+        user_id,
+        &kit,
+        authorization::KitAction::EditConfiguration,
+    )
+    .await?;
+
+    let conn = pg.get().await?;
+    conn.interact_flatten_err(move |conn| {
+        use diesel::prelude::*;
+        use schema::media;
+        use schema::queue_media_pending_deletion;
+
+        conn.transaction(|conn| {
+            let selected_media =
+                media::dsl::media.filter(media::kit_configuration_id.eq(kit_configuration_id.0));
+
+            // 1. Move media belonging to this configuration to pending deletion queue.
+            selected_media
+                .select((media::id, media::datetime, media::size))
+                .insert_into(queue_media_pending_deletion::table)
+                .into_columns((
+                    queue_media_pending_deletion::media_id,
+                    queue_media_pending_deletion::media_datetime,
+                    queue_media_pending_deletion::media_size,
+                ))
+                .execute(conn)?;
+
+            // 2. Delete this media from the media table.
+            diesel::delete(selected_media).execute(conn)?;
+
+            // 3. And finally delete the configuration itself.
+            kit_configuration_id.delete(conn)
+        })?;
+
+        Ok::<_, Problem>(ResponseBuilder::ok().empty())
+    })
+    .await
 }

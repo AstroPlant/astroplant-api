@@ -11,6 +11,12 @@ use super::{Kit, KitId};
 #[diesel(table_name = kit_configurations)]
 pub struct KitConfigurationId(#[diesel(column_name = id)] pub i32);
 
+impl KitConfigurationId {
+    pub fn delete(&self, conn: &mut PgConnection) -> QueryResult<bool> {
+        diesel::delete(self).execute(conn).map(|r| r > 0)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Queryable, Identifiable, Associations)]
 #[diesel(
     table_name = kit_configurations,

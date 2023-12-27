@@ -2,7 +2,7 @@ mod kit_configuration;
 mod peripheral;
 
 pub use kit_configuration::{
-    configurations_by_kit_serial, create_configuration, patch_configuration,
+    configurations_by_kit_serial, create_configuration, delete_configuration, patch_configuration,
 };
 pub use peripheral::{add_peripheral_to_configuration, delete_peripheral, patch_peripheral};
 

@@ -1,5 +1,5 @@
 { rustPlatform
-, pkgconfig
+, pkg-config
 , capnproto
 , openssl
 , postgresql
@@ -13,7 +13,7 @@ rustPlatform.buildRustPackage rec {
   cargoLock = { lockFile = ../Cargo.lock; };
 
   depsBuildBuild = [ capnproto ];
-  nativeBuildInputs = [ pkgconfig ];
+  nativeBuildInputs = [ pkg-config ];
   buildInputs = [
     openssl
     postgresql

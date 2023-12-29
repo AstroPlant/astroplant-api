@@ -200,7 +200,7 @@ paths:
             schema:
               $ref: "#/components/schemas/PatchKit"
       responses:
-        '201':
+        '200':
           description: The patched kit.
           content:
             application/json:
@@ -848,7 +848,7 @@ paths:
             schema:
               $ref: "#/components/schemas/PatchKitConfiguration"
       responses:
-        '201':
+        '200':
           description: The patched kit configuration.
           content:
             application/json:

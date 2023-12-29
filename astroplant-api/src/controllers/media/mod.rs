@@ -71,6 +71,7 @@ pub async fn kit_media(
 }
 
 /// Handles the `GET` /media/{mediaId}/content` route.
+/// Handles the `GET /media/{mediaId}/content` route.
 pub async fn download_media(
     Extension(pg): Extension<PgPool>,
     Extension(object_store): Extension<astroplant_object::ObjectStore>,

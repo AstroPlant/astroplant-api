@@ -6,7 +6,7 @@ use crate::database::PgPool;
 use crate::problem::{self, Problem};
 use crate::response::{Response, ResponseBuilder};
 use crate::utils::deserialize_some;
-use crate::{helpers, models, views};
+use crate::{helpers, models, schema, views};
 
 mod archive;
 pub use archive::{archive, archive_authorize};
@@ -192,4 +192,56 @@ pub async fn patch_kit(
         Ok(ResponseBuilder::ok().body(views::Kit::from(patched_kit)))
     })
     .await?
+}
+
+/// Handles the `DELETE /kits/{kitSerial}` route.
+///
+/// All configurations, peripherals, raw measurements, and aggregate measurements belonging to this
+/// kit are deleted. Media belonging to this kit are orphaned and placed in the
+/// media-pending-deletion queue.
+pub async fn delete_kit(
+    Extension(pg): Extension<PgPool>,
+    Path(kit_serial): Path<String>,
+    user_id: Option<models::UserId>,
+) -> Result<Response, Problem> {
+    let (_, _, kit) = helpers::fut_kit_permission_or_forbidden(
+        pg.clone(),
+        user_id,
+        kit_serial,
+        crate::authorization::KitAction::Delete,
+    )
+    .await?;
+
+    let conn = pg.get().await?;
+    conn.interact_flatten_err(move |conn| {
+        use diesel::prelude::*;
+        use schema::media;
+        use schema::queue_media_pending_deletion;
+
+        conn.transaction(|conn| {
+            let selected_media = media::dsl::media.filter(media::kit_id.eq(kit.id));
+
+            // 1. Move media belonging to this kit to the pending deletion queue.
+            selected_media
+                .select((media::id, media::datetime, media::size))
+                .insert_into(queue_media_pending_deletion::table)
+                .into_columns((
+                    queue_media_pending_deletion::media_id,
+                    queue_media_pending_deletion::media_datetime,
+                    queue_media_pending_deletion::media_size,
+                ))
+                .execute(conn)?;
+
+            // 2. Delete this media from the media table.
+            diesel::delete(selected_media).execute(conn)?;
+
+            // 3. And finally delete the kit itself.
+            diesel::delete(&kit).execute(conn)?;
+
+            Ok::<_, diesel::result::Error>(())
+        })?;
+
+        Ok::<_, Problem>(ResponseBuilder::ok().empty())
+    })
+    .await
 }

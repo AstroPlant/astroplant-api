@@ -39,6 +39,7 @@ pub trait Permission {
 pub enum KitAction {
     View,
     SubscribeRealTimeMeasurements,
+    Delete,
     ResetPassword,
     EditDetails,
     EditConfiguration,
@@ -71,7 +72,7 @@ impl Permission for KitAction {
             UserWithMembership(_user, membership) => match self {
                 View | SubscribeRealTimeMeasurements => true,
                 EditDetails | EditConfiguration => membership.access_configure,
-                ResetPassword | EditMembers | SetSuperMember => membership.access_super,
+                Delete | ResetPassword | EditMembers | SetSuperMember => membership.access_super,
                 RpcVersion | RpcUptime | RpcPeripheralCommand | RpcPeripheralCommandLock => {
                     membership.access_super
                 }

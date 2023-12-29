@@ -61,8 +61,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/kits", get(kit::kits))
         .route("/kits", post(kit::create_kit))
         .route("/kits/:kit_serial", get(kit::kit_by_serial))
-        .route("/kits/:kit_serial/password", post(kit::reset_password))
         .route("/kits/:kit_serial", patch(kit::patch_kit))
+        .route("/kits/:kit_serial", delete(kit::delete_kit))
+        .route("/kits/:kit_serial/password", post(kit::reset_password))
         .route(
             "/kits/:kit_serial/configurations",
             get(kit_configuration::configurations_by_kit_serial),

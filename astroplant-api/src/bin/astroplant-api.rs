@@ -58,6 +58,7 @@ async fn main() -> anyhow::Result<()> {
             "/media/:media_id/content",
             get(media::download_media).layer(Extension(object_store)),
         )
+        .route("/media/:media_id", delete(media::delete_media))
         .route("/kits", get(kit::kits))
         .route("/kits", post(kit::create_kit))
         .route("/kits/:kit_serial", get(kit::kit_by_serial))

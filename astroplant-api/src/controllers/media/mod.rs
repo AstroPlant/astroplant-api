@@ -70,7 +70,72 @@ pub async fn kit_media(
     Ok(response.body(body))
 }
 
-/// Handles the `GET` /media/{mediaId}/content` route.
+/// Handles the `DELETE /media/{mediaId}` route.
+pub async fn delete_media(
+    Extension(pg): Extension<PgPool>,
+    user_id: Option<models::UserId>,
+    Path(media_id): Path<Uuid>,
+) -> Result<Response, Problem> {
+    use crate::schema::media;
+    use diesel::prelude::*;
+    let media_id = models::MediaId(media_id);
+
+    // Check user authorization and make sure the configuration has never been activated.
+    let conn = pg.clone().get().await?;
+
+    {
+        let kit = conn
+            .interact_flatten_err(move |conn| {
+                let kit = media::table
+                    .inner_join(crate::schema::kits::table)
+                    .filter(crate::schema::media::id.eq(media_id.id()))
+                    .select(crate::models::Kit::as_select())
+                    .first(conn)
+                    .optional()?
+                    .ok_or(NOT_FOUND)?;
+
+                Ok::<_, Problem>(kit)
+            })
+            .await?;
+
+        // FIXME: this unnecessarily queries for the kit: we already have it.
+        helpers::fut_kit_permission_or_forbidden(
+            pg,
+            user_id,
+            kit.serial.to_owned(),
+            authorization::KitAction::DeleteMedia,
+        )
+        .await?;
+    }
+
+    conn.interact_flatten_err(move |conn| {
+        use crate::schema::queue_media_pending_deletion;
+
+        conn.transaction(|conn| {
+            let selected_media = media::dsl::media.find(media_id.id());
+
+            // 1. Add this media to the pending deletion queue.
+            selected_media
+                .select((media::id, media::datetime, media::size))
+                .insert_into(queue_media_pending_deletion::table)
+                .into_columns((
+                    queue_media_pending_deletion::media_id,
+                    queue_media_pending_deletion::media_datetime,
+                    queue_media_pending_deletion::media_size,
+                ))
+                .execute(conn)?;
+
+            // 2. Delete this media from the media table.
+            diesel::delete(selected_media).execute(conn)?;
+
+            Ok::<_, diesel::result::Error>(())
+        })?;
+
+        Ok::<_, Problem>(ResponseBuilder::ok().empty())
+    })
+    .await
+}
+
 /// Handles the `GET /media/{mediaId}/content` route.
 pub async fn download_media(
     Extension(pg): Extension<PgPool>,

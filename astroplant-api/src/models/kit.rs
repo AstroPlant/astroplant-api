@@ -3,14 +3,14 @@ use crate::schema::kits;
 use bigdecimal::BigDecimal;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
-use diesel::{Identifiable, QueryResult, Queryable};
+use diesel::{Identifiable, QueryResult, Queryable, Selectable};
 use validator::Validate;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Identifiable)]
 #[diesel(table_name = kits)]
 pub struct KitId(#[diesel(column_name = id)] pub i32);
 
-#[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable)]
+#[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable, Selectable)]
 #[diesel(table_name = kits)]
 pub struct Kit {
     pub id: i32,

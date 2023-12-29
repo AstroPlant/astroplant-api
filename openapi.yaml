@@ -959,6 +959,33 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+  "/media/{mediaId}":
+    delete:
+      summary: Delete media.
+      operationId: deleteMedia
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: mediaId
+          in: path
+          required: true
+          description: The id of the media to delete.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The media was successfully deleted.
+          content:
+            "*": {}
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
   "/media/{mediaId}/content":
     get:
       summary: Download media content.

@@ -640,6 +640,40 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+    patch:
+      summary: Patch the user's details.
+      operationId: patchUserByUsername
+      security:
+        - bearerAuth: []
+      tags:
+        - users
+      parameters:
+        - name: username
+          in: path
+          required: true
+          description: The username of the user to patch the details of.
+          schema:
+            type: string
+      requestBody:
+        description: The user patch.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchUser"
+      responses:
+        '200':
+          description: User details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
   "/users/{username}/kit-memberships":
     get:
       summary: Get a user's kit memberships.
@@ -1268,6 +1302,15 @@ components:
         username: douglas
         password: hunter2
         emailAddress: d.adams@example.com
+    PatchUser:
+      type: object
+      properties:
+        displayName:
+          type: string
+        emailAddress:
+          type: string
+        useEmailAddressForGravatar:
+          type: boolean
     AuthUser:
       type: object
       required:

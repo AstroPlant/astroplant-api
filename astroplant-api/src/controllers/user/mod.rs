@@ -101,20 +101,18 @@ pub async fn list_kit_memberships(
     )
     .await?;
 
-    let username = user.username.clone();
+    let user_id = user.get_id();
     let conn = pg.get().await?;
     let kit_memberships = conn
-        .interact(move |conn| {
-            models::KitMembership::memberships_with_kit_of_user_id(conn, user.get_id())
-        })
+        .interact(move |conn| models::KitMembership::memberships_with_kit_of_user_id(conn, user_id))
         .await??;
 
-    let v: Vec<views::KitMembership<String, views::Kit>> = kit_memberships
+    let v: Vec<views::KitMembership<views::User, views::Kit>> = kit_memberships
         .into_iter()
         .map(|(kit, membership)| {
             views::KitMembership::from(membership)
                 .with_kit(views::Kit::from(kit))
-                .with_user(username.clone())
+                .with_user(views::User::from(user.clone()))
         })
         .collect();
     Ok(ResponseBuilder::ok().body(v))

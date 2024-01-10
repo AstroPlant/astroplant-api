@@ -243,6 +243,34 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+  "/kits/{kitSerial}/members":
+    get:
+      summary: Members of a specific kit.
+      operationId: getKitMembers
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: path
+          required: true
+          description: The serial of the kit to get the members of.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The kit's members.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KitMembership"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
   "/kits/{kitSerial}/aggregate-measurements":
     get:
       summary: Aggregate measurements made by a kit.
@@ -1274,7 +1302,7 @@ components:
           type: integer
           format: int32
         user:
-          type: string
+          $ref: "#/components/schemas/User"
         kit:
           $ref: "#/components/schemas/Kit"
         accessConfigure:

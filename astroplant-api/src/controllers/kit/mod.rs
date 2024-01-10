@@ -3,6 +3,7 @@ use axum::Extension;
 use serde::{Deserialize, Serialize};
 
 use crate::database::PgPool;
+use crate::models::{KitMembership, User};
 use crate::problem::{self, Problem};
 use crate::response::{Response, ResponseBuilder};
 use crate::utils::deserialize_some;
@@ -244,4 +245,46 @@ pub async fn delete_kit(
         Ok::<_, Problem>(ResponseBuilder::ok().empty())
     })
     .await
+}
+
+/// Handles the `GET /kits/{kitSerial}/members` route.
+pub async fn get_members(
+    Extension(pg): Extension<PgPool>,
+    Path(kit_serial): Path<String>,
+    user_id: Option<models::UserId>,
+) -> Result<Response, Problem> {
+    let (_, _, kit) = helpers::fut_kit_permission_or_forbidden(
+        pg.clone(),
+        user_id,
+        kit_serial,
+        crate::authorization::KitAction::View,
+    )
+    .await?;
+
+    let conn = pg.get().await?;
+
+    let kit_id = kit.id;
+    let members: Vec<(User, KitMembership)> = conn
+        .interact_flatten_err(move |conn| {
+            use diesel::prelude::*;
+            use schema::kit_memberships;
+            use schema::users;
+
+            users::table
+                .inner_join(kit_memberships::table)
+                .filter(kit_memberships::kit_id.eq(kit_id))
+                .get_results(conn)
+        })
+        .await?;
+
+    let v: Vec<_> = members
+        .into_iter()
+        .map(|(user, membership)| {
+            views::KitMembership::from(membership)
+                .with_kit(views::Kit::from(kit.clone()))
+                .with_user(views::User::from(user))
+        })
+        .collect();
+
+    Ok(ResponseBuilder::ok().body(v))
 }

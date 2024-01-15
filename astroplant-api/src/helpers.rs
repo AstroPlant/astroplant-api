@@ -90,7 +90,7 @@ pub async fn fut_kit_permission_or_forbidden<'a>(
                 None
             };
 
-            let kit = match crate::models::Kit::by_serial(conn, kit_serial)? {
+            let kit = match crate::models::Kit::by_serial(conn, &kit_serial)? {
                 Some(kit) => kit,
                 None => return Ok(None),
             };

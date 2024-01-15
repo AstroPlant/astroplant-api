@@ -268,7 +268,7 @@ pub async fn archive(
     let conn = pg.clone().get().await?;
     let s = token.kit_serial.clone();
     let kit = conn
-        .interact(move |conn| crate::models::Kit::by_serial(conn, s).ok().flatten())
+        .interact(move |conn| crate::models::Kit::by_serial(conn, &s).ok().flatten())
         .await?
         .ok_or(problem::NOT_FOUND)?;
 

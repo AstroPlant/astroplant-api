@@ -35,7 +35,7 @@ pub async fn user_kit_permissions(
                     None
                 };
 
-                let kit = models::Kit::by_serial(conn, kit_serial)?;
+                let kit = models::Kit::by_serial(conn, &kit_serial)?;
                 if kit.is_none() {
                     return Ok(None);
                 }

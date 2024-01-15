@@ -29,7 +29,7 @@ impl Kit {
         kits::table.find(id.0).first(conn).optional()
     }
 
-    pub fn by_serial(conn: &mut PgConnection, serial: String) -> QueryResult<Option<Kit>> {
+    pub fn by_serial(conn: &mut PgConnection, serial: &str) -> QueryResult<Option<Kit>> {
         kits::table
             .filter(kits::columns::serial.eq(serial))
             .first(conn)

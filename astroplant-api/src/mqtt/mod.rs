@@ -115,7 +115,7 @@ impl astroplant_mqtt::ServerRpcHandler for Handler_ {
         let configuration: Option<_> = conn
             .interact(move |conn| {
                 let kit =
-                    match models::Kit::by_serial(conn, kit_serial).map_err(|_| RpcError::Other)? {
+                    match models::Kit::by_serial(conn, &kit_serial).map_err(|_| RpcError::Other)? {
                         Some(kit) => kit,
                         None => return Ok(None),
                     };

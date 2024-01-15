@@ -62,7 +62,7 @@ where
  * given serial, the request is rejected with NOT_FOUND. If the request is *not* rejected, this
  * returns the fetched user, membership and kit.
  */
-pub async fn fut_kit_permission_or_forbidden<'a>(
+pub async fn fut_kit_permission_or_forbidden(
     pg: PgPool,
     user_id: Option<crate::models::UserId>,
     kit_serial: String,

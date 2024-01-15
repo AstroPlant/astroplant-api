@@ -108,7 +108,7 @@ pub async fn fut_kit_permission_or_forbidden<'a>(
     .and_then(some_or_not_found)
     .and_then(|(user, membership, kit)| {
         // First user and membership are packed into a KitUser (as that's what
-        // `permission_or_forbidden` expects), then its unpacked again.
+        // `permission_or_forbidden` expects), then it's unpacked again.
         //
         // Perhaps KitUser could have either owned or borrowed types.
         let kit_user = match (user, membership) {

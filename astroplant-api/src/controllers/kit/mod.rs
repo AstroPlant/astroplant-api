@@ -291,6 +291,51 @@ pub async fn get_members(
     Ok(ResponseBuilder::ok().body(v))
 }
 
+
+#[derive(Deserialize)]
+pub struct MemberSuggestions {
+    username: String,
+}
+
+/// Handles the `GET /kits/{kitSerial}/member-suggestions` route.
+pub async fn get_member_suggestions(
+    Extension(pg): Extension<PgPool>,
+    Path(kit_serial): Path<String>,
+    user_id: Option<models::UserId>,
+    query: crate::extract::Query<MemberSuggestions>,
+) -> Result<Response, Problem> {
+    // TODO: make suggestions smarter, e.g., by showing users higher in the results that are
+    // members of the querying user's other kits or members of kits of the current kit's members.
+
+    use diesel::prelude::*;
+    use schema::users;
+
+    let (_, _, _) = helpers::fut_kit_permission_or_forbidden(
+        pg.clone(),
+        user_id,
+        kit_serial,
+        crate::authorization::KitAction::EditMembers,
+    )
+    .await?;
+
+    let conn = pg.get().await?;
+
+    let users: Vec<User> = conn
+        .interact_flatten_err(move |conn| {
+            users::table
+                .filter(users::username.ilike(format!("%{}%", &query.username)))
+                .limit(20)
+                .get_results(conn)
+        })
+        .await?;
+    let users: Vec<views::User> = users
+        .into_iter()
+        .map(|user| views::User::from(user))
+        .collect();
+
+    Ok(ResponseBuilder::ok().body(users))
+}
+
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct KitMembershipPatch {

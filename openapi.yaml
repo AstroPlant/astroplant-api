@@ -271,6 +271,64 @@ paths:
           $ref: "#/components/responses/ErrorRateLimit"
         '500':
           $ref: "#/components/responses/ErrorInternalServer"
+  "/kit-memberships/{kitMembershipId}":
+    patch:
+      summary: Patch the kit membership.
+      operationId: patchKitMembership
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitMembershipId
+          in: path
+          required: true
+          description: The id of the kit membership to patch.
+          schema:
+            type: number
+      requestBody:
+        description: The kit membership patch.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KitMembershipPatch"
+      responses:
+        '200':
+          description: The updated kit membership.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KitMembership"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+    delete:
+      summary: Delete the kit membership.
+      operationId: deleteKitMembership
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitMembershipId
+          in: path
+          required: true
+          description: The id of the kit membership to delete.
+          schema:
+            type: number
+      responses:
+        '200':
+          description: The kit membership was successfully deleted.
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
   "/kits/{kitSerial}/aggregate-measurements":
     get:
       summary: Aggregate measurements made by a kit.
@@ -1312,6 +1370,13 @@ components:
         datetimeLinked:
           type: string
           format: "date-time"
+    PatchKitMembership:
+      type: object
+      properties:
+        accessConfigure:
+          type: boolean
+        accessSuper:
+          type: boolean
     NewUser:
       type: object
       required:

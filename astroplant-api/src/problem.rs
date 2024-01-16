@@ -53,6 +53,10 @@ pub enum Problem {
     #[serde(rename = "/probs/kit-rpc")]
     #[serde(rename_all = "camelCase")]
     KitRpc(KitRpcProblem),
+
+    #[serde(rename = "/probs/kits-require-one-super-member")]
+    #[serde(rename_all = "camelCase")]
+    KitsRequireOneSuperMember,
 }
 
 impl Problem {
@@ -73,6 +77,7 @@ impl Problem {
             InvalidJson { .. } => StatusCode::BAD_REQUEST,
             InvalidParameters { .. } => StatusCode::BAD_REQUEST,
             KitRpc(_) => StatusCode::BAD_GATEWAY,
+            KitsRequireOneSuperMember => StatusCode::BAD_REQUEST,
         }
     }
 }
@@ -239,6 +244,13 @@ impl<'a> From<&'a Problem> for DescriptiveProblem<'a> {
             KitRpc(_) => {
                 (
                     Some("There was an issue with the kit RPC response".to_owned()),
+                    None,
+                )
+            }
+
+            KitsRequireOneSuperMember => {
+                (
+                    Some("Kits must have at least one member with super access".to_owned()),
                     None,
                 )
             }

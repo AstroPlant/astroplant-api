@@ -1,3 +1,5 @@
+use diesel::PgConnection;
+
 use crate::authorization::{KitUser, Permission};
 use crate::database::PgPool;
 use crate::problem::{Problem, FORBIDDEN, INTERNAL_SERVER_ERROR, NOT_FOUND};
@@ -124,6 +126,47 @@ pub async fn fut_kit_permission_or_forbidden(
             };
             (user, membership, kit)
         })
+    })
+}
+
+pub fn kit_permission_or_forbidden(
+    conn: &mut PgConnection,
+    user_id: Option<crate::models::UserId>,
+    kit: &crate::models::Kit,
+    action: crate::authorization::KitAction,
+) -> Result<
+    (
+        Option<crate::models::User>,
+        Option<crate::models::KitMembership>,
+    ),
+    Problem,
+> {
+    let user = if let Some(user_id) = user_id {
+        Some(some_or_not_found(crate::models::User::by_id(
+            conn, user_id,
+        )?)?)
+    } else {
+        None
+    };
+
+    let membership = if let Some(user_id) = user_id {
+        crate::models::KitMembership::by_user_id_and_kit_id(conn, user_id, kit.get_id())?
+    } else {
+        None
+    };
+
+    let kit_user = match (user, membership) {
+        (None, _) => KitUser::Anonymous,
+        (Some(user), None) => KitUser::User(user),
+        (Some(user), Some(kit_membership)) => KitUser::UserWithMembership(user, kit_membership),
+    };
+    permission_or_forbidden(&kit_user, kit, action).map(move |_| {
+        let (user, membership) = match kit_user {
+            KitUser::Anonymous => (None, None),
+            KitUser::User(user) => (Some(user), None),
+            KitUser::UserWithMembership(user, membership) => (Some(user), Some(membership)),
+        };
+        (user, membership)
     })
 }
 

@@ -82,6 +82,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/kits/:kit_serial/archive", get(kit::archive))
         .route("/kits/:kit_serial/archive", post(kit::archive_authorize))
         .route(
+            "/kit-memberships/:kit_membership_id",
+            patch(kit::patch_kit_membership),
+        )
+        .route(
+            "/kit-memberships/:kit_membership_id",
+            delete(kit::delete_kit_membership),
+        )
+        .route(
             "/kit-configurations/:kit_configuration_id",
             patch(kit_configuration::patch_configuration),
         )

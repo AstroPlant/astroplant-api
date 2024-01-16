@@ -8,7 +8,7 @@ use diesel::{Identifiable, QueryResult, Queryable};
 use super::{Kit, KitId};
 use super::{User, UserId};
 
-#[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable, Associations)]
+#[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable, Associations, AsChangeset)]
 #[diesel(
     table_name = kit_memberships,
     belongs_to(User),

@@ -2,7 +2,9 @@ use axum::extract::Path;
 use axum::Extension;
 use serde::{Deserialize, Serialize};
 
+use crate::authorization::KitAction;
 use crate::database::PgPool;
+use crate::helpers::kit_permission_or_forbidden;
 use crate::models::{KitMembership, User};
 use crate::problem::{self, Problem};
 use crate::response::{Response, ResponseBuilder};
@@ -287,4 +289,133 @@ pub async fn get_members(
         .collect();
 
     Ok(ResponseBuilder::ok().body(v))
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct KitMembershipPatch {
+    access_configure: bool,
+    access_super: bool,
+}
+
+/// Handles the `PATCH /kit-memberships/{id}` route.
+pub async fn patch_kit_membership(
+    Extension(pg): Extension<PgPool>,
+    Path(kit_membership_id): Path<i32>,
+    user_id: Option<models::UserId>,
+    crate::extract::Json(kit_membership_patch): crate::extract::Json<KitMembershipPatch>,
+) -> Result<Response, Problem> {
+    let conn = pg.get().await?;
+
+    let updated_kit_membership = conn
+        .interact_flatten_err(move |conn| {
+            use diesel::prelude::*;
+            use schema::kit_memberships;
+            use schema::kits;
+
+            conn.build_transaction().serializable().run(move |conn| {
+                let kit_membership: KitMembership =
+                    kit_memberships::table.find(kit_membership_id).first(conn)?;
+                let kit = kits::table.find(kit_membership.kit_id).first(conn)?;
+
+                {
+                    let permission_action =
+                        if kit_membership.access_super != kit_membership_patch.access_super {
+                            KitAction::EditSuperMembers
+                        } else {
+                            KitAction::EditMembers
+                        };
+                    kit_permission_or_forbidden(conn, user_id, &kit, permission_action)?;
+                }
+
+                if kit_membership.access_super && !kit_membership_patch.access_super {
+                    // removing super access of a member, there must be at least one other member
+                    // with super access to allow this
+                    let members_with_super_access: i64 = kit_memberships::table
+                        .filter(kit_memberships::kit_id.eq(kit.id))
+                        .filter(kit_memberships::access_super.eq(true))
+                        .count()
+                        .get_result(conn)?;
+
+                    if members_with_super_access < 2 {
+                        return Err(Problem::KitsRequireOneSuperMember);
+                    }
+                }
+
+                let membership = {
+                    #[derive(Identifiable, AsChangeset)]
+                    #[diesel(
+                    table_name = kit_memberships,
+                )]
+                    pub struct UpdateKitMembership {
+                        id: i32,
+                        access_super: bool,
+                        access_configure: bool,
+                    }
+                    let update = UpdateKitMembership {
+                        id: kit_membership.id,
+                        access_super: kit_membership_patch.access_super,
+                        access_configure: kit_membership_patch.access_configure,
+                    };
+                    let membership: KitMembership = update.save_changes(conn)?;
+                    membership
+                };
+
+                Ok::<_, Problem>(membership)
+            })
+        })
+        .await?;
+
+    Ok(ResponseBuilder::ok().body(views::KitMembership::from(updated_kit_membership)))
+}
+
+/// Handles the `DELETE /kit-memberships/{id}` route.
+pub async fn delete_kit_membership(
+    Extension(pg): Extension<PgPool>,
+    Path(kit_membership_id): Path<i32>,
+    user_id: Option<models::UserId>,
+) -> Result<Response, Problem> {
+    let conn = pg.get().await?;
+
+    conn.interact_flatten_err(move |conn| {
+        use diesel::prelude::*;
+        use schema::kit_memberships;
+        use schema::kits;
+
+        conn.build_transaction().serializable().run(move |conn| {
+            let kit_membership: KitMembership =
+                kit_memberships::table.find(kit_membership_id).first(conn)?;
+            let kit = kits::table.find(kit_membership.kit_id).first(conn)?;
+
+            {
+                let permission_action = if kit_membership.access_super {
+                    KitAction::EditSuperMembers
+                } else {
+                    KitAction::EditMembers
+                };
+                kit_permission_or_forbidden(conn, user_id, &kit, permission_action)?;
+            }
+
+            if kit_membership.access_super {
+                // deleting a member with super access, there must be at least one other member
+                // with super access to allow this
+                let members_with_super_access: i64 = kit_memberships::table
+                    .filter(kit_memberships::kit_id.eq(kit.id))
+                    .filter(kit_memberships::access_super.eq(true))
+                    .count()
+                    .get_result(conn)?;
+
+                if members_with_super_access < 2 {
+                    return Err(Problem::KitsRequireOneSuperMember);
+                }
+            }
+
+            diesel::delete(&kit_membership).execute(conn)?;
+
+            Ok::<_, Problem>(())
+        })
+    })
+    .await?;
+
+    Ok(ResponseBuilder::ok().empty())
 }

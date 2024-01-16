@@ -264,6 +264,42 @@ paths:
           content:
             application/json:
               schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KitMembership"
+        '401':
+          $ref: "#/components/responses/ErrorUnauthorized"
+        '429':
+          $ref: "#/components/responses/ErrorRateLimit"
+        '500':
+          $ref: "#/components/responses/ErrorInternalServer"
+    post:
+      summary: Add a membership to a kit.
+      operationId: addKitMember
+      security:
+        - bearerAuth: []
+      tags:
+        - kits
+      parameters:
+        - name: kitSerial
+          in: path
+          required: true
+          description: The serial of the kit to add a membership to.
+          schema:
+            type: string
+      requestBody:
+        description: The membership to add.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewKitMembership"
+      responses:
+        '200':
+          description: The kit's members.
+          content:
+            application/json:
+              schema:
                 $ref: "#/components/schemas/KitMembership"
         '401':
           $ref: "#/components/responses/ErrorUnauthorized"
@@ -1406,6 +1442,19 @@ components:
         datetimeLinked:
           type: string
           format: "date-time"
+    NewKitMembership:
+      type: object
+      required:
+        - username
+        - accessConfigure
+        - accessSuper
+      properties:
+        username:
+          type: string
+        accessConfigure:
+          type: boolean
+        accessSuper:
+          type: boolean
     PatchKitMembership:
       type: object
       properties:

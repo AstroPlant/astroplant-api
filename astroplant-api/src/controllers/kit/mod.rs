@@ -1,5 +1,6 @@
 use axum::extract::Path;
 use axum::Extension;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::authorization::KitAction;
@@ -291,6 +292,90 @@ pub async fn get_members(
     Ok(ResponseBuilder::ok().body(v))
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddMember {
+    username: String,
+    access_configure: bool,
+    access_super: bool,
+}
+
+/// Handles the `POST /kits/{kitSerial}/members` route.
+pub async fn add_member(
+    Extension(pg): Extension<PgPool>,
+    Path(kit_serial): Path<String>,
+    user_id: Option<models::UserId>,
+    crate::extract::Json(member): crate::extract::Json<AddMember>,
+) -> Result<Response, Problem> {
+    let action = if member.access_super {
+        crate::authorization::KitAction::EditSuperMembers
+    } else {
+        crate::authorization::KitAction::EditMembers
+    };
+    let (_, _, kit) =
+        helpers::fut_kit_permission_or_forbidden(pg.clone(), user_id, kit_serial, action).await?;
+
+    let conn = pg.get().await?;
+
+    let kit_id = kit.id;
+    let membership = conn
+        .interact_flatten_err(move |conn| {
+            use diesel::prelude::*;
+            use schema::kit_memberships;
+            use schema::users;
+
+            conn.build_transaction().serializable().run(move |conn| {
+                let user: User = users::table
+                    .filter(users::username.eq(&member.username))
+                    .first(conn)?;
+
+                let existing_membership: Option<KitMembership> = kit_memberships::table
+                    .filter(kit_memberships::kit_id.eq(kit_id))
+                    .filter(kit_memberships::user_id.eq(user.id))
+                    .get_result(conn)
+                    .optional()?;
+
+                if let Some(existing_membership) = existing_membership {
+                    // This membership already exists, do nothing
+                    return Ok::<_, Problem>(
+                        views::KitMembership::from(existing_membership)
+                            .with_user(views::User::from(user))
+                            .with_kit(views::Kit::from(kit)),
+                    );
+                }
+
+                #[derive(Insertable)]
+                #[diesel(table_name = kit_memberships)]
+                struct NewKitMembership {
+                    user_id: i32,
+                    kit_id: i32,
+                    access_super: bool,
+                    access_configure: bool,
+                    datetime_linked: DateTime<Utc>,
+                }
+
+                let membership = NewKitMembership {
+                    user_id: user.id,
+                    kit_id,
+                    access_super: member.access_super,
+                    access_configure: member.access_configure,
+                    datetime_linked: Utc::now(),
+                };
+                let membership: KitMembership = membership
+                    .insert_into(kit_memberships::table)
+                    .get_result(conn)?;
+
+                Ok::<_, Problem>(
+                    views::KitMembership::from(membership)
+                        .with_user(views::User::from(user))
+                        .with_kit(views::Kit::from(kit)),
+                )
+            })
+        })
+        .await?;
+
+    Ok(ResponseBuilder::ok().body(membership))
+}
 
 #[derive(Deserialize)]
 pub struct MemberSuggestions {

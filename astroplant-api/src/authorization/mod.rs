@@ -98,12 +98,12 @@ impl Permission for UserAction {
 
     fn permitted(self, acting_user: &Option<User>, object_user: &User) -> bool {
         use UserAction::*;
-        match acting_user {
-            Some(acting_user) => acting_user == object_user,
-            None => match self {
-                View | ListKitMemberships => true,
-                EditDetails => false,
-            },
+        match self {
+            View | ListKitMemberships => true,
+            EditDetails => acting_user
+                .as_ref()
+                .map(|acting_user| acting_user == object_user)
+                .unwrap_or(false),
         }
     }
 }

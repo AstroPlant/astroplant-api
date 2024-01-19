@@ -72,7 +72,9 @@ impl Permission for KitAction {
             },
             UserWithMembership(_user, membership) => match self {
                 View | SubscribeRealTimeMeasurements => true,
-                EditDetails | EditConfiguration | DeleteMedia => membership.access_configure,
+                EditDetails | EditConfiguration | DeleteMedia => {
+                    membership.access_configure || membership.access_super
+                }
                 Delete | ResetPassword | EditMembers | EditSuperMembers => membership.access_super,
                 RpcVersion | RpcUptime | RpcPeripheralCommand | RpcPeripheralCommandLock => {
                     membership.access_super

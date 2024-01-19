@@ -101,6 +101,9 @@ pub async fn list_kit_memberships(
     )
     .await?;
 
+    // TODO: perhaps only return kits that we are allowed to view (i.e., those that have a public
+    // dashboard, or those that we are a member of)
+
     let user_id = user.get_id();
     let conn = pg.get().await?;
     let kit_memberships = conn

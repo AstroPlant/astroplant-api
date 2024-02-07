@@ -47,6 +47,7 @@ pub struct Peripheral {
 }
 
 /// Handles the `POST /kit-configurations/{kitConfigurationId}/peripherals` route.
+// TODO: ensure peripheral names are unique per configuration
 pub async fn add_peripheral_to_configuration(
     Extension(pg): Extension<PgPool>,
     user_id: Option<models::UserId>,

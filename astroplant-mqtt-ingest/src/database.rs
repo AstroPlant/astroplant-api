@@ -27,6 +27,7 @@ pub(crate) struct Db {
     get_config_and_kit: Statement,
     insert_raw_measurement: Statement,
     insert_aggregate_measurement: Statement,
+    upsert_kit_last_seen: Statement,
 }
 
 const GET_CONFIG_AND_KIT: &str = "
@@ -44,6 +45,13 @@ const INSERT_RAW_MEASUREMENT: &str = "
 const INSERT_AGGREGATE_MEASUREMENT: &str = "
     INSERT INTO aggregate_measurements (id, peripheral_id, kit_id, kit_configuration_id, quantity_type_id, datetime_start, datetime_end, values)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+";
+
+const UPSERT_KIT_LAST_SEEN: &str = "
+    INSERT INTO kit_last_seen (kit_id, datetime_last_seen)
+    VALUES ($1, NOW())
+    ON CONFLICT (kit_id) DO UPDATE
+      SET datetime_last_seen = EXCLUDED.datetime_last_seen
 ";
 
 impl Db {
@@ -83,12 +91,17 @@ impl Db {
             )
             .await?;
 
+        let upsert_kit_last_seen = client
+            .prepare_typed(UPSERT_KIT_LAST_SEEN, &[Type::INT4])
+            .await?;
+
         let db = Self {
             config_cache: RefCell::new(HashMap::new()),
             client,
             get_config_and_kit,
             insert_raw_measurement,
             insert_aggregate_measurement,
+            upsert_kit_last_seen,
         };
         Ok(db)
     }
@@ -171,6 +184,10 @@ impl Db {
             )
             .await?;
 
+        self.client
+            .query(&self.upsert_kit_last_seen, &[&config.kit_id])
+            .await?;
+
         tracing::trace!(
             "Inserted raw measurement {} of kit {} and peripheral {}",
             raw.id,
@@ -209,6 +226,10 @@ impl Db {
                     &serde_json::to_value(raw.values)?,
                 ],
             )
+            .await?;
+
+        self.client
+            .query(&self.upsert_kit_last_seen, &[&config.kit_id])
             .await?;
 
         tracing::trace!(

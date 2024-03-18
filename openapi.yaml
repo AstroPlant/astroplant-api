@@ -500,6 +500,8 @@ paths:
           in: query
           required: true
           description: A token given by a POST request to '/kits/{kitSerial}/archive' prior to this request.
+          schema:
+            type: string
         - name: configuration
           in: query
           required: false
@@ -635,6 +637,8 @@ paths:
             configuration of a kit other than specified in `kitSerial`, but the
             agent making the request must have View permission on the kit to
             clone from.
+          schema:
+            type: number
       requestBody:
         description: The configuration to create. If this is set, the `source`
           query parameter must not be set.

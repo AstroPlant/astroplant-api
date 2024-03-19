@@ -8,7 +8,9 @@ use diesel::{Identifiable, QueryResult, Queryable};
 use super::{Kit, KitId};
 use super::{User, UserId};
 
-#[derive(Clone, Debug, PartialEq, Eq, Queryable, Identifiable, Associations, AsChangeset)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Queryable, Identifiable, Associations, AsChangeset, Selectable,
+)]
 #[diesel(
     table_name = kit_memberships,
     belongs_to(User),
@@ -24,9 +26,25 @@ pub struct KitMembership {
     pub access_configure: bool,
 }
 
+pub type All = diesel::dsl::Select<
+    kit_memberships::table,
+    diesel::dsl::AsSelect<KitMembership, diesel::pg::Pg>,
+>;
+
+pub type WithUserId = diesel::dsl::Eq<kit_memberships::user_id, i32>;
+pub type ByUserId = diesel::dsl::Filter<All, WithUserId>;
+
 impl KitMembership {
-    pub fn memberships_of_kit(conn: &mut PgConnection, kit: &Kit) -> QueryResult<Vec<Self>> {
-        KitMembership::belonging_to(kit).load(conn)
+    pub fn all() -> All {
+        kit_memberships::table.select(KitMembership::as_select())
+    }
+
+    pub fn with_user_id(user_id: UserId) -> WithUserId {
+        kit_memberships::user_id.eq(user_id.0)
+    }
+
+    pub fn by_user_id(user_id: UserId) -> ByUserId {
+        Self::all().filter(Self::with_user_id(user_id))
     }
 
     pub fn memberships_of_user_id(
@@ -46,10 +64,6 @@ impl KitMembership {
             .inner_join(kit_memberships::table)
             .filter(kit_memberships::dsl::user_id.eq(user_id.0))
             .get_results(conn)
-    }
-
-    pub fn memberships_of_user(conn: &mut PgConnection, user: &User) -> QueryResult<Vec<Self>> {
-        KitMembership::belonging_to(user).load(conn)
     }
 
     pub fn by_user_id_and_kit_id(

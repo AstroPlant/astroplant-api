@@ -64,6 +64,12 @@ paths:
         - kits
       parameters:
         - in: query
+          name: lastSeenSince
+          schema:
+            type: string
+            format: date-time
+          description: Fetch all kits that have been seen after the given date and time.
+        - in: query
           name: after
           schema:
             type: integer
@@ -1376,6 +1382,9 @@ components:
           type: boolean
         privacyShowOnMap:
           type: boolean
+        lastSeen:
+          type: string
+          format: "date-time"
     PatchKit:
       type: object
       properties:

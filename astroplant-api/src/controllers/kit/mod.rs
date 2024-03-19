@@ -7,9 +7,10 @@ use serde::{Deserialize, Serialize};
 use crate::authorization::KitAction;
 use crate::database::PgPool;
 use crate::helpers::kit_permission_or_forbidden;
-use crate::models::{KitMembership, User};
+use crate::models::{Kit, KitMembership, User};
 use crate::problem::{self, Problem};
 use crate::response::{Response, ResponseBuilder};
+use crate::schema::kit_last_seen;
 use crate::utils::deserialize_some;
 use crate::{helpers, models, schema, views};
 
@@ -17,20 +18,49 @@ mod archive;
 pub use archive::{archive, archive_authorize};
 
 #[derive(Deserialize)]
-pub struct CursorPage {
+#[serde(rename_all = "camelCase")]
+pub struct KitsQuery {
+    last_seen_since: Option<chrono::DateTime<Utc>>,
     after: Option<i32>,
 }
 
-/// Handles the `GET /kits/?after=afterId` route.
+/// Handles the `GET /kits/?lastSeenSince=dateTime&after=afterId` route.
 pub async fn kits(
     Extension(pg): Extension<PgPool>,
-    cursor: crate::extract::Query<CursorPage>,
+    cursor: crate::extract::Query<KitsQuery>,
 ) -> Result<Response, Problem> {
     let conn = pg.get().await?;
+
     let kits = conn
         .interact_flatten_err(move |conn| {
-            models::Kit::cursor_page(conn, cursor.after, 100)
-                .map(|kits| kits.into_iter().map(views::Kit::from).collect::<Vec<_>>())
+            use diesel::prelude::*;
+
+            use crate::schema::kits;
+
+            const LIMIT: i64 = 100;
+
+            let mut q = Kit::all()
+                .filter(Kit::public())
+                .order(kits::columns::id.asc())
+                .limit(LIMIT)
+                .left_join(kit_last_seen::table)
+                .select((
+                    models::Kit::as_select(),
+                    kit_last_seen::datetime_last_seen.nullable(),
+                ))
+                .into_boxed();
+
+            if let Some(last_seen_since) = cursor.last_seen_since {
+                q = q.filter(kit_last_seen::columns::datetime_last_seen.ge(last_seen_since));
+            }
+
+            if let Some(after) = cursor.after {
+                q = q.filter(kits::columns::id.gt(after))
+            }
+
+            let kits: QueryResult<Vec<(models::Kit, Option<DateTime<Utc>>)>> = q.load(conn);
+
+            kits.map(|kits| kits.into_iter().map(views::Kit::from).collect::<Vec<_>>())
         })
         .await?;
 
@@ -49,13 +79,29 @@ pub async fn kit_by_serial(
     user_id: Option<crate::extract::UserId>,
 ) -> Result<Response, Problem> {
     let (_, _, kit) = helpers::fut_kit_permission_or_forbidden(
-        pg,
+        pg.clone(),
         user_id,
         kit_serial,
         crate::authorization::KitAction::View,
     )
     .await?;
-    Ok(ResponseBuilder::ok().body(views::Kit::from(kit)))
+
+    let conn = pg.get().await?;
+
+    let kit_id = kit.get_id();
+    let kit_last_seen = conn
+        .interact_flatten_err(move |conn| {
+            use diesel::prelude::*;
+
+            Ok::<_, Problem>(
+                models::KitLastSeen::belonging_to(&kit_id)
+                    .first(conn)
+                    .optional()?
+                    .map(|r: models::KitLastSeen| r.datetime_last_seen),
+            )
+        })
+        .await?;
+    Ok(ResponseBuilder::ok().body(views::Kit::from((kit, kit_last_seen))))
 }
 
 /// Handles the `POST /kits/{kitSerial}/password` route.
@@ -101,7 +147,6 @@ pub async fn create_kit(
     crate::extract::Json(kit): crate::extract::Json<CreateKit>,
 ) -> Result<Response, Problem> {
     use bigdecimal::{BigDecimal, FromPrimitive};
-    use diesel::Connection;
     use validator::Validate;
 
     #[derive(Serialize, Debug)]
@@ -193,8 +238,14 @@ pub async fn patch_kit(
 
     let conn = pg.get().await?;
     conn.interact(move |conn| {
+        use diesel::prelude::*;
         let patched_kit = update_kit.update(conn)?;
-        Ok(ResponseBuilder::ok().body(views::Kit::from(patched_kit)))
+
+        let kit_last_seen = models::KitLastSeen::belonging_to(&patched_kit.get_id())
+            .first(conn)
+            .optional()?
+            .map(|r: models::KitLastSeen| r.datetime_last_seen);
+        Ok(ResponseBuilder::ok().body(views::Kit::from((patched_kit, kit_last_seen))))
     })
     .await?
 }
@@ -268,6 +319,15 @@ pub async fn get_members(
     let conn = pg.get().await?;
 
     let kit_id = kit.id;
+    let kit_last_seen = conn
+        .interact_flatten_err(move |conn| {
+            kit_last_seen::table
+                .select(kit_last_seen::datetime_last_seen)
+                .find(kit_id)
+                .first(conn)
+                .optional()
+        })
+        .await?;
     let members: Vec<(User, KitMembership)> = conn
         .interact_flatten_err(move |conn| {
             use diesel::prelude::*;
@@ -285,7 +345,7 @@ pub async fn get_members(
         .into_iter()
         .map(|(user, membership)| {
             views::KitMembership::from(membership)
-                .with_kit(views::Kit::from(kit.clone()))
+                .with_kit(views::Kit::from((kit.clone(), kit_last_seen)))
                 .with_user(views::User::from(user))
         })
         .collect();
@@ -318,12 +378,18 @@ pub async fn add_member(
 
     let conn = pg.get().await?;
 
-    let kit_id = kit.id;
+    let kit_id = kit.get_id();
     let membership = conn
         .interact_flatten_err(move |conn| {
             use diesel::prelude::*;
+            use models::KitLastSeen;
             use schema::kit_memberships;
             use schema::users;
+
+            let kit_last_seen: Option<DateTime<Utc>> = KitLastSeen::belonging_to(&kit_id)
+                .first(conn)
+                .optional()?
+                .map(|r: KitLastSeen| r.datetime_last_seen);
 
             conn.build_transaction().serializable().run(move |conn| {
                 let user: User = users::table
@@ -331,7 +397,7 @@ pub async fn add_member(
                     .first(conn)?;
 
                 let existing_membership: Option<KitMembership> = kit_memberships::table
-                    .filter(kit_memberships::kit_id.eq(kit_id))
+                    .filter(kit_memberships::kit_id.eq(kit_id.0))
                     .filter(kit_memberships::user_id.eq(user.id))
                     .get_result(conn)
                     .optional()?;
@@ -341,7 +407,7 @@ pub async fn add_member(
                     return Ok::<_, Problem>(
                         views::KitMembership::from(existing_membership)
                             .with_user(views::User::from(user))
-                            .with_kit(views::Kit::from(kit)),
+                            .with_kit(views::Kit::from((kit, kit_last_seen))),
                     );
                 }
 
@@ -357,7 +423,7 @@ pub async fn add_member(
 
                 let membership = NewKitMembership {
                     user_id: user.id,
-                    kit_id,
+                    kit_id: kit_id.0,
                     access_super: member.access_super,
                     access_configure: member.access_configure,
                     datetime_linked: Utc::now(),
@@ -369,7 +435,7 @@ pub async fn add_member(
                 Ok::<_, Problem>(
                     views::KitMembership::from(membership)
                         .with_user(views::User::from(user))
-                        .with_kit(views::Kit::from(kit)),
+                        .with_kit(views::Kit::from((kit, kit_last_seen))),
                 )
             })
         })

@@ -17,10 +17,11 @@ pub struct Kit {
     pub longitude: Option<f64>,
     pub privacy_public_dashboard: bool,
     pub privacy_show_on_map: bool,
+    pub last_seen: Option<DateTime<Utc>>,
 }
 
-impl From<models::Kit> for Kit {
-    fn from(kit: models::Kit) -> Self {
+impl From<(models::Kit, Option<DateTime<Utc>>)> for Kit {
+    fn from((kit, last_seen): (models::Kit, Option<DateTime<Utc>>)) -> Self {
         use bigdecimal::ToPrimitive;
 
         let models::Kit {
@@ -43,6 +44,7 @@ impl From<models::Kit> for Kit {
             longitude: longitude.and_then(|l| l.to_f64()),
             privacy_public_dashboard,
             privacy_show_on_map,
+            last_seen,
         }
     }
 }

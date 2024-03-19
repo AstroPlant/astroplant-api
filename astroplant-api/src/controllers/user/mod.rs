@@ -1,11 +1,14 @@
 use axum::extract::Path;
 use axum::Extension;
+use diesel::prelude::*;
 use serde::Deserialize;
 use validator::Validate;
 
 use crate::database::PgPool;
+use crate::models::{Kit, KitMembership};
 use crate::problem::{self, Problem};
 use crate::response::{Response, ResponseBuilder};
+use crate::schema::{kit_last_seen, kits};
 use crate::{helpers, models, views};
 
 // Handles the `GET /users/{username}` route.
@@ -108,14 +111,23 @@ pub async fn list_kit_memberships(
     let user_id = user.get_id();
     let conn = pg.get().await?;
     let kit_memberships = conn
-        .interact(move |conn| models::KitMembership::memberships_with_kit_of_user_id(conn, user_id))
+        .interact(move |conn| {
+            KitMembership::by_user_id(user_id)
+                .inner_join(kits::table.left_join(kit_last_seen::table))
+                .select((
+                    KitMembership::as_select(),
+                    Kit::as_select(),
+                    kit_last_seen::datetime_last_seen.nullable(),
+                ))
+                .get_results(conn)
+        })
         .await??;
 
     let v: Vec<views::KitMembership<views::User, views::Kit>> = kit_memberships
         .into_iter()
-        .map(|(kit, membership)| {
+        .map(|(membership, kit, kit_last_seen)| {
             views::KitMembership::from(membership)
-                .with_kit(views::Kit::from(kit))
+                .with_kit(views::Kit::from((kit, kit_last_seen)))
                 .with_user(views::User::from(user.clone()))
         })
         .collect();
@@ -134,8 +146,6 @@ pub async fn create_user(
     Extension(pg): Extension<PgPool>,
     crate::extract::Json(user): crate::extract::Json<User>,
 ) -> Result<Response, Problem> {
-    use diesel::Connection;
-
     let username = user.username.clone();
     tracing::trace!("Got request to create user with username: {}", username);
 

@@ -1,5 +1,5 @@
 mod kit;
-pub use kit::{Kit, KitId, NewKit, UpdateKit};
+pub use kit::{Kit, KitLastSeen, KitId, NewKit, UpdateKit};
 
 mod user;
 pub use user::{NewUser, UpdateUser, User, UserId};

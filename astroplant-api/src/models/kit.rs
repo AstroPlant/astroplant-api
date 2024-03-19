@@ -1,6 +1,7 @@
-use crate::schema::kits;
+use crate::schema::{kit_last_seen, kits};
 
 use bigdecimal::BigDecimal;
+use chrono::{DateTime, Utc};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::{Identifiable, QueryResult, Queryable, Selectable};
@@ -24,9 +25,25 @@ pub struct Kit {
     pub privacy_show_on_map: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Queryable, Identifiable, Associations)]
+#[diesel(
+    table_name = kit_last_seen,
+    primary_key(kit_id),
+    belongs_to(KitId, foreign_key = kit_id),
+    belongs_to(Kit, foreign_key = kit_id),
+)]
+pub struct KitLastSeen {
+    pub kit_id: i32,
+    pub datetime_last_seen: DateTime<Utc>,
+}
+
 pub type All = diesel::dsl::Select<kits::table, diesel::dsl::AsSelect<Kit, diesel::pg::Pg>>;
 pub type ById = diesel::dsl::Find<All, i32>;
 pub type BySerial<'a> = diesel::dsl::Filter<All, diesel::dsl::Eq<kits::serial, &'a str>>;
+
+pub type ShowOnMap = diesel::dsl::Eq<kits::privacy_show_on_map, bool>;
+pub type PublicDashboard = diesel::dsl::Eq<kits::privacy_public_dashboard, bool>;
+pub type Public = diesel::dsl::And<ShowOnMap, PublicDashboard>;
 
 impl Kit {
     pub fn all() -> All {
@@ -39,6 +56,21 @@ impl Kit {
 
     pub fn by_serial(serial: &str) -> BySerial<'_> {
         Self::all().filter(kits::columns::serial.eq(serial))
+    }
+
+    /// Kits that are findable on the map
+    pub fn show_on_map() -> ShowOnMap {
+        kits::privacy_show_on_map.eq(true)
+    }
+
+    /// Kits that are publicly viewable by their serial
+    pub fn public_dashboard() -> PublicDashboard {
+        kits::privacy_public_dashboard.eq(true)
+    }
+
+    /// Kits that are findable on the map and publicly viewable by their serial
+    pub fn public() -> Public {
+        Self::show_on_map().and(Self::public_dashboard())
     }
 
     pub fn cursor_page(
@@ -59,6 +91,14 @@ impl Kit {
 
     pub fn get_id(&self) -> KitId {
         KitId(self.id)
+    }
+
+    pub fn last_seen(&self, conn: &mut PgConnection) -> QueryResult<Option<DateTime<Utc>>> {
+        kit_last_seen::table
+            .select(kit_last_seen::datetime_last_seen)
+            .find(self.id)
+            .first(conn)
+            .optional()
     }
 }
 

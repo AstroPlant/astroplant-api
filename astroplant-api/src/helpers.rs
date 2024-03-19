@@ -187,8 +187,6 @@ pub async fn fut_user_permission_or_forbidden(
     object_username: String,
     action: crate::authorization::UserAction,
 ) -> Result<(Option<crate::models::User>, crate::models::User), Problem> {
-    use diesel::Connection;
-
     let conn = pg.get().await?;
     conn.interact(move |conn| {
         conn.transaction(|conn| {

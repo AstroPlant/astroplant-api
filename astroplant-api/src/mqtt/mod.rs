@@ -114,11 +114,16 @@ impl astroplant_mqtt::ServerRpcHandler for Handler_ {
             .map_err(|_| RpcError::Other)?;
         let configuration: Option<_> = conn
             .interact(move |conn| {
-                let kit =
-                    match models::Kit::by_serial(conn, &kit_serial).map_err(|_| RpcError::Other)? {
-                        Some(kit) => kit,
-                        None => return Ok(None),
-                    };
+                use diesel::prelude::*;
+
+                let kit = match models::Kit::by_serial(&kit_serial)
+                    .first(conn)
+                    .optional()
+                    .map_err(|_| RpcError::Other)?
+                {
+                    Some(kit) => kit,
+                    None => return Ok(None),
+                };
                 let configuration =
                     match models::KitConfiguration::active_configuration_of_kit(conn, &kit)
                         .map_err(|_| RpcError::Other)?

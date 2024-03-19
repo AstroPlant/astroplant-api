@@ -24,20 +24,21 @@ pub struct Kit {
     pub privacy_show_on_map: bool,
 }
 
+pub type All = diesel::dsl::Select<kits::table, diesel::dsl::AsSelect<Kit, diesel::pg::Pg>>;
+pub type ById = diesel::dsl::Find<All, i32>;
+pub type BySerial<'a> = diesel::dsl::Filter<All, diesel::dsl::Eq<kits::serial, &'a str>>;
+
 impl Kit {
-    pub fn by_id(conn: &mut PgConnection, id: KitId) -> QueryResult<Option<Kit>> {
-        kits::table.find(id.0).first(conn).optional()
+    pub fn all() -> All {
+        kits::table.select(Kit::as_select())
     }
 
-    pub fn by_serial(conn: &mut PgConnection, serial: &str) -> QueryResult<Option<Kit>> {
-        kits::table
-            .filter(kits::columns::serial.eq(serial))
-            .first(conn)
-            .optional()
+    pub fn by_id(id: KitId) -> ById {
+        Self::all().find(id.0)
     }
 
-    pub fn all(conn: &mut PgConnection) -> QueryResult<Vec<Kit>> {
-        kits::table.load(conn)
+    pub fn by_serial(serial: &str) -> BySerial<'_> {
+        Self::all().filter(kits::columns::serial.eq(serial))
     }
 
     pub fn cursor_page(

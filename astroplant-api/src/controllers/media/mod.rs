@@ -1,5 +1,6 @@
 use axum::extract::Path;
 use axum::Extension;
+use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -150,7 +151,10 @@ pub async fn download_media(
     let (media, kit) = conn
         .interact_flatten_err(move |conn| {
             let media = models::Media::by_id(conn, media_id)?.ok_or(NOT_FOUND)?;
-            let kit = models::Kit::by_id(conn, media.get_kit_id())?.ok_or(NOT_FOUND)?;
+            let kit = models::Kit::by_id(media.get_kit_id())
+                .first(conn)
+                .optional()?
+                .ok_or(NOT_FOUND)?;
 
             Ok::<_, Problem>((media, kit))
         })

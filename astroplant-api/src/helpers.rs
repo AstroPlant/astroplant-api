@@ -1,3 +1,4 @@
+use diesel::prelude::*;
 use diesel::PgConnection;
 
 use crate::authorization::{KitUser, Permission};
@@ -77,8 +78,6 @@ pub async fn fut_kit_permission_or_forbidden(
     ),
     Problem,
 > {
-    use diesel::Connection;
-
     let conn = pg.get().await?;
     conn.interact(move |conn| {
         conn.transaction(|conn| {
@@ -92,7 +91,10 @@ pub async fn fut_kit_permission_or_forbidden(
                 None
             };
 
-            let kit = match crate::models::Kit::by_serial(conn, &kit_serial)? {
+            let kit = match crate::models::Kit::by_serial(&kit_serial)
+                .first(conn)
+                .optional()?
+            {
                 Some(kit) => kit,
                 None => return Ok(None),
             };

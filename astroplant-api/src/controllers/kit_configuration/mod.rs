@@ -1,3 +1,5 @@
+use diesel::prelude::*;
+
 mod kit_configuration;
 mod peripheral;
 
@@ -19,7 +21,9 @@ async fn get_models_from_kit_configuration_id(
     conn.interact(move |conn| {
         let kit_configuration = models::KitConfiguration::by_id(conn, kit_configuration_id)?
             .ok_or(problem::NOT_FOUND)?;
-        let kit = models::Kit::by_id(conn, kit_configuration.get_kit_id())?
+        let kit = models::Kit::by_id(kit_configuration.get_kit_id())
+            .first(conn)
+            .optional()?
             .ok_or(problem::INTERNAL_SERVER_ERROR)?;
         Ok((kit, kit_configuration))
     })
@@ -34,7 +38,9 @@ async fn get_models_from_peripheral_id(
     conn.interact(move |conn| {
         let peripheral =
             models::Peripheral::by_id(conn, peripheral_id)?.ok_or(problem::NOT_FOUND)?;
-        let kit = models::Kit::by_id(conn, peripheral.get_kit_id())?
+        let kit = models::Kit::by_id(peripheral.get_kit_id())
+            .first(conn)
+            .optional()?
             .ok_or(problem::INTERNAL_SERVER_ERROR)?;
         let configuration =
             models::KitConfiguration::by_id(conn, peripheral.get_kit_configuration_id())?

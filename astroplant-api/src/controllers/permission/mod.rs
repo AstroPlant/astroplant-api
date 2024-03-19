@@ -29,13 +29,15 @@ pub async fn user_kit_permissions(
     let (user, membership, kit) = conn
         .interact_flatten_err(move |conn| {
             conn.transaction(|conn| {
+                use diesel::prelude::*;
+
                 let user = if let Some(user_id) = user_id {
                     models::User::by_id(conn, user_id)?
                 } else {
                     None
                 };
 
-                let kit = models::Kit::by_serial(conn, &kit_serial)?;
+                let kit = models::Kit::by_serial(&kit_serial).first(conn).optional()?;
                 if kit.is_none() {
                     return Ok(None);
                 }

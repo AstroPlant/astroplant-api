@@ -1,0 +1,1 @@
+DROP INDEX ix_kit_configurations_active_kit_id

@@ -1,9 +1,10 @@
-use crate::schema::kit_configurations;
-
+use chrono::{DateTime, Utc};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::{Identifiable, QueryResult, Queryable};
 use serde_json::json;
+
+use crate::schema::kit_configurations;
 
 use super::{Kit, KitId};
 
@@ -31,7 +32,10 @@ pub struct KitConfiguration {
     pub controller_symbol: String,
     pub control_rules: serde_json::Value,
     pub active: bool,
+    pub first_activated_at: Option<DateTime<Utc>>,
     pub never_used: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, PartialEq, Queryable, Identifiable, AsChangeset)]

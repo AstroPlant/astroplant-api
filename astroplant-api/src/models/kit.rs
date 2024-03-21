@@ -23,6 +23,8 @@ pub struct Kit {
     pub longitude: Option<BigDecimal>,
     pub privacy_public_dashboard: bool,
     pub privacy_show_on_map: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, PartialEq, Queryable, Identifiable, Associations)]

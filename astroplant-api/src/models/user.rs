@@ -1,5 +1,6 @@
 use crate::schema::users;
 
+use chrono::{DateTime, Utc};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::{Connection, Identifiable, QueryResult, Queryable};
@@ -18,6 +19,8 @@ pub struct User {
     pub email_address: String,
     pub use_email_address_for_gravatar: bool,
     pub gravatar_alternative: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl User {
@@ -32,7 +35,10 @@ impl User {
             .optional()
     }
 
-    pub fn by_email_address(conn: &mut PgConnection, email_address: &str) -> QueryResult<Option<User>> {
+    pub fn by_email_address(
+        conn: &mut PgConnection,
+        email_address: &str,
+    ) -> QueryResult<Option<User>> {
         users::table
             .filter(users::email_address.ilike(email_address))
             .first(conn)

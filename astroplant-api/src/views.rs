@@ -316,6 +316,7 @@ impl From<models::KitConfiguration> for KitConfiguration {
             control_rules,
             active,
             never_used,
+            ..
         }: models::KitConfiguration,
     ) -> Self {
         Self {

@@ -1,2 +1,3 @@
 -- no-op
-SELECT 1;
+SELECT
+    1

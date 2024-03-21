@@ -42,4 +42,4 @@ FROM (
         kit_configuration_id) AS m
 WHERE
     NOT kc.never_used
-    AND m.kit_configuration_id = kc.id;
+    AND m.kit_configuration_id = kc.id

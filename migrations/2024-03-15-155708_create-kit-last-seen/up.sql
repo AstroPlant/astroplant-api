@@ -8,4 +8,4 @@ CREATE INDEX ix_kit_last_seen_datetime_last_seen ON public.kit_last_seen USING b
 
 -- foreign keys
 ALTER TABLE public.kit_last_seen
-    ADD CONSTRAINT kit_last_seen_kit_id_fkey FOREIGN KEY (kit_id) REFERENCES kits (id) ON DELETE CASCADE ON UPDATE CASCADE;
+    ADD CONSTRAINT kit_last_seen_kit_id_fkey FOREIGN KEY (kit_id) REFERENCES kits (id) ON DELETE CASCADE ON UPDATE CASCADE

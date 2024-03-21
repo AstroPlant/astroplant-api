@@ -78,4 +78,4 @@ FROM (
     GROUP BY
         user_id) AS m
 WHERE
-    m.user_id = id;
+    m.user_id = id

@@ -1,1 +1,1 @@
-DROP TABLE kit_last_seen;
+DROP TABLE kit_last_seen

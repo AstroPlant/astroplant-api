@@ -1,1 +1,1 @@
-DROP TABLE kit_memberships;
+DROP TABLE kit_memberships

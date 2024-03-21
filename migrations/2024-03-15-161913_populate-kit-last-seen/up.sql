@@ -7,4 +7,4 @@ FROM
 GROUP BY
     kit_id
 ON CONFLICT
-    DO NOTHING;
+    DO NOTHING

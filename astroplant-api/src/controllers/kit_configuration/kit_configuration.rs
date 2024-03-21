@@ -221,10 +221,6 @@ pub async fn patch_configuration(
         controller_symbol: kit_configuration_patch.controller_symbol,
         control_rules: kit_configuration_patch.control_rules,
         active: kit_configuration_patch.active,
-        never_used: match kit_configuration_patch.active {
-            Some(true) => Some(false),
-            _ => None,
-        },
     };
 
     let conn = pg.get().await?;

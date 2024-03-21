@@ -44,7 +44,6 @@ pub struct UpdateKitConfiguration {
     pub controller_symbol: Option<String>,
     pub control_rules: Option<serde_json::Value>,
     pub active: Option<bool>,
-    pub never_used: Option<bool>,
 }
 
 impl KitConfiguration {
